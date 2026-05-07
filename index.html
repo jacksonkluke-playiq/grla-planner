@@ -1248,7 +1248,7 @@ function App() {
       </nav>
 
       {activeTab === "planner" && <DailyPlanner customActivities={customActivities} setActiveTab={setActiveTab} setSelectedWeek={setSelectedWeek} setSelectedDay={setSelectedDay} userWeekOverrides={userWeekOverrides} setUserWeekOverrides={setUserWeekOverrides} seasonWeeks={seasonWeeks} weekDays={weekDays} currentTeam={currentTeam} sessionStartTime={sessionStartTime} />}
-      {activeTab === "session" && <SessionBuilder selectedWeek={selectedWeek} setSelectedWeek={setSelectedWeek} selectedDay={selectedDay} setSelectedDay={setSelectedDay} showAddModal={showAddModal} setShowAddModal={setShowAddModal} showCopyModal={showCopyModal} setShowCopyModal={setShowCopyModal} showPasteModal={showPasteModal} setShowPasteModal={setShowPasteModal} customActivities={customActivities} setCustomActivities={setCustomActivities} coverageData={coverageData} setCoverageData={setCoverageData} userWeekOverrides={userWeekOverrides} setUserWeekOverrides={setUserWeekOverrides} seasonWeeks={seasonWeeks} sessionReviews={sessionReviews} setSessionReviews={setSessionReviews} weekDays={weekDays} setWeekDays={setWeekDays} sessionStartTime={sessionStartTime} setSessionStartTime={setSessionStartTime} />}
+      {activeTab === "session" && <SessionBuilder selectedWeek={selectedWeek} setSelectedWeek={setSelectedWeek} selectedDay={selectedDay} setSelectedDay={setSelectedDay} showAddModal={showAddModal} setShowAddModal={setShowAddModal} showCopyModal={showCopyModal} setShowCopyModal={setShowCopyModal} showPasteModal={showPasteModal} setShowPasteModal={setShowPasteModal} customActivities={customActivities} setCustomActivities={setCustomActivities} coverageData={coverageData} setCoverageData={setCoverageData} userWeekOverrides={userWeekOverrides} setUserWeekOverrides={setUserWeekOverrides} seasonWeeks={seasonWeeks} sessionReviews={sessionReviews} setSessionReviews={setSessionReviews} weekDays={weekDays} setWeekDays={setWeekDays} sessionStartTime={sessionStartTime} setSessionStartTime={setSessionStartTime} currentTeam={currentTeam} currentGroup={currentGroup} currentSub={currentSub} />}
       {activeTab === "season" && <SeasonOverview setActiveTab={setActiveTab} setSelectedWeek={setSelectedWeek} setSelectedDay={setSelectedDay} seasonWeeks={seasonWeeks} userWeekOverrides={userWeekOverrides} customActivities={customActivities} weekDays={weekDays} />}
       {activeTab === "drills" && <DrillLibrary search={drillSearch} setSearch={setDrillSearch} />}
       {activeTab === "squad" && <SquadTracker squad={squad} setSquad={setSquad} roster={roster} setRoster={setRoster} currentSub={currentSub} currentGroup={currentGroup} />}
@@ -1277,7 +1277,7 @@ function App() {
   );
 }
 
-function SessionBuilder({ selectedWeek, setSelectedWeek, selectedDay, setSelectedDay, showAddModal, setShowAddModal, showCopyModal, setShowCopyModal, showPasteModal, setShowPasteModal, customActivities, setCustomActivities, coverageData, setCoverageData, userWeekOverrides, setUserWeekOverrides, seasonWeeks, sessionReviews, setSessionReviews, weekDays, setWeekDays, sessionStartTime, setSessionStartTime }) {
+function SessionBuilder({ selectedWeek, setSelectedWeek, selectedDay, setSelectedDay, showAddModal, setShowAddModal, showCopyModal, setShowCopyModal, showPasteModal, setShowPasteModal, customActivities, setCustomActivities, coverageData, setCoverageData, userWeekOverrides, setUserWeekOverrides, seasonWeeks, sessionReviews, setSessionReviews, weekDays, setWeekDays, sessionStartTime, setSessionStartTime, currentTeam, currentGroup, currentSub }) {
   const SEASON_WEEKS = seasonWeeks || DEFAULT_SEASON_WEEKS;
   const [draggedIndex, setDraggedIndex] = useState(null);
   const [editingWeekInfo, setEditingWeekInfo] = useState(false);
@@ -1478,8 +1478,13 @@ function SessionBuilder({ selectedWeek, setSelectedWeek, selectedDay, setSelecte
     const focusLabel = weekData ? weekData.focus : '';
     const gameLabel = weekData ? weekData.game : '';
     const blockColors = { 1: '#f59e0b', 2: '#3b82f6', 3: '#22c55e', 4: '#ef4444' };
-    const phaseLabel = weekData ? weekData.blockName : '';
+    const phaseLabel = (weekData && weekData.blockName) || '';
     const phaseColor = weekData ? (blockColors[weekData.block] || '#22c55e') : '#22c55e';
+    // Keebra branding context
+    const teamLabel = currentGroup ? `${currentGroup.label} ${currentSub || ''}`.trim() : '';
+    const logoSrc = (() => {
+      try { return document.querySelector('.logo-icon img')?.src || ''; } catch(e) { return ''; }
+    })();
 
     let totalDuration = 0;
     const rows = allActivitiesWithTimes.map((a, i) => {
@@ -1504,32 +1509,51 @@ function SessionBuilder({ selectedWeek, setSelectedWeek, selectedDay, setSelecte
 <html>
 <head>
 <meta charset="UTF-8" />
-<title>PlayIQ — ${weekLabel} ${selectedDay} Session</title>
+<title>Keebra Park GRLA — ${weekLabel} ${selectedDay}</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'Inter', -apple-system, sans-serif; background: #fff; color: #1a1a2e; padding: 0; }
 
-  .page { max-width: 800px; margin: 0 auto; padding: 40px 48px; }
+  .page { max-width: 820px; margin: 0 auto; padding: 32px 48px 40px; }
 
-  /* Header stripe */
+  /* Header stripe — Keebra branded (white bg, pink accent) */
   .header-stripe {
-    background: #1a1a2e;
-    padding: 32px 48px;
-    color: white;
+    background: #ffffff;
+    padding: 28px 48px 22px;
+    color: #1a1a2e;
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
+    border-bottom: 4px solid #E95B9E;
+    position: relative;
   }
-  .header-left { }
-  .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-  .brand-icon { width: 32px; height: 32px; background: #E95B9E; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 15px; color: white; }
-  .brand-text { font-size: 18px; font-weight: 800; color: #29BAE5; }
-  .session-title { font-size: 28px; font-weight: 900; letter-spacing: -0.5px; margin-bottom: 4px; }
-  .session-sub { font-size: 14px; color: rgba(255,255,255,0.6); font-weight: 500; }
-  .header-right { text-align: right; padding-top: 4px; }
-  .phase-pill { display: inline-block; padding: 4px 14px; border-radius: 20px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
-  .date-label { font-size: 13px; color: rgba(255,255,255,0.5); margin-top: 8px; }
+  .header-stripe::before {
+    content: '';
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 2px;
+    background: linear-gradient(90deg, #E95B9E 0%, #E95B9E 50%, #29BAE5 50%, #29BAE5 100%);
+  }
+  .header-left { display: flex; align-items: center; gap: 16px; }
+  .brand-icon {
+    width: 64px; height: 64px;
+    background: linear-gradient(135deg, #E95B9E, #29BAE5);
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 900; font-size: 22px; color: white;
+    overflow: hidden; flex-shrink: 0;
+  }
+  .brand-icon img { width: 100%; height: 100%; object-fit: contain; background: white; }
+  .brand-text-wrap { display: flex; flex-direction: column; gap: 2px; }
+  .brand-text { font-size: 22px; font-weight: 900; color: #29BAE5; line-height: 1.1; letter-spacing: -0.3px; }
+  .brand-sub { font-size: 10px; color: #E95B9E; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; }
+  .session-title { font-size: 24px; font-weight: 900; letter-spacing: -0.5px; margin-top: 14px; color: #1a1a2e; }
+  .session-sub { font-size: 13px; color: #5e6278; font-weight: 500; margin-top: 4px; }
+  .header-right { text-align: right; padding-top: 4px; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+  .team-pill { display: inline-block; padding: 5px 14px; border-radius: 20px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; background: rgba(233,91,158,0.12); color: #E95B9E; border: 1px solid rgba(233,91,158,0.3); }
+  .phase-pill { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+  .date-label { font-size: 12px; color: #8f95a8; font-weight: 500; }
 
   /* Info bar */
   .info-bar {
@@ -1594,16 +1618,20 @@ function SessionBuilder({ selectedWeek, setSelectedWeek, selectedDay, setSelecte
 </head>
 <body>
   <div class="header-stripe">
-    <div class="header-left">
-      <div class="brand">
-        <div class="brand-icon">P</div>
-        <div class="brand-text">PlayIQ</div>
+    <div>
+      <div class="header-left">
+        <div class="brand-icon">${logoSrc ? `<img src="${logoSrc}" alt="Keebra Park GRLA" />` : 'KP'}</div>
+        <div class="brand-text-wrap">
+          <div class="brand-text">Session Planner</div>
+          <div class="brand-sub">Keebra Park · Girls Rugby League Academy</div>
+        </div>
       </div>
       <div class="session-title">${weekLabel} — ${selectedDay}</div>
       <div class="session-sub">${focusLabel ? 'Focus: ' + focusLabel : ''}${gameLabel ? (focusLabel ? ' · ' : '') + 'Game: ' + gameLabel : ''}</div>
     </div>
     <div class="header-right">
-      <div class="phase-pill" style="background: ${phaseColor}20; color: ${phaseColor}; border: 1px solid ${phaseColor}50;">${phaseLabel}</div>
+      ${teamLabel ? '<div class="team-pill">' + teamLabel + '</div>' : ''}
+      ${phaseLabel ? `<div class="phase-pill" style="background: ${phaseColor}20; color: ${phaseColor}; border: 1px solid ${phaseColor}50;">${phaseLabel}</div>` : ''}
       ${dateLabel ? '<div class="date-label">' + dateLabel + '</div>' : ''}
     </div>
   </div>
@@ -1629,7 +1657,7 @@ function SessionBuilder({ selectedWeek, setSelectedWeek, selectedDay, setSelecte
     </table>
 
     <div class="footer">
-      <div><span class="footer-brand">PlayIQ Coaching OS</span> · Session Plan Export</div>
+      <div><span class="footer-brand">Keebra Park GRLA</span> · Session Plan</div>
       <div>Exported ${new Date().toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
     </div>
 
@@ -2823,49 +2851,100 @@ function EditActivityModal({ activity, onClose, onSave, onDelete, canBeParallel 
 }
 
 function AddDrillModal({ onClose, onAdd }) {
+  const [mode, setMode] = useState('library'); // 'library' | 'custom'
   const [category, setCategory] = useState(Object.keys(DRILL_LIBRARY)[0]);
   const [selectedDrill, setSelectedDrill] = useState("");
+  const [customName, setCustomName] = useState("");
+  const [customFocus, setCustomFocus] = useState("");
   const [time, setTime] = useState("");
   const [duration, setDuration] = useState("");
   const [staff, setStaff] = useState("");
   const [notes, setNotes] = useState("");
 
   const drills = DRILL_LIBRARY[category]?.drills || [];
+  const canSubmit = mode === 'library' ? !!selectedDrill : !!customName.trim();
 
   function handleSubmit() {
-    const drill = drills.find(d => d.name === selectedDrill);
-    onAdd({
-      time: time || "",
-      activity: selectedDrill || "Custom Drill",
-      duration: duration || "",
-      notes: notes || (drill?.notes || ""),
-      focus: "",
-      staff: staff || "",
-    });
+    if (!canSubmit) return;
+    if (mode === 'library') {
+      const drill = drills.find(d => d.name === selectedDrill);
+      onAdd({
+        time: time || "",
+        activity: selectedDrill,
+        duration: duration || "",
+        notes: notes || (drill?.notes || ""),
+        focus: "",
+        staff: staff || "",
+      });
+    } else {
+      onAdd({
+        time: time || "",
+        activity: customName.trim(),
+        duration: duration || "",
+        notes: notes || "",
+        focus: customFocus.trim() || "",
+        staff: staff || "",
+      });
+    }
   }
+
+  const tabBtnStyle = (active) => ({
+    flex: 1, padding: '10px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+    border: '1px solid ' + (active ? 'var(--accent)' : 'var(--border)'),
+    background: active ? 'var(--accent-glow)' : 'var(--bg-input)',
+    color: active ? 'var(--accent-light)' : 'var(--text-secondary)',
+    cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s'
+  });
 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()}>
         <h3>Add Drill to Session</h3>
-        <div className="form-group">
-          <label className="form-label">Category</label>
-          <select className="form-select" value={category} onChange={e => { setCategory(e.target.value); setSelectedDrill(""); }}>
-            {Object.keys(DRILL_LIBRARY).map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
+
+        <div style={{display:'flex', gap:8, marginBottom:16}}>
+          <button style={tabBtnStyle(mode === 'library')} onClick={() => setMode('library')}>From Drill Library</button>
+          <button style={tabBtnStyle(mode === 'custom')} onClick={() => setMode('custom')}>Custom drill</button>
         </div>
-        <div className="form-group">
-          <label className="form-label">Drill</label>
-          <select className="form-select" value={selectedDrill} onChange={e => setSelectedDrill(e.target.value)}>
-            <option value="">Select a drill...</option>
-            {drills.map(d => <option key={d.name} value={d.name}>{d.name}</option>)}
-          </select>
-          {selectedDrill && drills.find(d => d.name === selectedDrill)?.notes && (
-            <div style={{fontSize:11, color:'var(--text-muted)', marginTop:4}}>
-              {drills.find(d => d.name === selectedDrill).notes}
+
+        {mode === 'library' ? (
+          <>
+            <div className="form-group">
+              <label className="form-label">Category</label>
+              <select className="form-select" value={category} onChange={e => { setCategory(e.target.value); setSelectedDrill(""); }}>
+                {Object.keys(DRILL_LIBRARY).map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
             </div>
-          )}
-        </div>
+            <div className="form-group">
+              <label className="form-label">Drill</label>
+              <select className="form-select" value={selectedDrill} onChange={e => setSelectedDrill(e.target.value)}>
+                <option value="">Select a drill...</option>
+                {drills.map(d => <option key={d.name} value={d.name}>{d.name}</option>)}
+              </select>
+              {selectedDrill && drills.find(d => d.name === selectedDrill)?.notes && (
+                <div style={{fontSize:11, color:'var(--text-muted)', marginTop:4}}>
+                  {drills.find(d => d.name === selectedDrill).notes}
+                </div>
+              )}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="form-group">
+              <label className="form-label">Drill name *</label>
+              <input className="form-input" autoFocus placeholder="e.g. 4 v 4 Edge Defence"
+                value={customName} onChange={e => setCustomName(e.target.value)} />
+              <div style={{fontSize:11, color:'var(--text-muted)', marginTop:4}}>
+                Type any drill name — it doesn't need to be in the library.
+              </div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Focus / Tag (optional)</label>
+              <input className="form-input" placeholder="e.g. Defence · Skill · Conditioning"
+                value={customFocus} onChange={e => setCustomFocus(e.target.value)} />
+            </div>
+          </>
+        )}
+
         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:10}}>
           <div className="form-group">
             <label className="form-label">Time</label>
@@ -2886,7 +2965,7 @@ function AddDrillModal({ onClose, onAdd }) {
         </div>
         <div className="btn-row">
           <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={handleSubmit} disabled={!selectedDrill}>Add to Session</button>
+          <button className="btn btn-primary" onClick={handleSubmit} disabled={!canSubmit}>Add to Session</button>
         </div>
       </div>
     </div>
@@ -3507,47 +3586,49 @@ function SquadTracker({ squad, setSquad, roster, setRoster, currentSub, currentG
 
   function PlayerCard({ p }) {
     const isUnavailable = p.available === false;
+    const inTeam = inRoster(p._id);
+    const disabled = !inTeam && rosterFull;
     return (
       <div draggable onDragStart={e => handleDragStart(e, p._idx)} onDragEnd={handleDragEnd}
-        style={{display:'flex', alignItems:'center', gap:8, padding:'7px 10px', background: isUnavailable ? 'var(--bg-input)' : 'var(--bg-card)', border:'1px solid var(--border)', borderRadius:8, opacity: isUnavailable ? 0.5 : 1, cursor:'grab', marginBottom:4, transition:'all 0.15s'}}>
-        <span style={{color:'var(--text-muted)', cursor:'grab', display:'inline-flex', flexShrink:0}}><Icon name="grip" size={14}/></span>
-        <Avatar name={p.name} size={32} unavailable={isUnavailable} />
-        <input value={p.number} onChange={e => updatePlayer(p._idx, 'number', e.target.value)} placeholder="#"
-          style={{width:32, padding:'2px 4px', fontSize:12, fontWeight:700, textAlign:'center', color:'var(--brand-cyan)', background:'transparent', border:'1px solid transparent', borderRadius:4, outline:'none', fontFamily:'inherit'}}
-          onFocus={e => e.target.style.borderColor='var(--border)'} onBlur={e => e.target.style.borderColor='transparent'} onClick={e => e.stopPropagation()} />
-        <span style={{flex:1, fontSize:13, fontWeight:500, color: isUnavailable ? 'var(--text-muted)' : 'var(--text-primary)', textDecoration: isUnavailable ? 'line-through' : 'none', minWidth:80, whiteSpace:'normal', wordBreak:'break-word', lineHeight:1.25}}>{p.name}</span>
-        <select value={p.position} onChange={e => updatePlayer(p._idx, 'position', e.target.value)} onClick={e => e.stopPropagation()}
-          style={{padding:'3px 4px', fontSize:10, fontWeight:600, color:'var(--text-secondary)', background:'var(--bg-input)', border:'1px solid var(--border)', borderRadius:5, cursor:'pointer', fontFamily:'inherit', maxWidth:90}}>
-          <option value="">Position...</option>
-          {POSITIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}
-        </select>
-        <button onClick={e => { e.stopPropagation(); toggleAvailability(p._idx); }}
-          style={{background: isUnavailable ? 'var(--red-bg)' : 'var(--green-bg)', color: isUnavailable ? 'var(--red)' : 'var(--green)', border:'none', borderRadius:12, padding:'2px 8px', fontSize:9, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap'}}>
-          {isUnavailable ? 'OUT' : 'IN'}
-        </button>
-        {(() => {
-          const inTeam = inRoster(p._id);
-          const disabled = !inTeam && rosterFull;
-          return (
-            <button onClick={e => { e.stopPropagation(); if (!disabled) toggleRoster(p._id); }}
-              disabled={disabled}
-              title={inTeam ? `Remove from ${currentSub} 18` : disabled ? `${currentSub} 18 is full` : `Add to ${currentSub} 18`}
-              style={{
-                background: inTeam ? teamColor : 'transparent',
-                color: inTeam ? 'white' : (disabled ? 'var(--text-muted)' : teamColor),
-                border: `1px solid ${inTeam ? teamColor : 'var(--border)'}`,
-                borderRadius: 12, padding: '2px 8px', fontSize: 9, fontWeight: 700,
-                cursor: disabled ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap',
-                opacity: disabled ? 0.5 : 1
-              }}>
-              {inTeam ? `✓ ${currentSub.toUpperCase()}` : `+ ${currentSub.toUpperCase()}`}
-            </button>
-          );
-        })()}
-        <button onClick={e => { e.stopPropagation(); deletePlayer(p._idx); }}
-          style={{background:'none', border:'none', color:'var(--text-muted)', cursor:'pointer', padding:4, display:'inline-flex'}}>
-          <Icon name="x" size={14}/>
-        </button>
+        style={{display:'flex', flexDirection:'column', gap:6, padding:'8px 10px', background: isUnavailable ? 'var(--bg-input)' : 'var(--bg-card)', border:'1px solid var(--border)', borderRadius:8, opacity: isUnavailable ? 0.5 : 1, cursor:'grab', marginBottom:6, transition:'all 0.15s'}}>
+        {/* Row 1: drag, avatar, #, name (full width), delete */}
+        <div style={{display:'flex', alignItems:'center', gap:8, minWidth:0}}>
+          <span style={{color:'var(--text-muted)', cursor:'grab', display:'inline-flex', flexShrink:0}}><Icon name="grip" size={14}/></span>
+          <Avatar name={p.name} size={32} unavailable={isUnavailable} />
+          <input value={p.number} onChange={e => updatePlayer(p._idx, 'number', e.target.value)} placeholder="#"
+            style={{width:34, padding:'2px 4px', fontSize:12, fontWeight:700, textAlign:'center', color:'var(--brand-cyan)', background:'transparent', border:'1px solid transparent', borderRadius:4, outline:'none', fontFamily:'inherit', flexShrink:0}}
+            onFocus={e => e.target.style.borderColor='var(--border)'} onBlur={e => e.target.style.borderColor='transparent'} onClick={e => e.stopPropagation()} />
+          <span style={{flex:1, fontSize:13, fontWeight:500, color: isUnavailable ? 'var(--text-muted)' : 'var(--text-primary)', textDecoration: isUnavailable ? 'line-through' : 'none', whiteSpace:'normal', overflowWrap:'break-word', lineHeight:1.25, minWidth:0}}>{p.name}</span>
+          <button onClick={e => { e.stopPropagation(); deletePlayer(p._idx); }} title="Remove from squad"
+            style={{background:'none', border:'none', color:'var(--text-muted)', cursor:'pointer', padding:4, display:'inline-flex', flexShrink:0}}>
+            <Icon name="x" size={14}/>
+          </button>
+        </div>
+        {/* Row 2: position dropdown, IN/OUT, +TEAM */}
+        <div style={{display:'flex', alignItems:'center', gap:6, paddingLeft:30, flexWrap:'wrap'}}>
+          <select value={p.position} onChange={e => updatePlayer(p._idx, 'position', e.target.value)} onClick={e => e.stopPropagation()}
+            style={{padding:'3px 6px', fontSize:11, fontWeight:600, color:'var(--text-secondary)', background:'var(--bg-input)', border:'1px solid var(--border)', borderRadius:5, cursor:'pointer', fontFamily:'inherit', flexShrink:0}}>
+            <option value="">Position...</option>
+            {POSITIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}
+          </select>
+          <button onClick={e => { e.stopPropagation(); toggleAvailability(p._idx); }}
+            style={{background: isUnavailable ? 'var(--red-bg)' : 'var(--green-bg)', color: isUnavailable ? 'var(--red)' : 'var(--green)', border:'none', borderRadius:12, padding:'3px 10px', fontSize:10, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap', flexShrink:0}}>
+            {isUnavailable ? 'OUT' : 'IN'}
+          </button>
+          <button onClick={e => { e.stopPropagation(); if (!disabled) toggleRoster(p._id); }}
+            disabled={disabled}
+            title={inTeam ? `Remove from ${currentSub} 18` : disabled ? `${currentSub} 18 is full` : `Add to ${currentSub} 18`}
+            style={{
+              background: inTeam ? teamColor : 'transparent',
+              color: inTeam ? 'white' : (disabled ? 'var(--text-muted)' : teamColor),
+              border: `1px solid ${inTeam ? teamColor : 'var(--border)'}`,
+              borderRadius: 12, padding: '3px 10px', fontSize: 10, fontWeight: 700,
+              cursor: disabled ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap',
+              opacity: disabled ? 0.5 : 1, flexShrink: 0
+            }}>
+            {inTeam ? `✓ ${currentSub.toUpperCase()}` : `+ ${currentSub.toUpperCase()}`}
+          </button>
+        </div>
       </div>
     );
   }
