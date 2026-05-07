@@ -3515,7 +3515,7 @@ function SquadTracker({ squad, setSquad, roster, setRoster, currentSub, currentG
         <input value={p.number} onChange={e => updatePlayer(p._idx, 'number', e.target.value)} placeholder="#"
           style={{width:32, padding:'2px 4px', fontSize:12, fontWeight:700, textAlign:'center', color:'var(--brand-cyan)', background:'transparent', border:'1px solid transparent', borderRadius:4, outline:'none', fontFamily:'inherit'}}
           onFocus={e => e.target.style.borderColor='var(--border)'} onBlur={e => e.target.style.borderColor='transparent'} onClick={e => e.stopPropagation()} />
-        <span style={{flex:1, fontSize:13, fontWeight:500, color: isUnavailable ? 'var(--text-muted)' : 'var(--text-primary)', textDecoration: isUnavailable ? 'line-through' : 'none', minWidth:60, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>{p.name}</span>
+        <span style={{flex:1, fontSize:13, fontWeight:500, color: isUnavailable ? 'var(--text-muted)' : 'var(--text-primary)', textDecoration: isUnavailable ? 'line-through' : 'none', minWidth:80, whiteSpace:'normal', wordBreak:'break-word', lineHeight:1.25}}>{p.name}</span>
         <select value={p.position} onChange={e => updatePlayer(p._idx, 'position', e.target.value)} onClick={e => e.stopPropagation()}
           style={{padding:'3px 4px', fontSize:10, fontWeight:600, color:'var(--text-secondary)', background:'var(--bg-input)', border:'1px solid var(--border)', borderRadius:5, cursor:'pointer', fontFamily:'inherit', maxWidth:90}}>
           <option value="">Position...</option>
