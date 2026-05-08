@@ -557,22 +557,22 @@ function recalcTimes(activities, startTime) {
   let currentMinutes = hours * 60 + minutes;
   let groupStartMinutes = currentMinutes;
   let groupMaxDuration = 0;
+  const fmt = (mins) => `${Math.floor(mins / 60)}:${String(mins % 60).padStart(2, '0')}`;
   return activities.map((activity, i) => {
     const dur = parseInt(activity.duration) || 0;
     const isParallel = !!activity.parallel && i > 0;
+    let startMins;
     if (isParallel) {
       if (dur > groupMaxDuration) groupMaxDuration = dur;
-      const hour = Math.floor(groupStartMinutes / 60);
-      const min = groupStartMinutes % 60;
-      return { ...activity, time: `${hour}:${String(min).padStart(2, '0')}` };
+      startMins = groupStartMinutes;
     } else {
       currentMinutes = groupStartMinutes + groupMaxDuration;
       groupStartMinutes = currentMinutes;
       groupMaxDuration = dur;
-      const hour = Math.floor(currentMinutes / 60);
-      const min = currentMinutes % 60;
-      return { ...activity, time: `${hour}:${String(min).padStart(2, '0')}` };
+      startMins = currentMinutes;
     }
+    const endMins = startMins + dur;
+    return { ...activity, time: fmt(startMins), endTime: fmt(endMins) };
   });
 }
 
@@ -1041,9 +1041,13 @@ function App() {
   const [squad, setSquad] = useState(() => {
     try { return JSON.parse(localStorage.getItem(`playiq_${currentGroup.id}_squad_v3`) || '[]'); } catch(e) { return []; }
   });
-  // Roster (the team-of-18 selection) stays per Cup/Challenge
+  // Roster (players tagged "in" Cup or Challenge) stays per Cup/Challenge
   const [roster, setRoster] = useState(() => {
     try { return JSON.parse(localStorage.getItem(`playiq_${currentTeam}_roster`) || '[]'); } catch(e) { return []; }
+  });
+  // Match-day 18: array of 18 player IDs (positions 1-18) per Cup/Challenge
+  const [matchday18, setMatchday18] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(`playiq_${currentTeam}_matchday18`) || '[]'); } catch(e) { return []; }
   });
   const [sessionReviews, setSessionReviews] = useState(() => {
     try { return JSON.parse(localStorage.getItem(`playiq_${currentTeam}_sessionReviews`) || '{}'); } catch(e) { return {}; }
@@ -1060,9 +1064,21 @@ function App() {
   const [weeklyGoals, setWeeklyGoals] = useState(() => {
     try { return JSON.parse(localStorage.getItem(`playiq_${currentTeam}_weeklyGoals`) || '{}'); } catch(e) { return {}; }
   });
-  const [sessionStartTime, setSessionStartTime] = useState(() => {
-    return localStorage.getItem(`playiq_${currentTeam}_sessionStartTime`) || '16:00';
+  // sessionStartTimes: map of `${week}-${day}` → "HH:MM", with `_default` fallback
+  const [sessionStartTimes, setSessionStartTimes] = useState(() => {
+    const raw = localStorage.getItem(`playiq_${currentTeam}_sessionStartTimes`);
+    if (raw) { try { return JSON.parse(raw); } catch(e) {} }
+    const legacy = localStorage.getItem(`playiq_${currentTeam}_sessionStartTime`);
+    return { _default: legacy || '16:00' };
   });
+  const getSessionStartTime = (week, day) => {
+    if (!week || !day) return sessionStartTimes._default || '16:00';
+    return sessionStartTimes[`${week}-${day}`] || sessionStartTimes._default || '16:00';
+  };
+  const setSessionStartTimeForDay = (week, day, val) => {
+    if (!week || !day) return;
+    setSessionStartTimes(prev => ({ ...prev, [`${week}-${day}`]: val }));
+  };
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('playiq_onboarded'));
   const [showSeasonSetup, setShowSeasonSetup] = useState(false);
   const [saveIndicator, setSaveIndicator] = useState(false);
@@ -1085,12 +1101,18 @@ function App() {
     try { setCoverageData(JSON.parse(localStorage.getItem(teamKey('coverageData')) || '{}')); } catch(e) { setCoverageData({}); }
     try { setSquad(JSON.parse(localStorage.getItem(`playiq_${currentGroup.id}_squad_v3`) || '[]')); } catch(e) { setSquad([]); }
     try { setRoster(JSON.parse(localStorage.getItem(teamKey('roster')) || '[]')); } catch(e) { setRoster([]); }
+    try { setMatchday18(JSON.parse(localStorage.getItem(teamKey('matchday18')) || '[]')); } catch(e) { setMatchday18([]); }
     try { setSessionReviews(JSON.parse(localStorage.getItem(teamKey('sessionReviews')) || '{}')); } catch(e) { setSessionReviews({}); }
     try { setSeasonConfig(JSON.parse(localStorage.getItem(teamKey('seasonConfig')) || 'null')); } catch(e) { setSeasonConfig(null); }
     try { setWeekDays(JSON.parse(localStorage.getItem(teamKey('weekDays')) || '{}')); } catch(e) { setWeekDays({}); }
     try { setPlannerNotes(JSON.parse(localStorage.getItem(teamKey('plannerNotes')) || '{}')); } catch(e) { setPlannerNotes({}); }
     try { setWeeklyGoals(JSON.parse(localStorage.getItem(teamKey('weeklyGoals')) || '{}')); } catch(e) { setWeeklyGoals({}); }
-    setSessionStartTime(localStorage.getItem(teamKey('sessionStartTime')) || '16:00');
+    (() => {
+      const raw = localStorage.getItem(teamKey('sessionStartTimes'));
+      if (raw) { try { setSessionStartTimes(JSON.parse(raw)); return; } catch(e) {} }
+      const legacy = localStorage.getItem(teamKey('sessionStartTime'));
+      setSessionStartTimes({ _default: legacy || '16:00' });
+    })();
     setBlueprintLoaded(localStorage.getItem(teamKey('blueprintLoaded')) === 'true');
   }, [currentTeam]);
 
@@ -1105,12 +1127,13 @@ function App() {
   useEffect(() => { localStorage.setItem(teamKey('weekOverrides'), JSON.stringify(userWeekOverrides)); }, [userWeekOverrides, currentTeam]);
   useEffect(() => { localStorage.setItem(`playiq_${currentGroup.id}_squad_v3`, JSON.stringify(squad)); }, [squad, currentGroup.id]);
   useEffect(() => { localStorage.setItem(teamKey('roster'), JSON.stringify(roster)); }, [roster, currentTeam]);
+  useEffect(() => { localStorage.setItem(teamKey('matchday18'), JSON.stringify(matchday18)); }, [matchday18, currentTeam]);
   useEffect(() => { localStorage.setItem(teamKey('sessionReviews'), JSON.stringify(sessionReviews)); }, [sessionReviews, currentTeam]);
   useEffect(() => { if (seasonConfig) localStorage.setItem(teamKey('seasonConfig'), JSON.stringify(seasonConfig)); }, [seasonConfig, currentTeam]);
   useEffect(() => { localStorage.setItem(teamKey('weekDays'), JSON.stringify(weekDays)); }, [weekDays, currentTeam]);
   useEffect(() => { localStorage.setItem(teamKey('plannerNotes'), JSON.stringify(plannerNotes)); }, [plannerNotes, currentTeam]);
   useEffect(() => { localStorage.setItem(teamKey('weeklyGoals'), JSON.stringify(weeklyGoals)); }, [weeklyGoals, currentTeam]);
-  useEffect(() => { localStorage.setItem(teamKey('sessionStartTime'), sessionStartTime); }, [sessionStartTime, currentTeam]);
+  useEffect(() => { localStorage.setItem(teamKey('sessionStartTimes'), JSON.stringify(sessionStartTimes)); }, [sessionStartTimes, currentTeam]);
 
   function handleSetupSeason(config) {
     setSeasonConfig(config);
@@ -1141,6 +1164,7 @@ function App() {
       teamLabel: TEAMS.find(t => t.id === currentTeam)?.label,
       customActivities, coverageData, blueprintLoaded, userWeekOverrides,
       squad, roster, sessionReviews, seasonConfig, weekDays, plannerNotes, weeklyGoals,
+      sessionStartTimes,
       exportDate: new Date().toISOString()
     };
     const json = JSON.stringify(data, null, 2);
@@ -1177,6 +1201,8 @@ function App() {
         if (data.weekDays) setWeekDays(data.weekDays);
         if (data.plannerNotes) setPlannerNotes(data.plannerNotes);
         if (data.weeklyGoals) setWeeklyGoals(data.weeklyGoals);
+        if (data.sessionStartTimes) setSessionStartTimes(data.sessionStartTimes);
+        else if (data.sessionStartTime) setSessionStartTimes({ _default: data.sessionStartTime });
         setSaveIndicator(true);
         setTimeout(() => setSaveIndicator(false), 2000);
       } catch (err) {
@@ -1247,11 +1273,11 @@ function App() {
         ))}
       </nav>
 
-      {activeTab === "planner" && <DailyPlanner customActivities={customActivities} setActiveTab={setActiveTab} setSelectedWeek={setSelectedWeek} setSelectedDay={setSelectedDay} userWeekOverrides={userWeekOverrides} setUserWeekOverrides={setUserWeekOverrides} seasonWeeks={seasonWeeks} weekDays={weekDays} currentTeam={currentTeam} sessionStartTime={sessionStartTime} />}
-      {activeTab === "session" && <SessionBuilder selectedWeek={selectedWeek} setSelectedWeek={setSelectedWeek} selectedDay={selectedDay} setSelectedDay={setSelectedDay} showAddModal={showAddModal} setShowAddModal={setShowAddModal} showCopyModal={showCopyModal} setShowCopyModal={setShowCopyModal} showPasteModal={showPasteModal} setShowPasteModal={setShowPasteModal} customActivities={customActivities} setCustomActivities={setCustomActivities} coverageData={coverageData} setCoverageData={setCoverageData} userWeekOverrides={userWeekOverrides} setUserWeekOverrides={setUserWeekOverrides} seasonWeeks={seasonWeeks} sessionReviews={sessionReviews} setSessionReviews={setSessionReviews} weekDays={weekDays} setWeekDays={setWeekDays} sessionStartTime={sessionStartTime} setSessionStartTime={setSessionStartTime} currentTeam={currentTeam} currentGroup={currentGroup} currentSub={currentSub} />}
+      {activeTab === "planner" && <DailyPlanner customActivities={customActivities} setActiveTab={setActiveTab} setSelectedWeek={setSelectedWeek} setSelectedDay={setSelectedDay} userWeekOverrides={userWeekOverrides} setUserWeekOverrides={setUserWeekOverrides} seasonWeeks={seasonWeeks} weekDays={weekDays} currentTeam={currentTeam} sessionStartTimes={sessionStartTimes} getSessionStartTime={getSessionStartTime} />}
+      {activeTab === "session" && <SessionBuilder selectedWeek={selectedWeek} setSelectedWeek={setSelectedWeek} selectedDay={selectedDay} setSelectedDay={setSelectedDay} showAddModal={showAddModal} setShowAddModal={setShowAddModal} showCopyModal={showCopyModal} setShowCopyModal={setShowCopyModal} showPasteModal={showPasteModal} setShowPasteModal={setShowPasteModal} customActivities={customActivities} setCustomActivities={setCustomActivities} coverageData={coverageData} setCoverageData={setCoverageData} userWeekOverrides={userWeekOverrides} setUserWeekOverrides={setUserWeekOverrides} seasonWeeks={seasonWeeks} sessionReviews={sessionReviews} setSessionReviews={setSessionReviews} weekDays={weekDays} setWeekDays={setWeekDays} sessionStartTime={getSessionStartTime(selectedWeek, selectedDay)} setSessionStartTime={(val) => setSessionStartTimeForDay(selectedWeek, selectedDay, val)} currentTeam={currentTeam} currentGroup={currentGroup} currentSub={currentSub} />}
       {activeTab === "season" && <SeasonOverview setActiveTab={setActiveTab} setSelectedWeek={setSelectedWeek} setSelectedDay={setSelectedDay} seasonWeeks={seasonWeeks} userWeekOverrides={userWeekOverrides} customActivities={customActivities} weekDays={weekDays} />}
       {activeTab === "drills" && <DrillLibrary search={drillSearch} setSearch={setDrillSearch} />}
-      {activeTab === "squad" && <SquadTracker squad={squad} setSquad={setSquad} roster={roster} setRoster={setRoster} currentSub={currentSub} currentGroup={currentGroup} />}
+      {activeTab === "squad" && <SquadTracker squad={squad} setSquad={setSquad} roster={roster} setRoster={setRoster} matchday18={matchday18} setMatchday18={setMatchday18} currentSub={currentSub} currentGroup={currentGroup} />}
 
       {showSeasonSetup && <SeasonSetupModal onComplete={handleSetupSeason} onClose={() => setShowSeasonSetup(false)} existing={seasonConfig} />}
 
@@ -1436,17 +1462,10 @@ function SessionBuilder({ selectedWeek, setSelectedWeek, selectedDay, setSelecte
     });
   }
 
-  function handleCopySession(sourceWeek, sourceDay) {
-    const srcDetail = SESSION_DETAILS[sourceWeek];
-    if (!srcDetail || !srcDetail[sourceDay]) return;
-    const copied = srcDetail[sourceDay].map(a => ({
-      ...a,
-      duration: a.duration || 5
-    }));
-    setCustomActivities(prev => ({
-      ...prev,
-      [customKey]: copied
-    }));
+  function handleCopySession(activities) {
+    if (!Array.isArray(activities) || activities.length === 0) return;
+    const copied = activities.map(a => ({ ...a, duration: a.duration || 5 }));
+    setCustomActivities(prev => ({ ...prev, [customKey]: copied }));
     setShowCopyModal(false);
   }
 
@@ -1494,7 +1513,7 @@ function SessionBuilder({ selectedWeek, setSelectedWeek, selectedDay, setSelecte
       const color = activityColor(a.activity);
       return `
         <tr class="${isTrans ? 'transition-row' : ''}" style="${isTrans ? '' : 'border-left: 3px solid ' + color.border + ';'}">
-          <td class="col-time">${a.time || ''}</td>
+          <td class="col-time">${a.time ? (a.endTime ? a.time + ' – ' + a.endTime : a.time) : ''}</td>
           <td class="col-activity">
             <div class="activity-name">${a.activity}${!isTrans && color.label ? ' <span style="font-size:9px;font-weight:700;text-transform:uppercase;color:' + color.border + ';margin-left:6px;opacity:0.7;">' + color.label + '</span>' : ''}</div>
             ${a.notes ? `<div class="activity-notes">${a.notes}</div>` : ''}
@@ -1585,7 +1604,7 @@ function SessionBuilder({ selectedWeek, setSelectedWeek, selectedDay, setSelecte
   .session-table tbody tr.transition-row { opacity: 0.45; }
   .session-table tbody tr.transition-row td { padding: 6px 12px; }
   .session-table td { padding: 12px 12px; vertical-align: top; }
-  .col-time { width: 70px; font-weight: 700; color: #E95B9E; font-size: 12px; white-space: nowrap; }
+  .col-time { width: 110px; font-weight: 700; color: #E95B9E; font-size: 12px; white-space: nowrap; }
   .col-activity { }
   .activity-name { font-weight: 600; color: #1a1a2e; }
   .activity-notes { font-size: 11px; color: #6b7280; margin-top: 3px; line-height: 1.5; }
@@ -1831,7 +1850,7 @@ function SessionBuilder({ selectedWeek, setSelectedWeek, selectedDay, setSelecte
 
         {allActivities.length > 0 && (
           <div className="session-start-time-wrap">
-            <label style={{fontSize:'12px', fontWeight:600, color:'var(--text-secondary)'}}>Session Start Time:</label>
+            <label style={{fontSize:'12px', fontWeight:600, color:'var(--text-secondary)'}}>{selectedDay} start time:</label>
             <input
               type="time"
               className="session-start-time"
@@ -1890,7 +1909,7 @@ function SessionBuilder({ selectedWeek, setSelectedWeek, selectedDay, setSelecte
                   <div className="timeline-drag-handle" onClick={(e) => e.stopPropagation()}>⠿</div>
                   <div style={{flex:1, minWidth:0}} onClick={() => setEditingIndex(i)}>
                     <div style={{display:'flex', alignItems:'center', gap:8, flexWrap:'wrap'}}>
-                      {a.time && <div className="timeline-time">{a.time}</div>}
+                      {a.time && <div className="timeline-time">{a.endTime ? `${a.time} – ${a.endTime}` : a.time}</div>}
                       {isGroupStart && <span style={{display:'inline-flex', alignItems:'center', gap:4, fontSize:9, fontWeight:800, textTransform:'uppercase', letterSpacing:0.5, color:'var(--brand-pink)', background:'rgba(233,91,158,0.12)', padding:'2px 6px', borderRadius:4}}><Icon name="rotate" size={10}/> Rotation / Stations</span>}
                       {isParallel && <span style={{display:'inline-flex', alignItems:'center', gap:4, fontSize:9, fontWeight:800, textTransform:'uppercase', letterSpacing:0.5, color:'var(--brand-pink)', background:'rgba(233,91,158,0.12)', padding:'2px 6px', borderRadius:4}}><Icon name="rotate" size={10}/> Parallel</span>}
                       {!isTrans && color.label && <span style={{fontSize:9, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.5px', color: color.border, opacity:0.8}}>{color.label}</span>}
@@ -1944,7 +1963,7 @@ function SessionBuilder({ selectedWeek, setSelectedWeek, selectedDay, setSelecte
       }} startTime={sessionStartTime} />}
       {showBlockModal && <GenerateBlockModal onClose={() => setShowBlockModal(false)} customActivities={customActivities} setCustomActivities={setCustomActivities} userWeekOverrides={userWeekOverrides} setUserWeekOverrides={setUserWeekOverrides} />}
       {showAddModal && <AddDrillModal onClose={() => setShowAddModal(false)} onAdd={handleAddDrill} />}
-      {showCopyModal && <CopySessionModal onClose={() => setShowCopyModal(false)} onCopy={handleCopySession} currentWeek={selectedWeek} currentDay={selectedDay} />}
+      {showCopyModal && <CopySessionModal onClose={() => setShowCopyModal(false)} onCopy={handleCopySession} currentWeek={selectedWeek} currentDay={selectedDay} currentTeam={currentTeam} customActivities={customActivities} seasonWeeks={seasonWeeks} />}
       {showPasteModal && <PasteSessionModal onClose={() => setShowPasteModal(false)} onPaste={handlePasteSession} />}
       {editingIndex !== null && allActivitiesWithTimes[editingIndex] && (
         <EditActivityModal
@@ -2316,44 +2335,133 @@ function GenerateBlockModal({ onClose, customActivities, setCustomActivities, us
   );
 }
 
-function CopySessionModal({ onClose, onCopy, currentWeek, currentDay }) {
+function CopySessionModal({ onClose, onCopy, currentWeek, currentDay, currentTeam, customActivities, seasonWeeks }) {
+  // Build TEAMS list locally (App's TEAMS isn't passed in, but the structure is fixed)
+  const AGE_GROUPS = [
+    { id: '7-8',   label: 'Years 7/8',   short: '7/8'   },
+    { id: '9-10',  label: 'Years 9/10',  short: '9/10'  },
+    { id: '11-12', label: 'Years 11/12', short: '11/12' }
+  ];
+  const SUB_TEAMS = ['Cup', 'Challenge'];
+  const TEAMS = AGE_GROUPS.flatMap(g => SUB_TEAMS.map(s => ({ id: `${g.id}-${s.toLowerCase()}`, label: `${g.label} ${s}` })));
+
+  const [sourceTeam, setSourceTeam] = useState(currentTeam);
   const [sourceWeek, setSourceWeek] = useState("");
-  const [sourceDay, setSourceDay] = useState("Tuesday");
+  const [sourceDay, setSourceDay] = useState("");
 
-  const availableWeeks = Object.keys(SESSION_DETAILS).filter(w => w !== currentWeek || sourceDay !== currentDay);
-  const sourceDays = sourceWeek && SESSION_DETAILS[sourceWeek] ? Object.keys(SESSION_DETAILS[sourceWeek]) : [];
-  const previewActivities = sourceWeek && sourceDay && SESSION_DETAILS[sourceWeek]?.[sourceDay] ? SESSION_DETAILS[sourceWeek][sourceDay] : [];
+  // Get the source team's customActivities (current team uses prop; others read from localStorage)
+  const sourceCustomActivities = useMemo(() => {
+    if (sourceTeam === currentTeam) return customActivities || {};
+    try { return JSON.parse(localStorage.getItem(`playiq_${sourceTeam}_customActivities`) || '{}'); } catch(e) { return {}; }
+  }, [sourceTeam, currentTeam, customActivities]);
 
+  // For each week present in either the blueprint or the source team's custom data,
+  // build a map of day → activities (custom overrides blueprint)
+  const sourceWeekMap = useMemo(() => {
+    const map = {};
+    // Seed from blueprint
+    Object.entries(SESSION_DETAILS).forEach(([wk, days]) => {
+      map[wk] = {};
+      Object.entries(days).forEach(([d, acts]) => { map[wk][d] = acts; });
+    });
+    // Override / add custom
+    Object.entries(sourceCustomActivities).forEach(([key, acts]) => {
+      const dash = key.indexOf('-');
+      if (dash < 0) return;
+      const wk = key.slice(0, dash);
+      const d = key.slice(dash + 1);
+      if (!Array.isArray(acts) || acts.length === 0) return;
+      if (!map[wk]) map[wk] = {};
+      map[wk][d] = acts;
+    });
+    return map;
+  }, [sourceCustomActivities]);
+
+  // Sort weeks numerically (1, 2, 3 ... PS1, GF)
+  const sortedWeeks = useMemo(() => {
+    return Object.keys(sourceWeekMap).sort((a, b) => {
+      const an = parseInt(a, 10), bn = parseInt(b, 10);
+      if (!isNaN(an) && !isNaN(bn)) return an - bn;
+      if (!isNaN(an)) return -1;
+      if (!isNaN(bn)) return 1;
+      return a.localeCompare(b);
+    });
+  }, [sourceWeekMap]);
+
+  // Filter out the (current week, current day) tuple — but only when source team is current team
+  const availableWeeks = sortedWeeks.filter(w => {
+    const days = sourceWeekMap[w] || {};
+    const validDays = Object.keys(days).filter(d => Array.isArray(days[d]) && days[d].length > 0);
+    if (validDays.length === 0) return false;
+    if (sourceTeam !== currentTeam) return true;
+    if (w === currentWeek && validDays.length === 1 && validDays[0] === currentDay) return false;
+    return true;
+  });
+
+  const sourceDays = sourceWeek && sourceWeekMap[sourceWeek]
+    ? Object.keys(sourceWeekMap[sourceWeek]).filter(d => Array.isArray(sourceWeekMap[sourceWeek][d]) && sourceWeekMap[sourceWeek][d].length > 0)
+    : [];
+
+  const previewActivities = sourceWeek && sourceDay && sourceWeekMap[sourceWeek]?.[sourceDay]
+    ? sourceWeekMap[sourceWeek][sourceDay]
+    : [];
+
+  // Reset week/day when team changes
+  useEffect(() => {
+    setSourceWeek("");
+    setSourceDay("");
+  }, [sourceTeam]);
+
+  const SEASON_WKS = seasonWeeks || [];
   const weekLabel = (w) => {
-    const sw = SEASON_WEEKS.find(s => s.week === w);
-    if (!sw) return w;
+    const sw = SEASON_WKS.find(s => s.week === w);
+    if (!sw) return `Wk ${w}`;
     const label = sw.week === 'GF' ? 'GF' : sw.week.startsWith('PS') ? sw.week : `Wk ${sw.week}`;
-    return `${label} — ${sw.dates}`;
+    return sw.dates ? `${label} — ${sw.dates}` : label;
   };
-
   const blockColors = { 1: 'var(--orange)', 2: 'var(--blue)', 3: 'var(--green)', 4: 'var(--red)' };
   const phaseColor = (w) => {
-    const sw = SEASON_WEEKS.find(s => s.week === w);
+    const sw = SEASON_WKS.find(s => s.week === w);
     if (!sw) return 'var(--text-muted)';
     return blockColors[sw.block] || 'var(--text-muted)';
   };
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()} style={{width: 600}}>
-        <h3>Copy Session From Another Week</h3>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{width: 640, maxWidth: '92vw'}}>
+        <h3>Copy Session</h3>
         <p style={{fontSize:12, color:'var(--text-secondary)', marginBottom:14}}>
-          Select a source week and day to copy its full session into <strong style={{color:'var(--accent-light)'}}>{currentDay}</strong> of the current week. This will replace the current session.
+          Pick a source team, week and day. Its activities will replace what's currently in <strong style={{color:'var(--accent-light)'}}>{currentDay}</strong> of the current week.
         </p>
+
+        <div className="form-group">
+          <label className="form-label">Source Team</label>
+          <select className="form-select" value={sourceTeam} onChange={e => setSourceTeam(e.target.value)}>
+            {TEAMS.map(t => (
+              <option key={t.id} value={t.id}>{t.label}{t.id === currentTeam ? ' (current)' : ''}</option>
+            ))}
+          </select>
+        </div>
 
         <div className="copy-source">
           <div>
             <div className="form-label">Source Week</div>
             <div className="copy-week-list" style={{background:'var(--bg-input)', borderRadius:8, padding:6, border:'1px solid var(--border)'}}>
+              {availableWeeks.length === 0 && (
+                <div style={{padding:12, fontSize:12, color:'var(--text-muted)', fontStyle:'italic'}}>
+                  No sessions yet for this team.
+                </div>
+              )}
               {availableWeeks.map(w => {
-                const actCount = SESSION_DETAILS[w] ? Object.values(SESSION_DETAILS[w]).flat().length : 0;
+                const days = sourceWeekMap[w] || {};
+                const actCount = Object.values(days).filter(a => Array.isArray(a)).reduce((s, a) => s + a.length, 0);
                 return (
-                  <div key={w} className={`copy-week-item ${sourceWeek === w ? 'selected' : ''}`} onClick={() => { setSourceWeek(w); const d = SESSION_DETAILS[w] ? Object.keys(SESSION_DETAILS[w])[0] : "Tuesday"; setSourceDay(d); }}>
+                  <div key={w} className={`copy-week-item ${sourceWeek === w ? 'selected' : ''}`}
+                    onClick={() => {
+                      setSourceWeek(w);
+                      const validDays = Object.keys(days).filter(d => Array.isArray(days[d]) && days[d].length > 0);
+                      setSourceDay(validDays[0] || "");
+                    }}>
                     <div style={{display:'flex', alignItems:'center', gap:8}}>
                       <span className="phase-dot" style={{background: phaseColor(w)}} />
                       <span style={{color:'var(--text-primary)', fontWeight: sourceWeek === w ? 600 : 400}}>{weekLabel(w)}</span>
@@ -2368,7 +2476,7 @@ function CopySessionModal({ onClose, onCopy, currentWeek, currentDay }) {
             <div className="form-label">Source Day</div>
             {sourceDays.length > 0 ? (
               <div style={{marginBottom:12}}>
-                <div className="day-tabs">
+                <div className="day-tabs" style={{flexWrap:'wrap'}}>
                   {sourceDays.map(d => (
                     <button key={d} className={`day-tab ${sourceDay === d ? 'active' : ''}`} onClick={() => setSourceDay(d)}>{d}</button>
                   ))}
@@ -2395,7 +2503,9 @@ function CopySessionModal({ onClose, onCopy, currentWeek, currentDay }) {
 
         <div className="btn-row">
           <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={() => onCopy(sourceWeek, sourceDay)} disabled={!sourceWeek || previewActivities.length === 0}>
+          <button className="btn btn-primary"
+            onClick={() => onCopy(previewActivities)}
+            disabled={!sourceWeek || previewActivities.length === 0}>
             Copy {previewActivities.length} Activities
           </button>
         </div>
@@ -3396,7 +3506,7 @@ function SeasonSetupModal({ onComplete, onClose, existing }) {
 // ═══════════════════════════════════════════════════════════
 // DAILY PLANNER
 // ═══════════════════════════════════════════════════════════
-function DailyPlanner({ customActivities, setActiveTab, setSelectedWeek, setSelectedDay, userWeekOverrides, setUserWeekOverrides, seasonWeeks, weekDays, currentTeam, sessionStartTime }) {
+function DailyPlanner({ customActivities, setActiveTab, setSelectedWeek, setSelectedDay, userWeekOverrides, setUserWeekOverrides, seasonWeeks, weekDays, currentTeam, sessionStartTimes, getSessionStartTime }) {
   const today = new Date();
   const dayName = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][today.getDay()];
   const dateStr = today.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -3405,7 +3515,7 @@ function DailyPlanner({ customActivities, setActiveTab, setSelectedWeek, setSele
   const activeDays = (weekDays && weekDays[currentWeek?.week]) || ['Tuesday', 'Thursday'];
   const sessionDay = activeDays.includes(dayName) ? dayName : activeDays[0];
   const customKey = `${currentWeek?.week}-${sessionDay}`;
-  const todaysActivities = recalcTimes(customActivities[customKey] || [], sessionStartTime || '16:00');
+  const todaysActivities = recalcTimes(customActivities[customKey] || [], getSessionStartTime ? getSessionStartTime(currentWeek?.week, sessionDay) : '16:00');
   const sessionsThisWeek = activeDays.filter(d => (customActivities[`${currentWeek?.week}-${d}`] || []).length > 0).length;
 
   const weekOverride = currentWeek ? (userWeekOverrides[currentWeek.week] || {}) : {};
@@ -3504,9 +3614,157 @@ function DailyPlanner({ customActivities, setActiveTab, setSelectedWeek, setSele
 }
 
 // ═══════════════════════════════════════════════════════════
+// TEAM LIST 1-18 — match-day team selection
+// ═══════════════════════════════════════════════════════════
+function TeamList18({ squad, roster, matchday18, setMatchday18, currentSub, teamColor, teamColorBg, TEAM_POSITIONS }) {
+  // Build a map of squad players by id for quick lookup
+  const playerById = useMemo(() => {
+    const m = {};
+    (squad || []).forEach(p => { if (p._id) m[p._id] = p; });
+    return m;
+  }, [squad]);
+
+  // Players eligible for selection: those tagged for this team (in roster).
+  // Sort by name for the picker.
+  const eligible = useMemo(() => {
+    const ids = Array.isArray(roster) ? roster : [];
+    return ids
+      .map(id => playerById[id])
+      .filter(Boolean)
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  }, [roster, playerById]);
+
+  // Ensure matchday18 has length 18 (pad with empty strings)
+  const slots = useMemo(() => {
+    const out = Array.isArray(matchday18) ? matchday18.slice(0, 18) : [];
+    while (out.length < 18) out.push('');
+    return out;
+  }, [matchday18]);
+
+  function setSlot(idx, playerId) {
+    setMatchday18(prev => {
+      const arr = (Array.isArray(prev) ? prev.slice(0, 18) : []);
+      while (arr.length < 18) arr.push('');
+      arr[idx] = playerId || '';
+      return arr;
+    });
+  }
+  function clearAll() {
+    if (window.confirm('Clear all 18 positions?')) setMatchday18(Array(18).fill(''));
+  }
+  function autoFill() {
+    // Auto-assign players to first available slot, in name order, skipping slots already filled
+    const used = new Set(slots.filter(Boolean));
+    const remaining = eligible.filter(p => !used.has(p._id));
+    setMatchday18(prev => {
+      const arr = (Array.isArray(prev) ? prev.slice(0, 18) : []);
+      while (arr.length < 18) arr.push('');
+      let r = 0;
+      for (let i = 0; i < 18 && r < remaining.length; i++) {
+        if (!arr[i]) { arr[i] = remaining[r]._id; r++; }
+      }
+      return arr;
+    });
+  }
+
+  const filledCount = slots.filter(Boolean).length;
+  // Detect duplicates (same player assigned to multiple slots)
+  const counts = {};
+  slots.forEach(id => { if (id) counts[id] = (counts[id] || 0) + 1; });
+  const duplicates = Object.keys(counts).filter(id => counts[id] > 1);
+
+  return (
+    <div className="card" style={{borderTop:`4px solid ${teamColor}`, marginTop:0}}>
+      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:12, marginBottom:12}}>
+        <div>
+          <div className="card-title" style={{marginBottom:2, display:'flex', alignItems:'center', gap:8, flexWrap:'wrap'}}>
+            <span>Match-day Team — {currentSub}</span>
+            <span style={{display:'inline-flex', alignItems:'center', gap:6, background:teamColorBg, color:teamColor, padding:'2px 10px', borderRadius:12, fontSize:11, fontWeight:700}}>
+              {filledCount} / 18
+            </span>
+          </div>
+          <div style={{fontSize:12, color:'var(--text-muted)', marginTop:4}}>
+            Pick from {eligible.length} player{eligible.length === 1 ? '' : 's'} tagged for {currentSub}.
+            {eligible.length === 0 && ' Tag players using the + ' + currentSub.toUpperCase() + ' button below.'}
+          </div>
+        </div>
+        <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
+          <button className="btn-outline" onClick={autoFill} disabled={eligible.length === 0}
+            style={{fontSize:11, padding:'6px 12px', opacity: eligible.length === 0 ? 0.5 : 1}}>
+            Auto-fill empty slots
+          </button>
+          <button className="btn-outline" onClick={clearAll} disabled={filledCount === 0}
+            style={{fontSize:11, padding:'6px 12px', opacity: filledCount === 0 ? 0.5 : 1}}>
+            Clear all
+          </button>
+        </div>
+      </div>
+
+      {duplicates.length > 0 && (
+        <div style={{fontSize:11, color:'var(--red)', background:'var(--red-bg)', padding:'6px 10px', borderRadius:6, marginBottom:10}}>
+          ⚠ {duplicates.length} player{duplicates.length === 1 ? '' : 's'} assigned to more than one position.
+        </div>
+      )}
+
+      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(280px, 1fr))', gap:8}}>
+        {TEAM_POSITIONS.map((tp, idx) => {
+          const playerId = slots[idx];
+          const player = playerId ? playerById[playerId] : null;
+          const isDuplicate = playerId && counts[playerId] > 1;
+          const isBench = tp.num >= 14;
+          return (
+            <div key={tp.num} style={{
+              display:'flex', alignItems:'center', gap:10,
+              padding:'8px 10px', background:'var(--bg-card)',
+              border:`1px solid ${isDuplicate ? 'var(--red)' : (player ? teamColor : 'var(--border)')}`,
+              borderRadius:8,
+              opacity: isBench ? 0.95 : 1,
+              borderLeft: `4px solid ${isBench ? 'var(--text-muted)' : teamColor}`
+            }}>
+              <div style={{
+                width:28, height:28, flexShrink:0,
+                background: player ? teamColor : 'var(--bg-input)',
+                color: player ? 'white' : 'var(--text-muted)',
+                borderRadius:6, display:'flex', alignItems:'center', justifyContent:'center',
+                fontWeight:800, fontSize:12
+              }}>{tp.num}</div>
+              <div style={{flex:1, minWidth:0}}>
+                <div style={{fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:0.5}}>{tp.pos}</div>
+                <select value={playerId || ''} onChange={e => setSlot(idx, e.target.value)}
+                  style={{
+                    width:'100%', padding:'4px 6px', fontSize:13, fontWeight: player ? 600 : 400,
+                    color: player ? 'var(--text-primary)' : 'var(--text-muted)',
+                    background:'transparent', border:'1px solid transparent',
+                    borderRadius:5, cursor:'pointer', fontFamily:'inherit', outline:'none'
+                  }}
+                  onFocus={e => e.target.style.borderColor='var(--border)'}
+                  onBlur={e => e.target.style.borderColor='transparent'}>
+                  <option value="">— empty —</option>
+                  {eligible.map(p => (
+                    <option key={p._id} value={p._id}>
+                      {p.name}{p.position ? ' (' + p.position + ')' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {player && (
+                <button onClick={() => setSlot(idx, '')} title="Clear position"
+                  style={{background:'none', border:'none', color:'var(--text-muted)', cursor:'pointer', padding:4, display:'inline-flex', flexShrink:0}}>
+                  <Icon name="x" size={12}/>
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
 // SQUAD TRACKER
 // ═══════════════════════════════════════════════════════════
-function SquadTracker({ squad, setSquad, roster, setRoster, currentSub, currentGroup }) {
+function SquadTracker({ squad, setSquad, roster, setRoster, matchday18, setMatchday18, currentSub, currentGroup }) {
   const [newName, setNewName] = useState('');
   const [showBulkAdd, setShowBulkAdd] = useState(false);
   const [bulkText, setBulkText] = useState('');
@@ -3517,7 +3775,27 @@ function SquadTracker({ squad, setSquad, roster, setRoster, currentSub, currentG
 
   const POSITIONS = ['Fullback', 'Wing', 'Centre', 'Five-Eighth', 'Halfback', 'Hooker', 'Prop', 'Second Row', 'Lock', 'Interchange', 'Utility'];
   const ALL_SLOTS = [...POSITIONS, 'Unassigned'];
-  const ROSTER_LIMIT = 18;
+  // Match-day 1-18 positions (Rugby League standard layout)
+  const TEAM_POSITIONS = [
+    { num: 1,  pos: 'Fullback' },
+    { num: 2,  pos: 'Wing' },
+    { num: 3,  pos: 'Centre' },
+    { num: 4,  pos: 'Centre' },
+    { num: 5,  pos: 'Wing' },
+    { num: 6,  pos: 'Five-Eighth' },
+    { num: 7,  pos: 'Halfback' },
+    { num: 8,  pos: 'Prop' },
+    { num: 9,  pos: 'Hooker' },
+    { num: 10, pos: 'Prop' },
+    { num: 11, pos: 'Second Row' },
+    { num: 12, pos: 'Second Row' },
+    { num: 13, pos: 'Lock' },
+    { num: 14, pos: 'Interchange' },
+    { num: 15, pos: 'Interchange' },
+    { num: 16, pos: 'Interchange' },
+    { num: 17, pos: 'Interchange' },
+    { num: 18, pos: '18th Player' },
+  ];
   const teamColor = currentSub === 'Cup' ? 'var(--brand-pink)' : 'var(--brand-cyan)';
   const teamColorBg = currentSub === 'Cup' ? 'var(--accent-glow)' : 'rgba(41,186,229,0.12)';
   const genId = () => 'p_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
@@ -3579,7 +3857,6 @@ function SquadTracker({ squad, setSquad, roster, setRoster, currentSub, currentG
   const availableCount = squad.filter(p => p.available !== false).length;
   const unavailableCount = squad.filter(p => p.available === false).length;
   const rosterCount = Array.isArray(roster) ? roster.filter(id => squad.some(p => p._id === id)).length : 0;
-  const rosterFull = rosterCount >= ROSTER_LIMIT;
   const grouped = {};
   for (const pos of ALL_SLOTS) grouped[pos] = [];
   filtered.forEach(p => { const pos = p.position && POSITIONS.includes(p.position) ? p.position : 'Unassigned'; grouped[pos].push(p); });
@@ -3587,7 +3864,6 @@ function SquadTracker({ squad, setSquad, roster, setRoster, currentSub, currentG
   function PlayerCard({ p }) {
     const isUnavailable = p.available === false;
     const inTeam = inRoster(p._id);
-    const disabled = !inTeam && rosterFull;
     return (
       <div draggable onDragStart={e => handleDragStart(e, p._idx)} onDragEnd={handleDragEnd}
         style={{display:'flex', flexDirection:'column', gap:6, padding:'8px 10px', background: isUnavailable ? 'var(--bg-input)' : 'var(--bg-card)', border:'1px solid var(--border)', borderRadius:8, opacity: isUnavailable ? 0.5 : 1, cursor:'grab', marginBottom:6, transition:'all 0.15s'}}>
@@ -3615,16 +3891,14 @@ function SquadTracker({ squad, setSquad, roster, setRoster, currentSub, currentG
             style={{background: isUnavailable ? 'var(--red-bg)' : 'var(--green-bg)', color: isUnavailable ? 'var(--red)' : 'var(--green)', border:'none', borderRadius:12, padding:'3px 10px', fontSize:10, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap', flexShrink:0}}>
             {isUnavailable ? 'OUT' : 'IN'}
           </button>
-          <button onClick={e => { e.stopPropagation(); if (!disabled) toggleRoster(p._id); }}
-            disabled={disabled}
-            title={inTeam ? `Remove from ${currentSub} 18` : disabled ? `${currentSub} 18 is full` : `Add to ${currentSub} 18`}
+          <button onClick={e => { e.stopPropagation(); toggleRoster(p._id); }}
+            title={inTeam ? `Remove from ${currentSub}` : `Add to ${currentSub}`}
             style={{
               background: inTeam ? teamColor : 'transparent',
-              color: inTeam ? 'white' : (disabled ? 'var(--text-muted)' : teamColor),
+              color: inTeam ? 'white' : teamColor,
               border: `1px solid ${inTeam ? teamColor : 'var(--border)'}`,
               borderRadius: 12, padding: '3px 10px', fontSize: 10, fontWeight: 700,
-              cursor: disabled ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap',
-              opacity: disabled ? 0.5 : 1, flexShrink: 0
+              cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0
             }}>
             {inTeam ? `✓ ${currentSub.toUpperCase()}` : `+ ${currentSub.toUpperCase()}`}
           </button>
@@ -3647,7 +3921,7 @@ function SquadTracker({ squad, setSquad, roster, setRoster, currentSub, currentG
               <span style={{color:'var(--green)'}}>● {availableCount} available</span>
               {unavailableCount > 0 && <span style={{color:'var(--red)'}}>● {unavailableCount} unavailable</span>}
               <span style={{display:'inline-flex', alignItems:'center', gap:6, background:teamColorBg, color:teamColor, padding:'3px 10px', borderRadius:12, fontWeight:700}}>
-                {currentSub} 18: {rosterCount} / {ROSTER_LIMIT}
+                In {currentSub}: {rosterCount}
               </span>
             </div>
           </div>
@@ -3680,8 +3954,8 @@ function SquadTracker({ squad, setSquad, roster, setRoster, currentSub, currentG
         <div style={{display:'flex', gap:4, marginBottom:12, marginTop:4, flexWrap:'wrap'}}>
           {[
             {id:'all', label:`All (${squad.length})`},
-            {id:'inTeam', label:`In ${currentSub} 18 (${rosterCount})`},
-            {id:'notInTeam', label:`Not in ${currentSub} 18 (${squad.length - rosterCount})`},
+            {id:'inTeam', label:`In ${currentSub} (${rosterCount})`},
+            {id:'notInTeam', label:`Not in ${currentSub} (${squad.length - rosterCount})`},
             {id:'available', label:`Available (${availableCount})`},
             {id:'unavailable', label:`Unavailable (${unavailableCount})`}
           ].map(f => (
@@ -3696,28 +3970,43 @@ function SquadTracker({ squad, setSquad, roster, setRoster, currentSub, currentG
           <div style={{fontSize:12, color:'var(--text-muted)'}}>Type a name above or use Bulk Add to paste a list</div>
         </div>
       ) : (
-        <div className="squad-grid">
-          {ALL_SLOTS.map(pos => {
-            const players = grouped[pos] || [];
-            const isDropTarget = dragOverPos === pos;
-            const dropPos = pos === 'Unassigned' ? '' : pos;
-            if (players.length === 0 && dragIdx === null) return null;
-            return (
-              <div key={pos} className="position-group"
-                onDragOver={e => handleGroupDragOver(e, pos)}
-                onDragLeave={() => setDragOverPos(null)}
-                onDrop={e => handleGroupDrop(e, dropPos)}
-                style={{borderColor: isDropTarget ? 'var(--brand-pink)' : undefined, background: isDropTarget ? 'var(--accent-glow)' : undefined}}>
-                <div className="position-title" style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                  <span>{pos}</span>
-                  <span style={{fontSize:10, fontWeight:600, color:'var(--text-muted)', textTransform:'none', letterSpacing:0}}>{players.length}</span>
+        <>
+          {/* === MATCH-DAY 1-18 TEAM LIST === */}
+          <TeamList18
+            squad={squad}
+            roster={roster}
+            matchday18={matchday18 || []}
+            setMatchday18={setMatchday18}
+            currentSub={currentSub}
+            teamColor={teamColor}
+            teamColorBg={teamColorBg}
+            TEAM_POSITIONS={TEAM_POSITIONS}
+          />
+
+          <div style={{fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:1, margin:'24px 0 10px'}}>Squad by position</div>
+          <div className="squad-grid">
+            {ALL_SLOTS.map(pos => {
+              const players = grouped[pos] || [];
+              const isDropTarget = dragOverPos === pos;
+              const dropPos = pos === 'Unassigned' ? '' : pos;
+              if (players.length === 0 && dragIdx === null) return null;
+              return (
+                <div key={pos} className="position-group"
+                  onDragOver={e => handleGroupDragOver(e, pos)}
+                  onDragLeave={() => setDragOverPos(null)}
+                  onDrop={e => handleGroupDrop(e, dropPos)}
+                  style={{borderColor: isDropTarget ? 'var(--brand-pink)' : undefined, background: isDropTarget ? 'var(--accent-glow)' : undefined}}>
+                  <div className="position-title" style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                    <span>{pos}</span>
+                    <span style={{fontSize:10, fontWeight:600, color:'var(--text-muted)', textTransform:'none', letterSpacing:0}}>{players.length}</span>
+                  </div>
+                  {players.map(p => <PlayerCard key={p._idx} p={p} />)}
+                  {players.length === 0 && <div style={{fontSize:11, color:'var(--text-muted)', padding:'8px 4px', fontStyle:'italic'}}>Drop players here</div>}
                 </div>
-                {players.map(p => <PlayerCard key={p._idx} p={p} />)}
-                {players.length === 0 && <div style={{fontSize:11, color:'var(--text-muted)', padding:'8px 4px', fontStyle:'italic'}}>Drop players here</div>}
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        </>
       )}
     </div>
   );
