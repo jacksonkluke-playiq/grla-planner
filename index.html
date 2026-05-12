@@ -259,15 +259,85 @@
   /* Print — handled by export popup, hide main app if somehow printed */
   @media print { .app-container { display: none; } }
 
-  /* Responsive */
-  @media (max-width: 768px) {
-    .season-row { grid-template-columns: 1fr; gap: 4px; }
+  /* ═══════════════════════════════════════════════════════════
+     RESPONSIVE — tablet & mobile
+     ═══════════════════════════════════════════════════════════ */
+  @media (max-width: 900px) {
+    .app-container { padding: 0 16px; }
+    /* Header: stack logo, team switcher, and actions */
+    .header {
+      flex-direction: column;
+      align-items: stretch !important;
+      gap: 14px;
+      padding: 16px 0;
+    }
+    .header > div { width: 100%; flex-wrap: wrap; }
+    /* Action buttons row in header — let them wrap to a second line */
+    .header > div[style*="gap:8"] { flex-wrap: wrap; gap: 8px !important; }
+    .logo-text { font-size: 18px; }
+    .logo-sub { font-size: 9px; }
+    .header [style*="flex-direction:column"][style*="align-items:center"] { align-items: flex-start !important; }
+    .team-switcher { flex-wrap: wrap; }
+    /* Nav tabs: scroll horizontally instead of overflowing */
+    .nav-tabs {
+      overflow-x: auto;
+      flex-wrap: nowrap;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: thin;
+    }
+    .nav-tab { white-space: nowrap; flex-shrink: 0; padding: 10px 14px; font-size: 12px; }
+    /* Grids collapse */
+    .season-row { grid-template-columns: 1fr; gap: 4px; padding: 12px 0; }
     .stats-row { grid-template-columns: repeat(2, 1fr); }
     .drill-categories { grid-template-columns: 1fr; }
     .coverage-grid { grid-template-columns: repeat(2, 1fr); }
-    .modal-content { padding: 20px; }
+    .squad-grid { grid-template-columns: 1fr; }
+    /* Modals fill more of the screen */
+    .modal, .modal-content { padding: 20px; width: 95vw; max-height: 90vh; overflow-y: auto; }
     .modal-btn { font-size: 12px; }
+    /* Day tabs wrap cleanly */
+    .day-tabs { flex-wrap: wrap; }
+    .day-tab { padding: 8px 14px; font-size: 12px; }
+    .week-btn { font-size: 11px; padding: 8px 10px; }
+    /* Copy session two-pane → stack */
+    .copy-source { grid-template-columns: 1fr !important; }
   }
+
+  @media (max-width: 600px) {
+    .app-container { padding: 0 12px; }
+    body { font-size: 14px; }
+    .card { padding: 14px; border-radius: 10px; }
+    .card-title { font-size: 14px; }
+    .stats-row { grid-template-columns: 1fr 1fr; gap: 8px; }
+    .stat-value { font-size: 22px; }
+    .coverage-grid { grid-template-columns: 1fr; }
+    /* Logo block: smaller icon, tighter text */
+    .logo-icon { width: 42px; height: 42px; }
+    .logo-text { font-size: 16px; }
+    /* Bigger touch targets on icon buttons */
+    .btn-outline { padding: 8px 12px; min-height: 36px; }
+    .btn-sm { padding: 8px 12px; min-height: 36px; }
+    /* Save indicator: shrink and move so it doesn't overlap header */
+    .save-indicator { top: 12px; right: 12px; font-size: 11px; padding: 6px 10px; }
+    /* Timeline items: more vertical breathing room for touch */
+    .timeline { padding-left: 22px; }
+    .timeline::before { left: 6px; }
+    .timeline-dot { left: -20px; }
+    .timeline-item { padding: 12px 12px; }
+    .timeline-activity { font-size: 14px; }
+    /* Forms: bigger inputs (avoid iOS zoom on focus) */
+    .form-input, .form-select, .form-textarea, .search-input,
+    .session-start-time, input[type="time"], input[type="text"], input[type="number"] {
+      font-size: 16px;
+    }
+    /* Squad cards: tighten padding */
+    .position-group { padding: 12px; }
+    /* Match-day 18 grid: single column on phone */
+    .squad-grid { gap: 10px; }
+    /* Nav tabs: hide labels, keep icons only on very narrow screens */
+    .nav-tab { padding: 9px 10px; font-size: 11px; gap: 4px; }
+  }
+
 </style>
 </head>
 <body>
