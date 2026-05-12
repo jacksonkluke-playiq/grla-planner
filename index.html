@@ -419,6 +419,25 @@ const cloudSync = (() => {
     return () => listeners.delete(fn);
   }
 
+  // Per-key timestamps live in `${key}__ts` siblings (epoch ms as string).
+  // Prevents stale cloud data from overwriting newer local edits.
+  const TS_SUFFIX = '__ts';
+  const isTsKey = (k) => typeof k === 'string' && k.endsWith(TS_SUFFIX);
+
+  function ensureLocalTimestamps() {
+    // Stamp any existing playiq_* keys that don't yet have a __ts sibling.
+    // Run once on bootstrap so legacy data is "claimed" before pulling cloud.
+    const now = String(Date.now());
+    const toStamp = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(PLANNER_KEY_PREFIX) && !isTsKey(k)) {
+        if (!localStorage.getItem(k + TS_SUFFIX)) toStamp.push(k);
+      }
+    }
+    toStamp.forEach(k => { try { localStorage.setItem(k + TS_SUFFIX, now); } catch(e){} });
+  }
+
   function snapshot() {
     const snap = {};
     for (let i = 0; i < localStorage.length; i++) {
@@ -427,17 +446,43 @@ const cloudSync = (() => {
     }
     return snap;
   }
-  function applySnapshot(snap) {
-    if (!snap || typeof snap !== 'object') return;
-    const toRemove = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k && k.startsWith(PLANNER_KEY_PREFIX) && !(k in snap)) toRemove.push(k);
+
+  // Merge cloud snapshot into local with per-key timestamp resolution.
+  // Rule: keep whichever side has the newer __ts. Missing __ts on cloud means
+  // we keep local. We never DELETE local keys missing from cloud (defensive —
+  // prevents accidental data loss from a stale snapshot).
+  function applySnapshot(cloudSnap) {
+    if (!cloudSnap || typeof cloudSnap !== 'object') return { applied: 0, kept: 0 };
+    let applied = 0, kept = 0;
+    for (const [k, v] of Object.entries(cloudSnap)) {
+      if (typeof v !== 'string') continue;
+      if (isTsKey(k)) continue; // timestamps ride along with their values
+      const cloudTs = parseInt(cloudSnap[k + TS_SUFFIX] || '0', 10);
+      const localExists = localStorage.getItem(k) !== null;
+      const localTsRaw = localStorage.getItem(k + TS_SUFFIX);
+      const localTs = parseInt(localTsRaw || '0', 10);
+
+      if (!localExists) {
+        // We don't have this key locally — adopt cloud
+        localStorage.setItem(k, v);
+        if (cloudTs) localStorage.setItem(k + TS_SUFFIX, String(cloudTs));
+        applied++;
+      } else if (localTsRaw && cloudTs <= localTs) {
+        // Local has a timestamp and cloud isn't newer — keep local
+        kept++;
+      } else if (!localTsRaw && cloudTs === 0) {
+        // Neither side has a timestamp — keep local to be safe
+        kept++;
+      } else if (cloudTs > localTs) {
+        // Cloud is genuinely newer — adopt
+        localStorage.setItem(k, v);
+        localStorage.setItem(k + TS_SUFFIX, String(cloudTs));
+        applied++;
+      } else {
+        kept++;
+      }
     }
-    toRemove.forEach(k => localStorage.removeItem(k));
-    Object.entries(snap).forEach(([k, v]) => {
-      if (typeof v === 'string') localStorage.setItem(k, v);
-    });
+    return { applied, kept };
   }
 
   async function pullRaw() {
@@ -464,10 +509,12 @@ const cloudSync = (() => {
       const cloud = await pullRaw();
       const hasData = cloud && typeof cloud === 'object' && Object.keys(cloud).some(k => k.startsWith(PLANNER_KEY_PREFIX));
       if (hasData) {
-        const cloudStr = JSON.stringify(cloud);
-        const localStr = JSON.stringify(snapshot());
-        if (cloudStr !== localStr) applySnapshot(cloud);
-        lastPushedSnap = cloudStr;
+        const result = applySnapshot(cloud);
+        // After merge, lastPushedSnap is local state (which is what we'd push next)
+        lastPushedSnap = JSON.stringify(snapshot());
+        if (!silent && (result.applied || result.kept)) {
+          console.log(`[cloudSync] merged: ${result.applied} adopted, ${result.kept} kept local`);
+        }
       }
       notify('synced', 'Up to date');
       return cloud;
@@ -503,11 +550,18 @@ const cloudSync = (() => {
     const origRemove = Storage.prototype.removeItem;
     Storage.prototype.setItem = function(k, v) {
       origSet.call(this, k, v);
-      if (this === localStorage && typeof k === 'string' && k.startsWith(PLANNER_KEY_PREFIX)) schedulePush();
+      if (this === localStorage && typeof k === 'string' && k.startsWith(PLANNER_KEY_PREFIX) && !isTsKey(k)) {
+        // Stamp the change so sync can resolve conflicts
+        try { origSet.call(localStorage, k + TS_SUFFIX, String(Date.now())); } catch(e){}
+        schedulePush();
+      }
     };
     Storage.prototype.removeItem = function(k) {
       origRemove.call(this, k);
-      if (this === localStorage && typeof k === 'string' && k.startsWith(PLANNER_KEY_PREFIX)) schedulePush();
+      if (this === localStorage && typeof k === 'string' && k.startsWith(PLANNER_KEY_PREFIX) && !isTsKey(k)) {
+        try { origRemove.call(localStorage, k + TS_SUFFIX); } catch(e){}
+        schedulePush();
+      }
     };
   }
 
@@ -520,13 +574,16 @@ const cloudSync = (() => {
     }
     notify('syncing', 'Connecting...');
     try {
+      // Stamp existing local keys first so they're "claimed as current"
+      // before we pull cloud (prevents stale-cloud overwrite of unstamped local data)
+      ensureLocalTimestamps();
       const cloud = await pullRaw();
       const cloudHasData = cloud && typeof cloud === 'object' && Object.keys(cloud).some(k => k.startsWith(PLANNER_KEY_PREFIX));
       const localSnap = snapshot();
       const localHasData = Object.keys(localSnap).length > 0;
       if (cloudHasData) {
         applySnapshot(cloud);
-        lastPushedSnap = JSON.stringify(cloud);
+        lastPushedSnap = JSON.stringify(snapshot()); // post-merge local
         notify('synced', 'Up to date');
       } else if (localHasData) {
         await pushRaw(localSnap);
@@ -688,6 +745,10 @@ function recalcTimes(activities, startTime) {
 // ═══════════════════════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════════════════════
+
+// One-time historical test data import (2025 Term 3 + Term 4)
+// Format: { tests: [...test names...], data: { yearGroup: { name: [[date, season, [val1...val7]], ...] } } }
+const TEST_IMPORT_DATA = {"tests":["Bronco","Broad Jump","Vertical Jump","Max Hang","Push Up","20m Sprint","Med Ball Push"],"data":{"7-8":{"Ashe, Kendyll":[["2025-11-01","Term 4, 2025",["5:56","1.72","44","0:26","6","0:0:3:50","3.52"]],["2025-08-01","Term 3, 2025",["6:25","1.77","38","0:21","8","3.53","3.86"]]],"Asi, Milan":[["2025-11-01","Term 4, 2025",["6:30","0.65","35","0:15","3","","3.65"]],["2025-08-01","Term 3, 2025",["","1.84","36","0:25","14","3.34","3.4"]]],"Christensen, Nevaeh":[["2025-11-01","Term 4, 2025",["6:26","1.7","27","1:04","11","","3.65"]],["2025-08-01","Term 3, 2025",["6:17","1.76","32","1:00","3","3.77","3.33"]]],"Currie, Liarah":[["2025-08-01","Term 3, 2025",["5:52","1.7","40","0:40","20","3.76","3.46"]]],"Davies-Andy, Madika":[["2025-08-01","Term 3, 2025",["","1.85","38","0:16","22","3.62","3.8"]]],"Durban, Scarlett":[["2025-08-01","Term 3, 2025",["6:05","","","","","",""]]],"Hala, Nylah":[["2025-11-01","Term 4, 2025",["5:40","1.92","37","1:11","21","0:0:3:44","3.3"]],["2025-08-01","Term 3, 2025",["","1.81","33","0:33","13","3.53","3.5"]]],"Ioane, Laila":[["2025-08-01","Term 3, 2025",["7:15","1.63","29","0:25","8","4.12","3.4"]]],"Kirman, Kelise":[["2025-11-01","Term 4, 2025",["7:11","1.79","39","0:20","4","0:0:3:52","4.15"]],["2025-08-01","Term 3, 2025",["6:35","1.64","34","0:35","7","3.43","4"]]],"Kumbamong, Keesha":[["2025-11-01","Term 4, 2025",["7:20","1.36","29","0:08","5","0:0:3:64","3.77"]],["2025-08-01","Term 3, 2025",["","1.48","36","0:24","16","3.89","1.6"]]],"Lee, Halle":[["2025-11-01","Term 4, 2025",["7:20","1.86","38","0:21","2","0:0:3:44","4.23"]],["2025-08-01","Term 3, 2025",["6:40","0.89","35","0:09","10","3.32","3.52"]]],"Pere, Heavenly":[["2025-11-01","Term 4, 2025",["7:15","1.76","33","0:26","1","0:0:3:66","4.18"]],["2025-08-01","Term 3, 2025",["","1.67","33","0:24","35","3.48","3.73"]]],"Poa-Maoate, Akaina":[["2025-11-01","Term 4, 2025",["5:39","1.67","","0:21","2","0:0:3:54","3.66"]],["2025-08-01","Term 3, 2025",["5:53","1.88","41","1:10","15","3.92","3.91"]]],"Ratu-Taute, Kassidy":[["2025-11-01","Term 4, 2025",["6:06","","","1:02","3","","3.2"]]],"Roger, Zara":[["2025-11-01","Term 4, 2025",["5:32","1.69","32","0:49","3","0:0:3:32","3.87"]],["2025-08-01","Term 3, 2025",["5:48","1.74","30","1:00","16","3.32","3.8"]]],"Sadlier, Enaj":[["2025-11-01","Term 4, 2025",["6:33","1.86","41","1:01","7","","4.55"]],["2025-08-01","Term 3, 2025",["","0.87","34","0:34","10","3.71","3.83"]]],"Seumanutafa, Annison":[["2025-11-01","Term 4, 2025",["5:47","1.97","36","0:26","21","0:0:3:43","4.32"]],["2025-08-01","Term 3, 2025",["6:13","1.77","35","0:34","31","0:0:3:29","4"]]],"Simon, Nimea":[["2025-08-01","Term 3, 2025",["7:10","1.68","32","0:20","20","4","3.47"]]],"Skeen, Estelle":[["2025-11-01","Term 4, 2025",["5:37","1.82","39","0:30","5","3.61","3.5"]],["2025-08-01","Term 3, 2025",["5:44","1.87","38","0:30","11","3.79","3.4"]]],"Sorensen, Dakota":[["2025-11-01","Term 4, 2025",["6:37","1.77","34","0:15","2","0:0:3:78","3.33"]],["2025-08-01","Term 3, 2025",["6:43","1.88","30","0:24","15","3.51","2.33"]]],"Taele, Faith":[["2025-11-01","Term 4, 2025",["6:46","1.59","29","0:26","4","0:0:3:83","3.4"]],["2025-08-01","Term 3, 2025",["6:45","","","","","",""]]],"Taualofa-Morris, Aquarius":[["2025-11-01","Term 4, 2025",["6:29","1.78","28","0:32","1","0:0:3:56","3.79"]],["2025-08-01","Term 3, 2025",["6:20","","","","","",""]]],"Tauri, Mahalia":[["2025-08-01","Term 3, 2025",["6:39","2.1","43","0:14","10","3.52","4"]]],"Mazzitelli, Sienna":[["2025-11-01","Term 4, 2025",["7:51","1.85","40","0:20","6","0:0:3:59","3.97"]]],"Fepuleai, Lesina":[["2025-11-01","Term 4, 2025",["6:25","2.03","40","0:30","23","","4.2"]]],"Lang-Siu, Jordyn":[["2025-11-01","Term 4, 2025",["6:28","1.95","39","0:31","12","0:0:3:47","4.75"]]],"Alesana, Amora":[["2025-11-01","Term 4, 2025",["6:31","1.89","49","0:10","4","0:0:3:55","4.06"]],["2025-08-01","Term 3, 2025",["6:18","1.9","41","0:23","20","3.36","3.6"]]],"Borrell, RoseAngel":[["2025-11-01","Term 4, 2025",["7:42","1.75","44","0:10","1","0:0:3:76","4.7"]],["2025-08-01","Term 3, 2025",["7:36","1.76","38","0:10","20","3.72","3.9"]]],"Brown, Marlee":[["2025-08-01","Term 3, 2025",["7:36","1.35","37","0:06","16","3.95","4"]]],"Chami, Liyana":[["2025-08-01","Term 3, 2025",["6:13","2","41","0:17","20","3.55","4.13"]]],"De Thierry, Tahlia":[["2025-11-01","Term 4, 2025",["6:01","1.89","34","0:16","0","0:0:3:46","3.96"]],["2025-08-01","Term 3, 2025",["6:19","1.5","34","","","3.52","3.32"]]],"Faleafaga, Nhakita-Rose":[["2025-08-01","Term 3, 2025",["6:29","","","","","",""]]],"Freemantle, Paige":[["2025-11-01","Term 4, 2025",["9:26","1.31","22","0:05","0","0:0:4:04","4.37"]],["2025-08-01","Term 3, 2025",["9:29","1.4","25","0:06","16","4.46","4.1"]]],"Guthrie, Tatum-Lee":[["2025-08-01","Term 3, 2025",["","","","0:06","","4.46","4.1"]]],"Hepi-Te Huia, Parekaawa":[["2025-11-01","Term 4, 2025",["7:24","1.67","","","","0:0:3:83","5.28"]]],"Hotai-Walters, Tiare":[["2025-11-01","Term 4, 2025",["7:31","1.56","50","0:13","2","0:0:3:72","4.1"]],["2025-08-01","Term 3, 2025",["7:30","1.7","35","0:12","","3.63","4.5"]]],"Karaka, Krystal-Marie":[["2025-11-01","Term 4, 2025",["7:27","1.67","43","0:06","0","0:0:3:07","3.7"]]],"Kavana, Cahpri":[["2025-11-01","Term 4, 2025",["5:39","1.94","42","","","0:0:3:40","3.72"]],["2025-08-01","Term 3, 2025",["","1.77","37","0:20","17","3.42","3.8"]]],"Kiria-Ratu, Eva-Grace":[["2025-11-01","Term 4, 2025",["6:14","1.88","57","0:45","3","0:0:3:61","4.65"]],["2025-08-01","Term 3, 2025",["6:22","1.8","45","0:40","20","3.98","4.43"]]],"Kumbamong, Daneeka":[["2025-11-01","Term 4, 2025",["6:30","1.86","42","0:50","15","0:0:3:21","4.34"]],["2025-08-01","Term 3, 2025",["6:27","1.8","40","0:40","14","3.31","3.84"]]],"Latu, Koralee":[["2025-11-01","Term 4, 2025",["8:38","1.75","","","","0:0:3:93",""]]],"Mataiti, Laylah":[["2025-11-01","Term 4, 2025",["6:58","1.56","","","","0:0:3:85","3.89"]],["2025-08-01","Term 3, 2025",["","1.51","35","0:32","12","3.89","3.6"]]],"McGregor, Hollie":[["2025-11-01","Term 4, 2025",["7:55","1.18","32","0:07","0","0:0:4:05","3.82"]],["2025-08-01","Term 3, 2025",["8:27","1.29","25","0:07","10","4.21","3.85"]]],"McKee, Mika":[["2025-11-01","Term 4, 2025",["6:50","1.79","37","0:17","7","0:0:3:53","3.76"]],["2025-08-01","Term 3, 2025",["","1.84","36","0:22","28","3.9","3.62"]]],"Monika-Taramai, Kayelyn":[["2025-11-01","Term 4, 2025",["7:06","","","0:20","6","","3.65"]],["2025-08-01","Term 3, 2025",["8:56","1.61","29","0:21","14","4.01","2.8"]]],"Nia, Ava":[["2025-11-01","Term 4, 2025",["5:30","0.9","31","0:10","29","","4.1"]],["2025-08-01","Term 3, 2025",["5:29","1.58","39","0:32","34","3.32","3.74"]]],"Opai, Nitara":[["2025-11-01","Term 4, 2025",["5:51","1.77","40","1:00","27","0:0:3:57","3.8"]],["2025-08-01","Term 3, 2025",["5:56","1.92","38","0:30","20","3.41","3.32"]]],"Paeu, Psyesha":[["2025-08-01","Term 3, 2025",["","1.84","49","0:13","","3.59","4"]]],"Parry, Caysha":[["2025-08-01","Term 3, 2025",["","1.6","41","0:31","15","3.63","4.9"]]],"Pulemagafa, Havana":[["2025-11-01","Term 4, 2025",["7:22","1.85","49","0:10","1","","4.2"]],["2025-08-01","Term 3, 2025",["7:00","1.44","45","0:17","31","3.67","4.2"]]],"Ruiz, Abbie":[["2025-11-01","Term 4, 2025",["6:33","1.98","","","","0:0:3:02","4"]],["2025-08-01","Term 3, 2025",["","2.3","49","0:57","23","3","3"]]],"Sauvao, Alofa":[["2025-11-01","Term 4, 2025",["6:43","2.01","44","0:20","12","0:0:3:32","4.62"]],["2025-08-01","Term 3, 2025",["","2.4","35","0:31","33","3.24","4.37"]]],"Selwyn, Aaliah":[["2025-11-01","Term 4, 2025",["6:20","1.94","43","0:17","15","0:0:3:29","4.1"]],["2025-08-01","Term 3, 2025",["","1.76","39","1:01","30","3.23","4.7"]]],"Simpson, Leila":[["2025-11-01","Term 4, 2025",["6:05","1.9","49","0:42","13","","4.84"]]],"Smith, Kaea":[["2025-11-01","Term 4, 2025",["6:14","1.75","","","","0:0:3:93","4.3"]],["2025-08-01","Term 3, 2025",["6:12","1.67","31","0:20","15","3.37","4.1"]]],"Tagaloa, Zaria":[["2025-11-01","Term 4, 2025",["8:03","1.73","37","0:34","4","","4.92"]],["2025-08-01","Term 3, 2025",["8:10","1.78","37","0:30","21","3.64","4.3"]]],"Tangitutu, Bella":[["2025-11-01","Term 4, 2025",["6:43","1.65","30","0:27","11","0:0:3:56","3.2"]],["2025-08-01","Term 3, 2025",["","1.82","27","0:42","6","3.65","3.22"]]],"Teles, Aurora":[["2025-08-01","Term 3, 2025",["7:06","1.56","36","0:25","","4.07","4.37"]]],"Tihema, MJ":[["2025-11-01","Term 4, 2025",["6:38","1.33","32","0:49","8","","4.07"]],["2025-08-01","Term 3, 2025",["","1.45","31","0:22","20","3.59","3.4"]]],"Tonga, Sisilia":[["2025-08-01","Term 3, 2025",["6:20","2.04","41","0:30","20","3.65","3.13"]]],"Usher, Alyanah":[["2025-11-01","Term 4, 2025",["7:25","1.55","33","0:23","1","0:0:3:87","4"]],["2025-08-01","Term 3, 2025",["","1.31","34","0:07","20","","3.91"]]],"Wharerau-Smith, Tiana":[["2025-08-01","Term 3, 2025",["6:29","1.61","33","0:48","12","4.14",""]]],"William, Cenniah":[["2025-08-01","Term 3, 2025",["","2","49","0:37","32","3.41","4.1"]]],"Pulepule, Bailey":[["2025-11-01","Term 4, 2025",["6:45","2.05","48","0:43","13","","4.88"]]],"Flynn, Harlee":[["2025-11-01","Term 4, 2025",["6:17","1.95","34","0:24","13","0:0:3:58","3.4"]]]},"9-10":{"Akauola, Allegra":[["2025-11-01","Term 4, 2025",["6:45","1.67","33","0:28","13","","4.5"]],["2025-08-01","Term 3, 2025",["6:40","1.68","27","0:18","29(knees)","4.53","3.91"]]],"Atarau, Kobie":[["2025-11-01","Term 4, 2025",["5:40","1.76","53","0:33","14","3.29","4.3"]],["2025-08-01","Term 3, 2025",["5:50","1.9","47","0:30","24","3.26","4.23"]]],"Barnes, Sade":[["2025-11-01","Term 4, 2025",["7:47","1.3","23","0:11","3","","2.96"]],["2025-08-01","Term 3, 2025",["8:35","1.1","23","0:02","7","4.62","2.68"]]],"Betham, Rosa":[["2025-11-01","Term 4, 2025",["6:15","","","","","",""]],["2025-08-01","Term 3, 2025",["6:30","1.56","32","0:34","15(knees)","3.78","4.04"]]],"Bush, Aaliyah":[["2025-08-01","Term 3, 2025",["6:27","1.7","32","0:15","10","3.79","4.92"]]],"Byrne-Hunia, Tiarni":[["2025-11-01","Term 4, 2025",["6:51","1.9","11","0:13","9","","3.8"]],["2025-08-01","Term 3, 2025",["6:41","1.78","47","0:21","10","3.65","3.18"]]],"Cable-Reid, Aaliyah":[["2025-11-01","Term 4, 2025",["7:10","1.45","36","0:24","5","","4.33"]],["2025-08-01","Term 3, 2025",["7:08","1.43","34","0:20","7","3.69","4"]]],"Campbell, Jayla":[["2025-11-01","Term 4, 2025",["6:02","1.98","40","0:39","15","","4.89"]],["2025-08-01","Term 3, 2025",["5:44","2.05","45","0:38","24","3.45","4.57"]]],"Chambers, Shariyah":[["2025-11-01","Term 4, 2025",["6:41","1.73","40","1:04","10","","4.65"]],["2025-08-01","Term 3, 2025",["6:31","","","","","",""]]],"Fangupo, Alisi":[["2025-11-01","Term 4, 2025",["7:32","1.5","45","0:12","4","","4.7"]]],"Freeman, Addison":[["2025-11-01","Term 4, 2025",["6:58","1.7","33","1:21","9","","3.65"]],["2025-08-01","Term 3, 2025",["","1.83","","0:51","","","3.5"]]],"French, Tanaya":[["2025-11-01","Term 4, 2025",["5:21","1.68","37","0:25","12","","3.3"]],["2025-08-01","Term 3, 2025",["5:21","1.8","42","0:25","22(knees)","3.42","3.7"]]],"Geldard, Leilani":[["2025-08-01","Term 3, 2025",["7:05","1.93","43","1:04","4","3.38","3.79"]]],"Goodall, Marley":[["2025-11-01","Term 4, 2025",["6:22","1.58","34","0:26","2","3.91","3.24"]],["2025-08-01","Term 3, 2025",["6:38","1.64","31","0:13","1","3.62","3.29"]]],"Hala, Meleane":[["2025-11-01","Term 4, 2025",["5:13","","","","","",""]],["2025-08-01","Term 3, 2025",["5:33","2.24","54","0:15","20","3.02","3.9"]]],"Hepi, Shyla":[["2025-11-01","Term 4, 2025",["6:47","2","41","0:34","10","","4.28"]],["2025-08-01","Term 3, 2025",["6:35","1.94","41","0:46","9","3.5","3.9"]]],"Johnson, Marlee":[["2025-11-01","Term 4, 2025",["7:21","1.73","34","0:20","4","4.43",""]],["2025-08-01","Term 3, 2025",["7:23","1.8","39","0:10","6","3.49",""]]],"Jones, Jasmin":[["2025-11-01","Term 4, 2025",["7:47","","30","0:12","3","","3.6"]],["2025-08-01","Term 3, 2025",["","1.55","","0:11","","","3.4"]]],"Katipa, Sahvahniya":[["2025-11-01","Term 4, 2025",["7:50","1.62","33","0:25","4","","3.9"]],["2025-08-01","Term 3, 2025",["6:38","1.55","31","0:30","26","3.36","3.6"]]],"Kemp, Maia":[["2025-11-01","Term 4, 2025",["7:19","1.43","37","0:08","2","","4.26"]],["2025-08-01","Term 3, 2025",["7:20","1.88","36","0:11","4","4.22","4.38"]]],"Latu, Bailey":[["2025-11-01","Term 4, 2025",["7:18","2","36","0:14","10","3.98","4"]],["2025-08-01","Term 3, 2025",["7:38","2.16","38","0:07","2","3.39","3.77"]]],"Lavender, Brooklyn":[["2025-11-01","Term 4, 2025",["7:42","1.79","36","0:19","11","","4.3"]],["2025-08-01","Term 3, 2025",["7:26","1.71","28","0:21","23","","3.88"]]],"Leiataua, Priscilla":[["2025-11-01","Term 4, 2025",["","1.1","","10","2","","4.25"]]],"Lepou, Summer":[["2025-11-01","Term 4, 2025",["7:11","","27","","","",""]],["2025-08-01","Term 3, 2025",["6:25","1.09","31","0:23","15(knees)","","4"]]],"Matchitt, Kyzlah":[["2025-11-01","Term 4, 2025",["","","","0:45","15","","4.3"]],["2025-08-01","Term 3, 2025",["6:50","1.81","40","0:30","10","3.36","4.67"]]],"Paku, Shanita":[["2025-11-01","Term 4, 2025",["6:20","1.63","26","0:13","4","3.97","4"]],["2025-08-01","Term 3, 2025",["6:15","1.76","32","0:21","15(knees)","3.73","3.6"]]],"Ratu-Taute, Sierra":[["2025-11-01","Term 4, 2025",["5:41","1.87","39","0:31","9","","4.62"]],["2025-08-01","Term 3, 2025",["6:05","1.93","","0:40","","",""]]],"Robinson, Manaia":[["2025-11-01","Term 4, 2025",["5:37","1.83","36","0:37","20","3.39","3.26"]]],"Rose, Lacey":[["2025-11-01","Term 4, 2025",["7:38","1.64","30","0:18","10","","3.95"]],["2025-08-01","Term 3, 2025",["7:45","1.71","27","0:18","7","3.68","4.02"]]],"Scott, Britney":[["2025-11-01","Term 4, 2025",["6:45","1.86","43","0:54","20","","4.3"]],["2025-08-01","Term 3, 2025",["6:55","","","","","",""]]],"Spehr, Charlee":[["2025-11-01","Term 4, 2025",["7:32","1.15","28","0:24","10","","3.5"]],["2025-08-01","Term 3, 2025",["8:20","1.3","","","","","3.3"]]],"Spehr, Meegan":[["2025-11-01","Term 4, 2025",["7:28","1.49","33","0:44","11","","3.55"]],["2025-08-01","Term 3, 2025",["7:59","1.39","","0:40","","","3.6"]]],"Steedman, Kuru":[["2025-11-01","Term 4, 2025",["","1.75","41","1:11","10","3.61","4"]],["2025-08-01","Term 3, 2025",["6:50","1.8","38","0:30","7","3.27","3.96"]]],"Su'a, Orietta":[["2025-11-01","Term 4, 2025",["7:06","1.52","33","0:22","3","","4.48"]],["2025-08-01","Term 3, 2025",["7:31","1.06","29","0:09","13","3.83","4.5"]]],"Tairea-Katipa, Meremaraea":[["2025-08-01","Term 3, 2025",["6:39","1.61","32","0:17","13","3.76","3.66"]]],"Tangitutu, Talia":[["2025-11-01","Term 4, 2025",["7:36","","","","","",""]],["2025-08-01","Term 3, 2025",["7:44","1.25","20","0:05","4","3.4","3.4"]]],"Taulepa, Kanani":[["2025-11-01","Term 4, 2025",["7:48","1.32","38","0:12","3","","4.6"]],["2025-08-01","Term 3, 2025",["7:44","1.34","39","0:14","4","3.71","3.76"]]],"Tongi, Siahi":[["2025-11-01","Term 4, 2025",["6:27","1.7","47","0:12","17","","4.9"]]],"Tuake, Maharleya":[["2025-08-01","Term 3, 2025",["6:05","1.78","38","0:17","28(knees)","","3.79"]]],"Tufuga, Imani":[["2025-11-01","Term 4, 2025",["6:12","1.65","31","0:15","4","4.01","4.73"]],["2025-08-01","Term 3, 2025",["6:05","1.68","32","0:11","20(knees)","3.77","4.45"]]],"Viliamu, Nevaeh":[["2025-08-01","Term 3, 2025",["7:22","1.81","37","0:17","10","3.45","3.94"]]],"Vuidreketi, Asenaca":[["2025-11-01","Term 4, 2025",["7:30","1.47","32","0:10","3","","4.75"]],["2025-08-01","Term 3, 2025",["7:35","1.62","33","0:05","16(knees)","3.86","4.7"]]],"Whaiapu, Jayda":[["2025-08-01","Term 3, 2025",["7:10","1.75","","0:26","25","3.83","4.83"]]],"Aislabie, Avah":[["2025-11-01","Term 4, 2025",["6:29","1.74","40","0:50","21","0:0:4:11","3.95"]],["2025-08-01","Term 3, 2025",["6:28","1.81","41","0:43","17","0:0:3:35","3.23"]]],"Brown-Hopa, Alasiah":[["2025-11-01","Term 4, 2025",["","1.66","44","0:17","4","3.64","4.1"]],["2025-08-01","Term 3, 2025",["7:17","1.7","40","0:22","","3.52","3.75"]]],"Filikitonga, Olivia":[["2025-11-01","Term 4, 2025",["6:45","1.64","39","0:16","16","0:0:3:91","5.4"]],["2025-08-01","Term 3, 2025",["6:27","1.81","43","0:25","17","3.28","5.12"]]],"Flores, Jaida":[["2025-11-01","Term 4, 2025",["5:54","2.07","58","0:15","15","0:0:3:67","5.15"]],["2025-08-01","Term 3, 2025",["5:50","1.95","","0:53","15","","5.4"]]],"Kawana, Sharleen":[["2025-08-01","Term 3, 2025",["5:58","1.73","37","0:35","21","3.46","4.86"]]],"Khalil, Marissa":[["2025-11-01","Term 4, 2025",["6:03","1.92","33","1:11","17","0:0:3:36","4.48"]],["2025-08-01","Term 3, 2025",["6:09","1.87","41","0:35","25","3.26","3.83"]]],"Kingi, Halina":[["2025-08-01","Term 3, 2025",["6:24","1.76","39","0:38","16","3.52","4.64"]]],"Laterre, Zihade":[["2025-08-01","Term 3, 2025",["6:44","1.72","54","1:30","19","3.21","4.18"]]],"Mataiti, Havana":[["2025-11-01","Term 4, 2025",["","","","1:15","11","","3.8"]]],"Matheson-Johnson, Shakaye":[["2025-11-01","Term 4, 2025",["5:36","","","","","",""]],["2025-08-01","Term 3, 2025",["5:35","2.11","44","0:25","37","3.17",""]]],"Mau, Ruby-Rose":[["2025-11-01","Term 4, 2025",["5:53","1.85","41","0:24","5","0:0:3:99","3.95"]],["2025-08-01","Term 3, 2025",["5:37","1.82","42","0:15","4","3.27","3.9"]]],"Nati, Marmie":[["2025-11-01","Term 4, 2025",["6:07","2.23","43","1:21","25","0:0:3:66","5.5"]],["2025-08-01","Term 3, 2025",["5:59","2.14","47","1:00","30","",""]]],"O'Brien, Ivy":[["2025-11-01","Term 4, 2025",["","2.08","50","0:45","15","0:0:3:52","5.43"]],["2025-08-01","Term 3, 2025",["6:35","1.94","41","0:46","9","3.5","3.9"]]],"O'Neill, Indigo":[["2025-08-01","Term 3, 2025",["","","45","","","",""]]],"Papalii, Oriana-Rose":[["2025-08-01","Term 3, 2025",["7:17","2.19","54","1:20","38","3.18","4.58"]]],"Petley, Che":[["2025-11-01","Term 4, 2025",["6:21","1.73","33","0:30","10","0:0:3:21","4.18"]],["2025-08-01","Term 3, 2025",["6:04","1.9","","0:25","10","","3.9"]]],"Piutau, Ayvah":[["2025-11-01","Term 4, 2025",["6:11","1.94","39","0:21","12","0:0:4:01","4.2"]]],"Price, Harper":[["2025-11-01","Term 4, 2025",["5:52","1.58","36","0:39","10","0:0:4:04","3.88"]],["2025-08-01","Term 3, 2025",["6:01","1.7","37","0:27","15","3.64","4"]]],"Ratima, Reitumanava":[["2025-11-01","Term 4, 2025",["8:13","1.69","38","0:10","5","0:0:4:17","3.9"]]],"Sikahele, Kesaia":[["2025-11-01","Term 4, 2025",["6:57","1.83","42","0:18","11","0:0:3:99","4.6"]],["2025-08-01","Term 3, 2025",["6:25","1.84","47","0:35","20","","4.33"]]],"Skeen, Iris":[["2025-11-01","Term 4, 2025",["6:31","1.74","45","0:29","5","0:0:3:72","4.7"]],["2025-08-01","Term 3, 2025",["7:07","1.95","40","0:31","17","3.48","4.64"]]],"Smith, Jenna":[["2025-11-01","Term 4, 2025",["6:10","1.97","37","0:42","12","0:0:3:77","4.1"]],["2025-08-01","Term 3, 2025",["6:10","1.95","36","0:27","16","3.3","3.63"]]],"Smith, Manaia":[["2025-11-01","Term 4, 2025",["6:25","1.52","28","0:13","20","0","4.2"]],["2025-08-01","Term 3, 2025",["","1.7","","0:35","15","","4.7"]]],"Smith, Tamiia":[["2025-11-01","Term 4, 2025",["6:37","1.54","37","0:55","5","0:0:3:32","5.2"]],["2025-08-01","Term 3, 2025",["7:02","","","","","",""]]],"Tasi-Sale, Milana":[["2025-11-01","Term 4, 2025",["7:00","1.64","34","0:21","8","0:0:4:29","4.9"]],["2025-08-01","Term 3, 2025",["6:39","1.72","47","0:15","6","3.58","4.23"]]],"Te Kotahi, Maleea":[["2025-08-01","Term 3, 2025",["6:28","1.92","36","0:28","27","3.23","4.63"]]],"Tusa, Kyara":[["2025-11-01","Term 4, 2025",["6:56","","47","0:36","11","0:0:3:92","4.51"]],["2025-08-01","Term 3, 2025",["6:25","1.64","48","0:27","12","3.48","4.56"]]],"Walker, Mia":[["2025-11-01","Term 4, 2025",["6:34","2.17","59","","28","0:0:4:06","5.35"]]],"Watene, Ezmae":[["2025-08-01","Term 3, 2025",["6:24","1.84","53","0:43","23","3.13","5.12"]]],"Webber, Aylah":[["2025-11-01","Term 4, 2025",["","1.65","36","0:30","6","","3.8"]],["2025-08-01","Term 3, 2025",["6:40","1.81","40","0:33","6","3.66","3.9"]]],"Wickliffe, Jae-Jae":[["2025-08-01","Term 3, 2025",["5:52","2.01","53","0:31","23","3.26","4.35"]]]}}};
 
 const DRILL_LIBRARY = {
   "Positional Craft": {
@@ -1130,6 +1191,95 @@ function App() {
     try { setRoster(JSON.parse(localStorage.getItem(`playiq_${currentTeam}_roster`) || '[]')); } catch(e) {}
   }, []);
 
+  // One-time historical test data import (2025 testing) — cross-year matching
+  // Searches all year groups (since players age up) but never adds new players.
+  useEffect(() => {
+    if (localStorage.getItem('playiq_test_import_v2')) return;
+    if (typeof TEST_IMPORT_DATA === 'undefined' || !TEST_IMPORT_DATA.data) return;
+    const flipName = (n) => {
+      if (!n) return n;
+      if (n.includes(',')) { const p = n.split(',').map(x=>x.trim()); if (p.length===2 && p[0] && p[1]) return p[1]+' '+p[0]; }
+      return n;
+    };
+    const norm = (n) => flipName(n||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+    const cleanSprint = (v) => {
+      if (typeof v !== 'string') return v;
+      const m = v.match(/^0:0:(\d+):(\d{1,2})$/);
+      if (m) return `${m[1]}.${m[2].padStart(2,'0')}`;
+      return v;
+    };
+
+    // Build global index across ALL year groups (players may have aged up)
+    const ALL_YGS = ['7-8', '9-10', '11-12'];
+    const squads = {};
+    for (const yg of ALL_YGS) {
+      try { squads[yg] = JSON.parse(localStorage.getItem(`playiq_${yg}_squad_v3`) || '[]'); }
+      catch(e) { squads[yg] = []; }
+    }
+    const globalIdx = new Map(); // normKey -> { yg, playerIdx }
+    for (const yg of ALL_YGS) {
+      squads[yg].forEach((p, i) => { if (p && p.name) globalIdx.set(norm(p.name), { yg, playerIdx: i }); });
+    }
+    // Fuzzy fallback: last name + first name substring
+    const findFuzzy = (importedName) => {
+      const flipped = flipName(importedName);
+      const tokens = flipped.toLowerCase().split(/[\s,\-']+/).filter(Boolean);
+      const first = tokens[0], last = tokens[tokens.length - 1];
+      if (!first || !last || first === last) return null;
+      const matches = [];
+      for (const yg of ALL_YGS) {
+        squads[yg].forEach((p, i) => {
+          if (!p || !p.name) return;
+          const pn = p.name.toLowerCase();
+          if (pn.includes(last) && pn.includes(first)) matches.push({ yg, playerIdx: i });
+        });
+      }
+      return matches.length === 1 ? matches[0] : null;
+    };
+
+    const tests = TEST_IMPORT_DATA.tests;
+    const summary = { matched: 0, crossYear: 0, fuzzy: 0, skipped: 0, skippedNames: [], entriesAdded: 0 };
+
+    for (const sheetYg of Object.keys(TEST_IMPORT_DATA.data)) {
+      for (const [importedName, blocks] of Object.entries(TEST_IMPORT_DATA.data[sheetYg])) {
+        let match = globalIdx.get(norm(importedName));
+        if (!match) {
+          match = findFuzzy(importedName);
+          if (match) summary.fuzzy++;
+        }
+        if (!match) { summary.skipped++; summary.skippedNames.push(`${importedName} (sheet: ${sheetYg})`); continue; }
+        if (match.yg !== sheetYg) summary.crossYear++;
+        summary.matched++;
+        const player = squads[match.yg][match.playerIdx];
+        player.profile = player.profile || {};
+        player.profile.testHistory = (player.profile.testHistory && typeof player.profile.testHistory === 'object') ? player.profile.testHistory : {};
+        for (const block of blocks) {
+          const date = block[0], vals = block[2];
+          for (let i = 0; i < tests.length; i++) {
+            let val = (vals[i]||'').toString().trim();
+            if (!val) continue;
+            if (tests[i] === '20m Sprint') val = cleanSprint(val);
+            const tn = tests[i];
+            player.profile.testHistory[tn] = player.profile.testHistory[tn] || [];
+            if (!player.profile.testHistory[tn].some(([d]) => d === date)) {
+              player.profile.testHistory[tn].push([date, val]);
+              summary.entriesAdded++;
+            }
+          }
+        }
+        Object.keys(player.profile.testHistory).forEach(tn => {
+          player.profile.testHistory[tn].sort((a,b) => a[0].localeCompare(b[0]));
+        });
+      }
+    }
+    for (const yg of ALL_YGS) {
+      localStorage.setItem(`playiq_${yg}_squad_v3`, JSON.stringify(squads[yg]));
+    }
+    localStorage.setItem('playiq_test_import_v2', JSON.stringify({ when: new Date().toISOString(), summary }));
+    try { setSquad(JSON.parse(localStorage.getItem(`playiq_${currentGroup.id}_squad_v3`) || '[]')); } catch(e) {}
+    console.log('[Keebra] 2025 test data import — cross-year:', summary);
+  }, []);
+
   const [selectedDay, setSelectedDay] = useState("Tuesday");
   const [drillSearch, setDrillSearch] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
@@ -1416,6 +1566,7 @@ function SessionBuilder({ selectedWeek, setSelectedWeek, selectedDay, setSelecte
   const SEASON_WEEKS = seasonWeeks || DEFAULT_SEASON_WEEKS;
   const [draggedIndex, setDraggedIndex] = useState(null);
   const [editingWeekInfo, setEditingWeekInfo] = useState(false);
+  const [showNewsletterModal, setShowNewsletterModal] = useState(false);
   const [editingIndex, setEditingIndex] = useState(null);
   const [showGenerateModal, setShowGenerateModal] = useState(false);
   const [showBlockModal, setShowBlockModal] = useState(false);
@@ -1842,9 +1993,15 @@ function SessionBuilder({ selectedWeek, setSelectedWeek, selectedDay, setSelecte
                 ? <input type="text" value={weekData.dates} onChange={e => updateWeekField('dates', e.target.value)} className="inline-edit" style={{width:100}} />
                 : weekData.dates}
               </div>
-              <button className="btn-outline" onClick={() => setEditingWeekInfo(!editingWeekInfo)} style={{padding:'4px 10px', fontSize:11}}>
-                {editingWeekInfo ? 'Done' : 'Edit'}
-              </button>
+              <div style={{display:'flex', gap:6, alignItems:'center'}}>
+                <button className="btn-outline" onClick={() => setShowNewsletterModal(true)} style={{padding:'4px 10px', fontSize:11, display:'inline-flex', alignItems:'center', gap:5, color:'var(--brand-pink)', borderColor:'var(--brand-pink)'}}
+                  title="Generate a short parent/community update for this week">
+                  ✉ Generate Newsletter
+                </button>
+                <button className="btn-outline" onClick={() => setEditingWeekInfo(!editingWeekInfo)} style={{padding:'4px 10px', fontSize:11}}>
+                  {editingWeekInfo ? 'Done' : 'Edit'}
+                </button>
+              </div>
             </div>
             {editingWeekInfo ? (
               <div style={{display:'flex', flexDirection:'column', gap:8}}>
@@ -2074,6 +2231,17 @@ function SessionBuilder({ selectedWeek, setSelectedWeek, selectedDay, setSelecte
       {showAddModal && <AddDrillModal onClose={() => setShowAddModal(false)} onAdd={handleAddDrill} />}
       {showCopyModal && <CopySessionModal onClose={() => setShowCopyModal(false)} onCopy={handleCopySession} currentWeek={selectedWeek} currentDay={selectedDay} currentTeam={currentTeam} customActivities={customActivities} seasonWeeks={seasonWeeks} />}
       {showPasteModal && <PasteSessionModal onClose={() => setShowPasteModal(false)} onPaste={handlePasteSession} />}
+      {showNewsletterModal && (
+        <NewsletterModal
+          onClose={() => setShowNewsletterModal(false)}
+          weekData={weekData}
+          weekDays={weekDays}
+          customActivities={customActivities}
+          selectedWeek={selectedWeek}
+          currentGroup={currentGroup}
+          currentSub={currentSub}
+        />
+      )}
       {editingIndex !== null && allActivitiesWithTimes[editingIndex] && (
         <EditActivityModal
           activity={allActivitiesWithTimes[editingIndex]}
@@ -2761,6 +2929,138 @@ function PasteSessionModal({ onClose, onPaste }) {
           <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
           <button className="btn btn-primary" onClick={() => onPaste(parsed)} disabled={parsed.length === 0}>
             Import {parsed.length} Activities
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// NEWSLETTER GENERATOR — weekly parent/community update (≤100 words)
+// ═══════════════════════════════════════════════════════════
+function NewsletterModal({ onClose, weekData, weekDays, customActivities, selectedWeek, currentGroup, currentSub }) {
+  const teamLabel = currentGroup ? `${currentGroup.label} ${currentSub || ''}`.trim() : 'Team';
+  const WORD_LIMIT = 100;
+
+  function buildNewsletter() {
+    const days = (weekDays && weekDays[selectedWeek]) || ['Tuesday', 'Thursday'];
+    const focus = (weekData?.focus || '').trim();
+    const outcomes = (weekData?.outcomes || '').trim();
+    const game = (weekData?.game || '').trim();
+    const blockName = (weekData?.blockName || '').trim();
+    const wkLabel = weekData?.week || selectedWeek;
+
+    // Helpers
+    const isTrans = (n) => typeof n === 'string' && (
+      n.toLowerCase().startsWith('transition') || n.toLowerCase().includes('drink break')
+    );
+    const cleanName = (s) => (s || '')
+      .replace(/^(CORE:|CORE\s*-|CORE\s+|Skill:|Defence\s*-|Attack\s*-)\s*/i, '')
+      .replace(/\s+\([^)]*\)\s*$/, '')
+      .trim();
+
+    // Day-by-day skill list (dedupe per day)
+    const dayLines = [];
+    days.forEach(d => {
+      const acts = customActivities[`${selectedWeek}-${d}`] || [];
+      const drills = [...new Set(acts.filter(a => !isTrans(a.activity)).map(a => cleanName(a.activity)).filter(Boolean))];
+      if (drills.length === 0) return;
+      const top = drills.slice(0, 4);
+      dayLines.push(`${d} — ${top.join(', ')}.`);
+    });
+
+    // Build body
+    const headerLine = `${teamLabel} — Week ${wkLabel} Update`;
+    const intro = focus
+      ? `This week the girls worked on ${focus.toLowerCase().replace(/\.$/, '')}.`
+      : `Here's a quick recap from training this week.`;
+    const skillsPara = dayLines.length ? dayLines.join(' ') : 'Sessions covered our core skill and conditioning blocks.';
+
+    let extras = '';
+    if (outcomes) extras += ` Outcome: ${outcomes.replace(/\.$/, '')}.`;
+    if (game) extras += ` Match this week: ${game}.`;
+    const signoff = blockName ? ` Big effort in our ${blockName} block — keep it up!` : ` Great work, ladies — keep grinding!`;
+
+    let body = `${intro} ${skillsPara}${extras}${signoff}`;
+
+    // Cap to WORD_LIMIT words
+    const words = body.split(/\s+/);
+    if (words.length > WORD_LIMIT) body = words.slice(0, WORD_LIMIT - 1).join(' ') + '…';
+
+    return `${headerLine}\n\n${body}`;
+  }
+
+  const [text, setText] = useState(buildNewsletter);
+  const [copied, setCopied] = useState(false);
+
+  const wordCount = (text.split(/^.+\n\n/, 2)[1] || text).trim().split(/\s+/).filter(Boolean).length;
+  const overLimit = wordCount > WORD_LIMIT;
+
+  function regenerate() {
+    setText(buildNewsletter());
+    setCopied(false);
+  }
+  function copyText() {
+    try {
+      navigator.clipboard.writeText(text).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1800);
+      });
+    } catch (e) {
+      // Fallback: select textarea
+      const ta = document.getElementById('newsletter-textarea');
+      if (ta) { ta.select(); document.execCommand('copy'); setCopied(true); setTimeout(() => setCopied(false), 1800); }
+    }
+  }
+  function emailIt() {
+    const subject = encodeURIComponent(`${teamLabel} — Week ${weekData?.week || selectedWeek} Update`);
+    const body = encodeURIComponent(text);
+    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{width: 600, maxWidth: '95vw', maxHeight: '90vh', overflowY: 'auto'}}>
+        <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8}}>
+          <div>
+            <h3 style={{marginBottom:4}}>Weekly Newsletter</h3>
+            <div style={{fontSize:12, color:'var(--text-muted)'}}>
+              Auto-generated from this week's sessions for <strong style={{color:'var(--accent-light)'}}>{teamLabel}</strong>. Edit freely.
+            </div>
+          </div>
+          <button onClick={onClose} style={{background:'none', border:'none', color:'var(--text-muted)', cursor:'pointer', padding:6, display:'inline-flex'}}>
+            <Icon name="x" size={18}/>
+          </button>
+        </div>
+
+        <textarea id="newsletter-textarea" value={text} onChange={e => setText(e.target.value)}
+          style={{
+            width:'100%', minHeight:240, padding:14, marginTop:8,
+            background:'var(--bg-card)', border:'1px solid var(--border)', borderRadius:10,
+            fontFamily:'inherit', fontSize:14, lineHeight:1.6, color:'var(--text-primary)',
+            resize:'vertical', outline:'none'
+          }}
+          onFocus={e => e.target.style.borderColor='var(--border-focus)'}
+          onBlur={e => e.target.style.borderColor='var(--border)'} />
+
+        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:10, flexWrap:'wrap', gap:8}}>
+          <div style={{fontSize:11, color: overLimit ? 'var(--red)' : 'var(--text-muted)', fontWeight: overLimit ? 700 : 500}}>
+            {wordCount} / {WORD_LIMIT} words{overLimit ? ' — over limit' : ''}
+          </div>
+          <button onClick={regenerate} className="btn-outline"
+            style={{padding:'6px 12px', fontSize:11, display:'inline-flex', alignItems:'center', gap:5}}>
+            <Icon name="rotate" size={11}/> Regenerate
+          </button>
+        </div>
+
+        <div className="btn-row" style={{marginTop:14, gap:8}}>
+          <button className="btn btn-ghost" onClick={onClose}>Close</button>
+          <button className="btn btn-ghost" onClick={emailIt} style={{display:'inline-flex', alignItems:'center', gap:6}}>
+            ✉ Email
+          </button>
+          <button className="btn btn-primary" onClick={copyText} style={{display:'inline-flex', alignItems:'center', gap:6}}>
+            <Icon name="copy" size={13}/> {copied ? 'Copied!' : 'Copy text'}
           </button>
         </div>
       </div>
@@ -3879,6 +4179,234 @@ function TeamList18({ squad, roster, matchday18, setMatchday18, currentSub, team
 }
 
 // ═══════════════════════════════════════════════════════════
+// BULK IMPORT TEST DATA — paste spreadsheet rows, fuzzy match, assign
+// ═══════════════════════════════════════════════════════════
+function ImportTestDataModal({ squad, setSquad, onClose }) {
+  const [rawText, setRawText] = useState('');
+  const [importDate, setImportDate] = useState(() => {
+    // Default to 1 Aug of last year — typical pre-season testing date
+    const d = new Date(); d.setFullYear(d.getFullYear() - 1, 7, 1);
+    return d.toISOString().slice(0, 10);
+  });
+  const [seasonTag, setSeasonTag] = useState(() => String(new Date().getFullYear() - 1));
+  const [step, setStep] = useState('paste'); // paste | review | done
+  const [overrideMap, setOverrideMap] = useState({}); // { rowIdx: playerId }
+  const [skipMap, setSkipMap] = useState({}); // { rowIdx: true }
+
+  const normalize = (s) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  // === Parse rawText into headers + rows ===
+  const parsed = useMemo(() => {
+    if (!rawText.trim()) return { headers: [], rows: [] };
+    const lines = rawText.split(/\r?\n/).filter(l => l.trim());
+    if (lines.length < 2) return { headers: [], rows: [] };
+    const split = (line) => {
+      // Tab-separated preferred (spreadsheet paste), fall back to comma
+      if (line.indexOf('\t') >= 0) return line.split('\t').map(c => c.trim());
+      return line.split(',').map(c => c.trim());
+    };
+    const headers = split(lines[0]);
+    const dataRows = lines.slice(1).map(l => split(l));
+    return { headers, rows: dataRows };
+  }, [rawText]);
+
+  // === Match each row to a squad player ===
+  const matched = useMemo(() => {
+    return parsed.rows.map((row, idx) => {
+      const importedName = row[0] || '';
+      let player = null;
+      const overrideId = overrideMap[idx];
+      if (overrideId) {
+        player = squad.find(p => p._id === overrideId) || null;
+      } else if (importedName) {
+        const norm = normalize(importedName);
+        // Exact normalized match
+        player = squad.find(p => normalize(p.name) === norm) || null;
+        if (!player) {
+          // Last name match (last token)
+          const tokens = importedName.toLowerCase().split(/[\s,]+/).filter(Boolean);
+          const last = tokens[tokens.length - 1] || '';
+          const first = tokens[0] || '';
+          if (last) {
+            const candidates = squad.filter(p => {
+              const n = p.name.toLowerCase();
+              return n.includes(last) || n.includes(first);
+            });
+            if (candidates.length === 1) player = candidates[0];
+            else if (candidates.length > 1 && first) {
+              player = candidates.find(p => p.name.toLowerCase().includes(first)) || null;
+            }
+          }
+        }
+      }
+      // Pull test columns (skip first col = name). Skip cols with blank header (separator cols).
+      const tests = [];
+      for (let c = 1; c < parsed.headers.length; c++) {
+        const value = (row[c] || '').trim();
+        const test = (parsed.headers[c] || '').trim();
+        if (!test) continue; // separator column between term blocks
+        if (!value || value === '·' || value === '-' || value === '—') continue;
+        tests.push({ test, value });
+      }
+      return { idx, importedName, player, tests };
+    });
+  }, [parsed, squad, overrideMap]);
+
+  const matchedCount = matched.filter(m => m.player && !skipMap[m.idx]).length;
+  const unmatchedCount = matched.filter(m => !m.player && !skipMap[m.idx]).length;
+  const totalTestsToImport = matched.reduce((sum, m) => {
+    if (!m.player || skipMap[m.idx]) return sum;
+    return sum + m.tests.length;
+  }, 0);
+
+  function doImport() {
+    setSquad(prev => prev.map(p => {
+      const myRows = matched.filter(m => m.player && m.player._id === p._id && !skipMap[m.idx]);
+      if (myRows.length === 0) return p;
+      const newEntries = myRows.flatMap(m => m.tests.map(t => ({
+        id: 'gt_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+        date: importDate,
+        test: t.test,
+        value: t.value,
+        notes: seasonTag ? `${seasonTag} testing` : '',
+      })));
+      const existing = (p.profile && Array.isArray(p.profile.gymTests)) ? p.profile.gymTests : [];
+      return { ...p, profile: { ...(p.profile || {}), gymTests: [...existing, ...newEntries] } };
+    }));
+    setStep('done');
+  }
+
+  const exampleText = "Name\t40m Sprint\tYo-Yo Test\tBench Press (1RM)\tSquat (1RM)\nHalo Clarke-Telka\t5.82\t1850\t30kg\t55kg\nAva Nia\t5.55\t2100\t35kg\t65kg";
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{width: 760, maxWidth: '95vw', maxHeight: '90vh', overflowY: 'auto'}}>
+        <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:12}}>
+          <div>
+            <h3 style={{marginBottom:4}}>Import Test Data</h3>
+            <div style={{fontSize:12, color:'var(--text-muted)'}}>
+              Paste rows from a spreadsheet. Names get auto-matched to your squad — review and confirm before importing.
+            </div>
+          </div>
+          <button onClick={onClose} style={{background:'none', border:'none', color:'var(--text-muted)', cursor:'pointer', padding:6, display:'inline-flex'}}>
+            <Icon name="x" size={18}/>
+          </button>
+        </div>
+
+        {step === 'paste' && (
+          <>
+            <div className="format-hint" style={{marginBottom:12}}>
+              <div className="format-hint-title">Expected format (paste from Excel / Google Sheets)</div>
+              <pre style={{fontSize:11, color:'var(--text-secondary)', whiteSpace:'pre-wrap', margin:0}}>{`Name        40m Sprint   Yo-Yo Test   Bench Press   Squat
+Halo Clarke    5.82       1850          30kg          55kg
+Ava Nia        5.55       2100          35kg          65kg`}</pre>
+              <div style={{fontSize:11, color:'var(--text-muted)', marginTop:6}}>
+                First column = player name. Other columns = test names. Tab or comma separated. Header row required.
+              </div>
+            </div>
+
+            <textarea className="paste-area" value={rawText} onChange={e => setRawText(e.target.value)}
+              placeholder="Paste your test data here..."
+              style={{minHeight: 200}} />
+
+            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginTop:14}}>
+              <div className="form-group" style={{margin:0}}>
+                <label className="form-label">Date for these results</label>
+                <input type="date" className="form-input" value={importDate} onChange={e => setImportDate(e.target.value)} />
+              </div>
+              <div className="form-group" style={{margin:0}}>
+                <label className="form-label">Season tag (added to notes)</label>
+                <input className="form-input" value={seasonTag} onChange={e => setSeasonTag(e.target.value)}
+                  placeholder="e.g. 2024 pre-season" />
+              </div>
+            </div>
+
+            <div className="btn-row" style={{marginTop:16}}>
+              <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+              <button className="btn btn-ghost" onClick={() => setRawText(exampleText)}>Use example</button>
+              <button className="btn btn-primary" onClick={() => setStep('review')}
+                disabled={parsed.rows.length === 0}>
+                Continue → Review {parsed.rows.length} row{parsed.rows.length === 1 ? '' : 's'}
+              </button>
+            </div>
+          </>
+        )}
+
+        {step === 'review' && (
+          <>
+            <div style={{padding:12, background:'var(--bg-input)', borderRadius:8, marginBottom:12, fontSize:12, display:'flex', gap:16, flexWrap:'wrap'}}>
+              <div><span style={{color:'var(--text-muted)'}}>Matched:</span> <strong style={{color:'var(--green)'}}>{matchedCount}</strong></div>
+              <div><span style={{color:'var(--text-muted)'}}>Unmatched:</span> <strong style={{color: unmatchedCount > 0 ? 'var(--red)' : 'var(--text-muted)'}}>{unmatchedCount}</strong></div>
+              <div><span style={{color:'var(--text-muted)'}}>Tests to import:</span> <strong style={{color:'var(--brand-pink)'}}>{totalTestsToImport}</strong></div>
+              <div style={{marginLeft:'auto'}}><span style={{color:'var(--text-muted)'}}>Date:</span> <strong>{importDate}</strong></div>
+            </div>
+
+            <div style={{maxHeight:340, overflowY:'auto', border:'1px solid var(--border)', borderRadius:8}}>
+              <table style={{width:'100%', borderCollapse:'collapse', fontSize:12}}>
+                <thead>
+                  <tr style={{position:'sticky', top:0, background:'var(--bg-input)', zIndex:1}}>
+                    <th style={{textAlign:'left', padding:'8px 10px', fontWeight:700, color:'var(--text-secondary)', fontSize:11, textTransform:'uppercase', letterSpacing:0.5}}>From sheet</th>
+                    <th style={{textAlign:'left', padding:'8px 10px', fontWeight:700, color:'var(--text-secondary)', fontSize:11, textTransform:'uppercase', letterSpacing:0.5}}>Assign to player</th>
+                    <th style={{textAlign:'left', padding:'8px 10px', fontWeight:700, color:'var(--text-secondary)', fontSize:11, textTransform:'uppercase', letterSpacing:0.5}}>Tests</th>
+                    <th style={{padding:'8px 10px', fontWeight:700, color:'var(--text-secondary)', fontSize:11, textTransform:'uppercase', letterSpacing:0.5}}>Skip</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {matched.map(m => {
+                    const skipped = !!skipMap[m.idx];
+                    return (
+                      <tr key={m.idx} style={{borderTop:'1px solid var(--border)', background: skipped ? 'var(--bg-input)' : 'transparent', opacity: skipped ? 0.5 : 1}}>
+                        <td style={{padding:'8px 10px', fontWeight:600}}>{m.importedName || '(blank)'}</td>
+                        <td style={{padding:'8px 10px'}}>
+                          <select value={m.player ? m.player._id : ''}
+                            onChange={e => setOverrideMap(prev => ({...prev, [m.idx]: e.target.value}))}
+                            style={{width:'100%', padding:'4px 6px', fontSize:12, fontFamily:'inherit',
+                              background: m.player ? 'var(--green-bg)' : 'var(--red-bg)',
+                              color: m.player ? 'var(--green)' : 'var(--red)', fontWeight:600,
+                              border:`1px solid ${m.player ? 'var(--green)' : 'var(--red)'}`, borderRadius:5}}>
+                            <option value="">— No match —</option>
+                            {squad.map(p => <option key={p._id} value={p._id} style={{color:'var(--text-primary)', background:'#fff'}}>{p.name}</option>)}
+                          </select>
+                        </td>
+                        <td style={{padding:'8px 10px', color:'var(--text-secondary)'}}>
+                          {m.tests.length > 0 ? m.tests.map(t => `${t.test}: ${t.value}`).join(', ') : <span style={{color:'var(--text-muted)'}}>—</span>}
+                        </td>
+                        <td style={{padding:'8px 10px', textAlign:'center'}}>
+                          <input type="checkbox" checked={skipped} onChange={e => setSkipMap(prev => ({...prev, [m.idx]: e.target.checked}))} />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="btn-row" style={{marginTop:16}}>
+              <button className="btn btn-ghost" onClick={() => setStep('paste')}>← Back</button>
+              <button className="btn btn-primary" onClick={doImport} disabled={matchedCount === 0}>
+                Import {totalTestsToImport} test{totalTestsToImport === 1 ? '' : 's'} into {matchedCount} player{matchedCount === 1 ? '' : 's'}
+              </button>
+            </div>
+          </>
+        )}
+
+        {step === 'done' && (
+          <div style={{textAlign:'center', padding:'30px 20px'}}>
+            <div style={{fontSize:48, marginBottom:12}}>✓</div>
+            <div style={{fontSize:16, fontWeight:700, marginBottom:6}}>Import complete</div>
+            <div style={{fontSize:13, color:'var(--text-secondary)', marginBottom:20}}>
+              Added {totalTestsToImport} test result{totalTestsToImport === 1 ? '' : 's'} across {matchedCount} player{matchedCount === 1 ? '' : 's'}.
+              <br/>Open any player's profile → Gym Tests tab to see the data.
+            </div>
+            <button className="btn btn-primary" onClick={onClose}>Done</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
 // PLAYER PROFILE — gym tests, goals, feedback, skill grades
 // ═══════════════════════════════════════════════════════════
 const DEFAULT_SKILLS = [
@@ -3902,6 +4430,22 @@ function PlayerProfileModal({ player, playerIdx, updatePlayer, deletePlayer, onC
   const updField = (f, v) => updatePlayer(playerIdx, f, v);
 
   const gymTests = Array.isArray(profile.gymTests) ? profile.gymTests : [];
+  const testHistory = (profile.testHistory && typeof profile.testHistory === 'object') ? profile.testHistory : {};
+  // For each test where lower value is better
+  const LOWER_IS_BETTER = new Set(['Bronco', '40m Sprint', '20m Sprint', '10m Sprint', '1.2km Time Trial']);
+  // For tests measured in time format MM:SS, lower is better
+  const isTimeFormat = (v) => typeof v === 'string' && /^\d+:\d{2}$/.test(v);
+  const valToNumber = (v) => {
+    if (v == null) return null;
+    const s = String(v).trim();
+    if (isTimeFormat(s)) {
+      const [m, sec] = s.split(':').map(Number);
+      return m * 60 + sec;
+    }
+    const n = parseFloat(s.replace(/[^\d.\-]/g, ''));
+    return isNaN(n) ? null : n;
+  };
+
   const goals = Array.isArray(profile.goals) ? profile.goals : [];
   const feedback = Array.isArray(profile.feedback) ? profile.feedback : [];
   const skills = profile.skills && typeof profile.skills === 'object' ? profile.skills : {};
@@ -3916,6 +4460,34 @@ function PlayerProfileModal({ player, playerIdx, updatePlayer, deletePlayer, onC
   }
   function removeGymTest(id) {
     patchProfile({ gymTests: gymTests.filter(t => t.id !== id) });
+  }
+
+  // === TEST HISTORY (bulk-imported, compact map) ===
+  function updateTestHistory(testName, entries) {
+    const next = { ...testHistory };
+    if (!entries || entries.length === 0) delete next[testName];
+    else next[testName] = entries.sort((a, b) => (a[0] || '').localeCompare(b[0] || ''));
+    patchProfile({ testHistory: next });
+  }
+  function addHistoryEntry(testName) {
+    const cur = testHistory[testName] || [];
+    updateTestHistory(testName, [...cur, [today(), '']]);
+  }
+  function updateHistoryEntry(testName, idx, field, value) {
+    const cur = (testHistory[testName] || []).slice();
+    if (!cur[idx]) return;
+    cur[idx] = field === 'date' ? [value, cur[idx][1]] : [cur[idx][0], value];
+    updateTestHistory(testName, cur);
+  }
+  function removeHistoryEntry(testName, idx) {
+    const cur = (testHistory[testName] || []).filter((_, i) => i !== idx);
+    updateTestHistory(testName, cur);
+  }
+  function addHistoryTest() {
+    const name = window.prompt('Test name to track:');
+    if (!name || !name.trim()) return;
+    if (testHistory[name.trim()]) return;
+    updateTestHistory(name.trim(), [[today(), '']]);
   }
 
   // === GOALS ===
@@ -4047,15 +4619,173 @@ function PlayerProfileModal({ player, playerIdx, updatePlayer, deletePlayer, onC
         {/* GYM TESTS */}
         {tab === 'gym' && (
           <div>
+            {/* === TEST HISTORY (progression cards with sparkline charts) === */}
+            {Object.keys(testHistory).length > 0 && (
+              <div style={{marginBottom:18}}>
+                <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12}}>
+                  <div>
+                    <div style={{fontSize:14, fontWeight:700, color:'var(--text-primary)'}}>Progression</div>
+                    <div style={{fontSize:11, color:'var(--text-muted)', marginTop:2}}>Latest result, change since first entry, and a chart of all dates.</div>
+                  </div>
+                  <button className="btn-outline" onClick={addHistoryTest} style={{fontSize:11, padding:'6px 12px', display:'inline-flex', alignItems:'center', gap:5}}>
+                    <Icon name="plus" size={11}/> Track a test
+                  </button>
+                </div>
+
+                <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(320px, 1fr))', gap:12}}>
+                  {Object.keys(testHistory).sort().map(testName => {
+                    const entries = testHistory[testName] || [];
+                    const lowerBetter = LOWER_IS_BETTER.has(testName);
+                    const sortedEntries = [...entries].sort((a,b) => (a[0]||'').localeCompare(b[0]||''));
+                    const valid = sortedEntries.filter(e => e[1] && valToNumber(e[1]) != null)
+                      .map(e => ({ date: e[0], raw: e[1], n: valToNumber(e[1]) }));
+
+                    const latest = valid.length ? valid[valid.length - 1] : null;
+                    const first = valid.length ? valid[0] : null;
+                    const sampleVal = valid.find(v => v.raw)?.raw || '';
+                    const isTimeFmt = isTimeFormat(sampleVal);
+
+                    let trend = null;
+                    if (valid.length >= 2) {
+                      const diff = latest.n - first.n;
+                      const better = lowerBetter ? diff < 0 : diff > 0;
+                      trend = { diff, better, sameVal: diff === 0 };
+                    }
+
+                    const fmtDelta = (d) => {
+                      if (isTimeFmt) {
+                        const abs = Math.abs(d);
+                        const m = Math.floor(abs / 60), s = Math.round(abs % 60);
+                        const sign = d < 0 ? '−' : (d > 0 ? '+' : '');
+                        return `${sign}${m > 0 ? m + ':' + String(s).padStart(2,'0') : s + 's'}`;
+                      }
+                      const r = Math.round(d * 100) / 100;
+                      if (r === 0) return '0';
+                      return (r > 0 ? '+' : '') + (Number.isInteger(r) ? r : r.toFixed(2));
+                    };
+                    const fmtShortDate = (s) => {
+                      if (!s) return '';
+                      const [y, m, d] = s.split('-');
+                      if (!y || !m || !d) return s;
+                      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                      return `${parseInt(d,10)} ${months[parseInt(m,10)-1]} '${y.slice(2)}`;
+                    };
+
+                    // Build sparkline SVG path
+                    let sparkSvg = null;
+                    if (valid.length >= 2) {
+                      const W = 320, H = 70, PADX = 12, PADY = 14;
+                      const ns = valid.map(v => v.n);
+                      const min = Math.min(...ns), max = Math.max(...ns);
+                      const range = (max - min) || 1;
+                      const x = (i) => PADX + (W - 2*PADX) * (valid.length === 1 ? 0.5 : i / (valid.length - 1));
+                      const y = (n) => {
+                        const norm = (n - min) / range;
+                        const visualPos = lowerBetter ? norm : (1 - norm);
+                        return PADY + (H - 2*PADY) * visualPos;
+                      };
+                      const linePath = valid.map((p, i) => `${i === 0 ? 'M' : 'L'} ${x(i).toFixed(1)} ${y(p.n).toFixed(1)}`).join(' ');
+                      const areaPath = linePath + ` L ${x(valid.length-1).toFixed(1)} ${H-PADY} L ${x(0).toFixed(1)} ${H-PADY} Z`;
+                      sparkSvg = (
+                        <svg viewBox={`0 0 ${W} ${H}`} style={{width:'100%', height:H, display:'block'}} preserveAspectRatio="none">
+                          <path d={areaPath} fill={teamColor} opacity="0.12" />
+                          <path d={linePath} stroke={teamColor} strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                          {valid.map((p, i) => (
+                            <g key={i}>
+                              <circle cx={x(i)} cy={y(p.n)} r="5" fill="white" stroke={teamColor} strokeWidth="2" />
+                              {(i === 0 || i === valid.length - 1) && (
+                                <text x={x(i)} y={y(p.n) - 9} textAnchor="middle" fontSize="10" fontWeight="700" fill={teamColor}>{p.raw}</text>
+                              )}
+                            </g>
+                          ))}
+                        </svg>
+                      );
+                    }
+
+                    return (
+                      <div key={testName} style={{padding:'14px 14px 10px', background:'var(--bg-card)', border:'1px solid var(--border)', borderRadius:12, boxShadow:'0 1px 3px rgba(0,0,0,0.04)'}}>
+                        {/* Header row */}
+                        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10}}>
+                          <div style={{fontSize:14, fontWeight:700, color:'var(--text-primary)'}}>{testName}</div>
+                          {trend && !trend.sameVal && (
+                            <span style={{fontSize:10, fontWeight:700, padding:'3px 9px', borderRadius:12,
+                              background: trend.better ? 'var(--green-bg)' : 'var(--red-bg)',
+                              color: trend.better ? 'var(--green)' : 'var(--red)'}}>
+                              {trend.better ? '▲ improved' : '▼ regressed'}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Latest + Delta */}
+                        {latest && (
+                          <div style={{display:'flex', alignItems:'baseline', gap:12, marginBottom:8}}>
+                            <div>
+                              <div style={{fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:0.5}}>Latest</div>
+                              <div style={{fontSize:24, fontWeight:800, color:teamColor, lineHeight:1.1}}>{latest.raw}</div>
+                              <div style={{fontSize:10, color:'var(--text-muted)', marginTop:2}}>{fmtShortDate(latest.date)}</div>
+                            </div>
+                            {trend && (
+                              <div style={{marginLeft:'auto', textAlign:'right'}}>
+                                <div style={{fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:0.5}}>Change</div>
+                                <div style={{fontSize:18, fontWeight:800, color: trend.sameVal ? 'var(--text-muted)' : (trend.better ? 'var(--green)' : 'var(--red)'), lineHeight:1.1}}>
+                                  {fmtDelta(trend.diff)}
+                                </div>
+                                <div style={{fontSize:10, color:'var(--text-muted)', marginTop:2}}>vs {fmtShortDate(first.date)}</div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Sparkline */}
+                        {sparkSvg && (
+                          <div style={{margin:'8px -2px 4px'}}>
+                            {sparkSvg}
+                          </div>
+                        )}
+
+                        {/* Entry editor — compact, collapsed by default if >2 entries */}
+                        <details style={{marginTop:6, fontSize:11}}>
+                          <summary style={{cursor:'pointer', fontSize:11, fontWeight:600, color:'var(--text-muted)', listStyle:'none', padding:'4px 0', userSelect:'none'}}>
+                            <span style={{display:'inline-flex', alignItems:'center', gap:4}}>
+                              <Icon name="chevronRight" size={11}/> {entries.length} {entries.length === 1 ? 'entry' : 'entries'}
+                            </span>
+                          </summary>
+                          <div style={{display:'flex', flexDirection:'column', gap:4, marginTop:6, paddingTop:6, borderTop:'1px solid var(--border)'}}>
+                            {entries.map((entry, idx) => (
+                              <div key={idx} style={{display:'flex', alignItems:'center', gap:6}}>
+                                <input type="date" value={entry[0] || ''} onChange={e => updateHistoryEntry(testName, idx, 'date', e.target.value)}
+                                  style={{width:128, padding:'3px 6px', fontSize:11, fontFamily:'inherit', background:'var(--bg-input)', border:'1px solid var(--border)', borderRadius:4, outline:'none'}} />
+                                <input value={entry[1] || ''} onChange={e => updateHistoryEntry(testName, idx, 'value', e.target.value)}
+                                  placeholder="—"
+                                  style={{flex:1, padding:'3px 6px', fontSize:12, fontWeight:600, color:teamColor, fontFamily:'inherit', background:'var(--bg-input)', border:'1px solid var(--border)', borderRadius:4, outline:'none', textAlign:'right'}} />
+                                <button onClick={() => removeHistoryEntry(testName, idx)} title="Remove entry"
+                                  style={{background:'none', border:'none', color:'var(--text-muted)', cursor:'pointer', padding:2, display:'inline-flex'}}>
+                                  <Icon name="x" size={11}/>
+                                </button>
+                              </div>
+                            ))}
+                            <button onClick={() => addHistoryEntry(testName)}
+                              style={{marginTop:4, padding:'4px 8px', fontSize:11, fontWeight:600, color:teamColor, background:'transparent', border:`1px dashed ${teamColor}`, borderRadius:4, cursor:'pointer', fontFamily:'inherit'}}>
+                              + add date
+                            </button>
+                          </div>
+                        </details>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12}}>
-              <div style={{fontSize:12, color:'var(--text-muted)'}}>{gymTests.length} entr{gymTests.length === 1 ? 'y' : 'ies'}</div>
+              <div style={{fontSize:13, fontWeight:700, color:'var(--text-primary)'}}>One-off entries <span style={{fontSize:11, fontWeight:500, color:'var(--text-muted)'}}>({gymTests.length})</span></div>
               <button className="btn btn-primary btn-sm" onClick={addGymTest} style={{display:'inline-flex', alignItems:'center', gap:6}}>
                 <Icon name="plus" size={12}/> Add test result
               </button>
             </div>
             {gymTests.length === 0 ? (
               <div style={{padding:24, textAlign:'center', color:'var(--text-muted)', background:'var(--bg-input)', borderRadius:8, fontSize:13}}>
-                No gym test data yet. Track sprints, lifts, fitness scores.
+                {Object.keys(testHistory).length === 0 ? 'No gym test data yet. Track sprints, lifts, fitness scores.' : 'No one-off entries yet.'}
               </div>
             ) : (
               <div style={{display:'flex', flexDirection:'column', gap:8}}>
@@ -4250,6 +4980,7 @@ function SquadTracker({ squad, setSquad, roster, setRoster, matchday18, setMatch
 
   // Player profile modal
   const [profileIdx, setProfileIdx] = useState(null);
+  const [showImportTests, setShowImportTests] = useState(false);
   const openProfileById = (id) => {
     const idx = squad.findIndex(p => p._id === id);
     if (idx >= 0) setProfileIdx(idx);
@@ -4381,7 +5112,11 @@ function SquadTracker({ squad, setSquad, roster, setRoster, matchday18, setMatch
               </span>
             </div>
           </div>
-          <button className="btn-outline" onClick={() => setShowBulkAdd(!showBulkAdd)} style={{fontSize:11, padding:'6px 12px'}}>{showBulkAdd ? 'Cancel' : 'Bulk Add'}</button>
+          <div style={{display:'flex', gap:6, flexWrap:'wrap'}}>
+            <button className="btn-outline" onClick={() => setShowImportTests(true)} style={{fontSize:11, padding:'6px 12px', color:'var(--brand-pink)', borderColor:'var(--brand-pink)'}}
+              title="Bulk import gym test results from a spreadsheet">📊 Import Test Data</button>
+            <button className="btn-outline" onClick={() => setShowBulkAdd(!showBulkAdd)} style={{fontSize:11, padding:'6px 12px'}}>{showBulkAdd ? 'Cancel' : 'Bulk Add'}</button>
+          </div>
         </div>
         <div style={{display:'flex', gap:8, alignItems:'center'}}>
           <input className="form-input" value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={handleQuickAdd}
@@ -4468,6 +5203,14 @@ function SquadTracker({ squad, setSquad, roster, setRoster, matchday18, setMatch
             })}
           </div>
         </>
+      )}
+
+      {showImportTests && (
+        <ImportTestDataModal
+          squad={squad}
+          setSquad={setSquad}
+          onClose={() => setShowImportTests(false)}
+        />
       )}
 
       {profileIdx !== null && squad[profileIdx] && (
