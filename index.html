@@ -132,9 +132,48 @@
   .coverage-target { font-size: 11px; color: var(--text-muted); }
 
   /* Squad */
-  .squad-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 14px; align-items: start; }
-  .position-group { background: var(--bg-input); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
-  .position-title { font-size: 11px; font-weight: 700; color: var(--accent-light); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+  .squad-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 18px; align-items: start; }
+  .position-group { background: #fff; border: 1px solid var(--border); border-radius: 14px; padding: 14px 12px 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.03); }
+  .position-title { font-size: 13px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.2px; text-transform: none; margin-bottom: 8px; padding: 4px 8px 10px; border-bottom: 1px solid var(--border); }
+  .position-title .pos-count { font-size: 11px; font-weight: 600; color: var(--text-muted); background: var(--bg-input); padding: 2px 10px; border-radius: 12px; }
+  /* Player card — sleek list-row style */
+  .pcard { display: flex; align-items: center; gap: 12px; padding: 8px 8px; margin: 2px 0; border-radius: 10px; cursor: grab; transition: background 0.15s, transform 0.1s; position: relative; }
+  .pcard:hover { background: var(--bg-input); }
+  .pcard:active { cursor: grabbing; }
+  .pcard.unavailable { opacity: 0.55; }
+  .pcard.unavailable .pcard-name { text-decoration: line-through; color: var(--text-muted); }
+  .pcard.in-team::before { content: ''; position: absolute; left: 0; top: 12px; bottom: 12px; width: 3px; border-radius: 3px; background: var(--pcard-team-color); }
+  .pcard-name { font-size: 14px; font-weight: 600; color: var(--text-primary); line-height: 1.25; cursor: pointer; word-break: break-word; }
+  .pcard-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; display: flex; gap: 8px; align-items: center; }
+  .pcard-meta .meta-num { color: var(--brand-cyan); font-weight: 700; }
+  .pcard-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .pcard-tag-btn {
+    width: 30px; height: 30px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 800; cursor: pointer;
+    border: 1.5px solid var(--border); background: transparent;
+    color: var(--text-muted); transition: all 0.15s; font-family: inherit;
+  }
+  .pcard-tag-btn:hover { color: var(--pcard-team-color); border-color: var(--pcard-team-color); }
+  .pcard-tag-btn.tagged { background: var(--pcard-team-color); color: white; border-color: var(--pcard-team-color); }
+  .pcard-status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex-shrink: 0; box-shadow: 0 0 0 2px rgba(22,163,74,0.15); }
+  .pcard-status-dot.out { background: var(--red); box-shadow: 0 0 0 2px rgba(220,38,38,0.15); }
+  .pcard-hover-btn {
+    background: transparent; border: none; color: var(--text-muted);
+    width: 26px; height: 26px; border-radius: 6px; display: inline-flex;
+    align-items: center; justify-content: center; cursor: pointer;
+    opacity: 0; transition: opacity 0.15s, background 0.15s;
+  }
+  .pcard:hover .pcard-hover-btn { opacity: 1; }
+  .pcard-hover-btn:hover { background: var(--bg-card-hover); color: var(--text-primary); }
+  .pcard-hover-btn.danger:hover { background: var(--red-bg); color: var(--red); }
+  .pcard-pos-select {
+    padding: 4px 8px; font-size: 11px; font-weight: 600; color: var(--text-secondary);
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px;
+    cursor: pointer; font-family: inherit; outline: none;
+    opacity: 0; transition: opacity 0.15s; max-width: 0;
+  }
+  .pcard:hover .pcard-pos-select, .pcard:focus-within .pcard-pos-select { opacity: 1; max-width: 130px; padding-left: 8px; padding-right: 8px; }
   .player-item { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 13px; min-height: 36px; }
   .player-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
   .player-name { color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -4280,46 +4319,44 @@ function SquadTracker({ squad, setSquad, roster, setRoster, matchday18, setMatch
     const isUnavailable = p.available === false;
     const inTeam = inRoster(p._id);
     return (
-      <div draggable onDragStart={e => handleDragStart(e, p._idx)} onDragEnd={handleDragEnd}
-        style={{display:'flex', flexDirection:'column', gap:6, padding:'8px 10px', background: isUnavailable ? 'var(--bg-input)' : 'var(--bg-card)', border:'1px solid var(--border)', borderRadius:8, opacity: isUnavailable ? 0.5 : 1, cursor:'grab', marginBottom:6, transition:'all 0.15s'}}>
-        {/* Row 1: drag, avatar, #, name (full width), delete */}
-        <div style={{display:'flex', alignItems:'center', gap:8, minWidth:0}}>
-          <span style={{color:'var(--text-muted)', cursor:'grab', display:'inline-flex', flexShrink:0}}><Icon name="grip" size={14}/></span>
-          <Avatar name={p.name} size={32} unavailable={isUnavailable} />
-          <input value={p.number} onChange={e => updatePlayer(p._idx, 'number', e.target.value)} placeholder="#"
-            style={{width:34, padding:'2px 4px', fontSize:12, fontWeight:700, textAlign:'center', color:'var(--brand-cyan)', background:'transparent', border:'1px solid transparent', borderRadius:4, outline:'none', fontFamily:'inherit', flexShrink:0}}
-            onFocus={e => e.target.style.borderColor='var(--border)'} onBlur={e => e.target.style.borderColor='transparent'} onClick={e => e.stopPropagation()} />
-          <span onClick={e => { e.stopPropagation(); setProfileIdx(p._idx); }}
-            title="Open profile"
-            style={{flex:1, fontSize:13, fontWeight:500, color: isUnavailable ? 'var(--text-muted)' : 'var(--text-primary)', textDecoration: isUnavailable ? 'line-through' : 'none', whiteSpace:'normal', overflowWrap:'break-word', lineHeight:1.25, minWidth:0, cursor:'pointer'}}
-            onMouseOver={e => e.currentTarget.style.color = isUnavailable ? 'var(--text-secondary)' : 'var(--accent-light)'}
-            onMouseOut={e => e.currentTarget.style.color = isUnavailable ? 'var(--text-muted)' : 'var(--text-primary)'}>{p.name}</span>
-          <button onClick={e => { e.stopPropagation(); deletePlayer(p._idx); }} title="Remove from squad"
-            style={{background:'none', border:'none', color:'var(--text-muted)', cursor:'pointer', padding:4, display:'inline-flex', flexShrink:0}}>
-            <Icon name="x" size={14}/>
-          </button>
+      <div
+        draggable
+        onDragStart={e => handleDragStart(e, p._idx)}
+        onDragEnd={handleDragEnd}
+        className={`pcard${isUnavailable ? ' unavailable' : ''}${inTeam ? ' in-team' : ''}`}
+        style={{ ['--pcard-team-color']: teamColor }}
+      >
+        <Avatar name={p.name} size={38} unavailable={isUnavailable} />
+        <div style={{flex:1, minWidth:0}}>
+          <div className="pcard-name" onClick={e => { e.stopPropagation(); setProfileIdx(p._idx); }} title="Open profile">
+            {p.name}
+          </div>
+          <div className="pcard-meta">
+            <span className={`pcard-status-dot${isUnavailable ? ' out' : ''}`}
+              onClick={e => { e.stopPropagation(); toggleAvailability(p._idx); }}
+              title={isUnavailable ? 'Click to mark Available' : 'Click to mark Unavailable'}
+              style={{cursor:'pointer'}} />
+            {p.number && <span className="meta-num" onClick={e => e.stopPropagation()}>#{p.number}</span>}
+            {inTeam && <span style={{color:teamColor, fontWeight:600}}>In {currentSub}</span>}
+          </div>
         </div>
-        {/* Row 2: position dropdown, IN/OUT, +TEAM */}
-        <div style={{display:'flex', alignItems:'center', gap:6, paddingLeft:30, flexWrap:'wrap'}}>
-          <select value={p.position} onChange={e => updatePlayer(p._idx, 'position', e.target.value)} onClick={e => e.stopPropagation()}
-            style={{padding:'3px 6px', fontSize:11, fontWeight:600, color:'var(--text-secondary)', background:'var(--bg-input)', border:'1px solid var(--border)', borderRadius:5, cursor:'pointer', fontFamily:'inherit', flexShrink:0}}>
-            <option value="">Position...</option>
+        <div className="pcard-actions">
+          <select className="pcard-pos-select" value={p.position || ''}
+            onChange={e => updatePlayer(p._idx, 'position', e.target.value)}
+            onClick={e => e.stopPropagation()}
+            title="Change position">
+            <option value="">No position</option>
             {POSITIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}
           </select>
-          <button onClick={e => { e.stopPropagation(); toggleAvailability(p._idx); }}
-            style={{background: isUnavailable ? 'var(--red-bg)' : 'var(--green-bg)', color: isUnavailable ? 'var(--red)' : 'var(--green)', border:'none', borderRadius:12, padding:'3px 10px', fontSize:10, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap', flexShrink:0}}>
-            {isUnavailable ? 'OUT' : 'IN'}
+          <button className={`pcard-tag-btn${inTeam ? ' tagged' : ''}`}
+            onClick={e => { e.stopPropagation(); toggleRoster(p._id); }}
+            title={inTeam ? `Remove from ${currentSub}` : `Add to ${currentSub}`}>
+            {inTeam ? '✓' : '+'}
           </button>
-          <button onClick={e => { e.stopPropagation(); toggleRoster(p._id); }}
-            title={inTeam ? `Remove from ${currentSub}` : `Add to ${currentSub}`}
-            style={{
-              background: inTeam ? teamColor : 'transparent',
-              color: inTeam ? 'white' : teamColor,
-              border: `1px solid ${inTeam ? teamColor : 'var(--border)'}`,
-              borderRadius: 12, padding: '3px 10px', fontSize: 10, fontWeight: 700,
-              cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0
-            }}>
-            {inTeam ? `✓ ${currentSub.toUpperCase()}` : `+ ${currentSub.toUpperCase()}`}
+          <button className="pcard-hover-btn danger"
+            onClick={e => { e.stopPropagation(); if (window.confirm(`Remove ${p.name} from the squad?`)) deletePlayer(p._idx); }}
+            title="Remove player">
+            <Icon name="x" size={14}/>
           </button>
         </div>
       </div>
@@ -4403,7 +4440,11 @@ function SquadTracker({ squad, setSquad, roster, setRoster, matchday18, setMatch
             onOpenProfile={openProfileById}
           />
 
-          <div style={{fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:1, margin:'24px 0 10px'}}>Squad by position</div>
+          <div style={{display:'flex', alignItems:'center', gap:10, margin:'28px 0 14px'}}>
+            <div style={{fontSize:15, fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.2px'}}>Squad by position</div>
+            <div style={{flex:1, height:1, background:'var(--border)'}} />
+            <div style={{fontSize:11, color:'var(--text-muted)', fontWeight:500}}>{squad.length} player{squad.length === 1 ? '' : 's'}</div>
+          </div>
           <div className="squad-grid">
             {ALL_SLOTS.map(pos => {
               const players = grouped[pos] || [];
@@ -4418,7 +4459,7 @@ function SquadTracker({ squad, setSquad, roster, setRoster, matchday18, setMatch
                   style={{borderColor: isDropTarget ? 'var(--brand-pink)' : undefined, background: isDropTarget ? 'var(--accent-glow)' : undefined}}>
                   <div className="position-title" style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
                     <span>{pos}</span>
-                    <span style={{fontSize:10, fontWeight:600, color:'var(--text-muted)', textTransform:'none', letterSpacing:0}}>{players.length}</span>
+                    <span className="pos-count">{players.length}</span>
                   </div>
                   {players.map(p => <PlayerCard key={p._idx} p={p} />)}
                   {players.length === 0 && <div style={{fontSize:11, color:'var(--text-muted)', padding:'8px 4px', fontStyle:'italic'}}>Drop players here</div>}
