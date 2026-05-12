@@ -3686,7 +3686,7 @@ function DailyPlanner({ customActivities, setActiveTab, setSelectedWeek, setSele
 // ═══════════════════════════════════════════════════════════
 // TEAM LIST 1-18 — match-day team selection
 // ═══════════════════════════════════════════════════════════
-function TeamList18({ squad, roster, matchday18, setMatchday18, currentSub, teamColor, teamColorBg, TEAM_POSITIONS }) {
+function TeamList18({ squad, roster, matchday18, setMatchday18, currentSub, teamColor, teamColorBg, TEAM_POSITIONS, onOpenProfile }) {
   // Build a map of squad players by id for quick lookup
   const playerById = useMemo(() => {
     const m = {};
@@ -3799,7 +3799,15 @@ function TeamList18({ squad, roster, matchday18, setMatchday18, currentSub, team
                 fontWeight:800, fontSize:12
               }}>{tp.num}</div>
               <div style={{flex:1, minWidth:0}}>
-                <div style={{fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:0.5}}>{tp.pos}</div>
+                <div style={{fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:0.5, display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                  <span>{tp.pos}</span>
+                  {player && onOpenProfile && (
+                    <span onClick={() => onOpenProfile(player._id)} title="Open profile"
+                      style={{cursor:'pointer', color:teamColor, fontSize:9, fontWeight:700, textTransform:'none', letterSpacing:0}}>
+                      profile ›
+                    </span>
+                  )}
+                </div>
                 <select value={playerId || ''} onChange={e => setSlot(idx, e.target.value)}
                   style={{
                     width:'100%', padding:'4px 6px', fontSize:13, fontWeight: player ? 600 : 400,
@@ -3826,6 +3834,336 @@ function TeamList18({ squad, roster, matchday18, setMatchday18, currentSub, team
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// PLAYER PROFILE — gym tests, goals, feedback, skill grades
+// ═══════════════════════════════════════════════════════════
+const DEFAULT_SKILLS = [
+  'Catch & Pass', 'Tackle Technique', 'Ball Carries', 'Defensive Line',
+  'Kicking', 'Communication', 'Game Awareness', 'Decision Making',
+  'Speed', 'Strength & Power'
+];
+const DEFAULT_GYM_TESTS = [
+  '40m Sprint', '20m Sprint', '10m Sprint', 'Yo-Yo Test', '1.2km Time Trial',
+  'Bench Press (1RM)', 'Squat (1RM)', 'Chin-ups (max reps)', 'Push-ups (max reps)',
+  'Vertical Jump'
+];
+
+function PlayerProfileModal({ player, playerIdx, updatePlayer, deletePlayer, onClose, currentSub, teamColor, inRoster, toggleRoster, POSITIONS }) {
+  const [tab, setTab] = useState('overview');
+  const profile = player.profile || {};
+
+  function patchProfile(patch) {
+    updatePlayer(playerIdx, 'profile', { ...profile, ...patch });
+  }
+  const updField = (f, v) => updatePlayer(playerIdx, f, v);
+
+  const gymTests = Array.isArray(profile.gymTests) ? profile.gymTests : [];
+  const goals = Array.isArray(profile.goals) ? profile.goals : [];
+  const feedback = Array.isArray(profile.feedback) ? profile.feedback : [];
+  const skills = profile.skills && typeof profile.skills === 'object' ? profile.skills : {};
+  const today = () => new Date().toISOString().slice(0, 10);
+
+  // === GYM TESTS ===
+  function addGymTest() {
+    patchProfile({ gymTests: [...gymTests, { id: 'gt_' + Date.now(), date: today(), test: DEFAULT_GYM_TESTS[0], value: '', notes: '' }] });
+  }
+  function updateGymTest(id, patch) {
+    patchProfile({ gymTests: gymTests.map(t => t.id === id ? { ...t, ...patch } : t) });
+  }
+  function removeGymTest(id) {
+    patchProfile({ gymTests: gymTests.filter(t => t.id !== id) });
+  }
+
+  // === GOALS ===
+  function addGoal() {
+    patchProfile({ goals: [...goals, { id: 'g_' + Date.now(), text: '', status: 'active', created: today() }] });
+  }
+  function updateGoal(id, patch) {
+    patchProfile({ goals: goals.map(g => g.id === id ? { ...g, ...patch } : g) });
+  }
+  function removeGoal(id) {
+    patchProfile({ goals: goals.filter(g => g.id !== id) });
+  }
+
+  // === FEEDBACK ===
+  function addFeedback() {
+    patchProfile({ feedback: [{ id: 'f_' + Date.now(), date: today(), from: '', text: '' }, ...feedback] });
+  }
+  function updateFeedback(id, patch) {
+    patchProfile({ feedback: feedback.map(f => f.id === id ? { ...f, ...patch } : f) });
+  }
+  function removeFeedback(id) {
+    patchProfile({ feedback: feedback.filter(f => f.id !== id) });
+  }
+
+  // === SKILLS ===
+  const allSkills = useMemo(() => {
+    const list = [...DEFAULT_SKILLS];
+    Object.keys(skills).forEach(k => { if (!list.includes(k)) list.push(k); });
+    return list;
+  }, [skills]);
+  function setSkillGrade(name, grade) {
+    patchProfile({ skills: { ...skills, [name]: grade } });
+  }
+  function addCustomSkill() {
+    const name = window.prompt('New skill name:');
+    if (!name || !name.trim()) return;
+    patchProfile({ skills: { ...skills, [name.trim()]: 0 } });
+  }
+  function removeSkill(name) {
+    const next = { ...skills }; delete next[name];
+    patchProfile({ skills: next });
+  }
+
+  const inTeam = inRoster(player._id);
+
+  const tabBtn = (id, label) => ({
+    flex: 1, padding: '9px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+    border: '1px solid ' + (tab === id ? teamColor : 'var(--border)'),
+    background: tab === id ? teamColor : 'var(--bg-input)',
+    color: tab === id ? 'white' : 'var(--text-secondary)',
+    borderRadius: 8, fontFamily: 'inherit', minWidth: 0, whiteSpace: 'nowrap'
+  });
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{width: 720, maxWidth: '95vw', maxHeight: '90vh', overflowY: 'auto'}}>
+        {/* HEADER */}
+        <div style={{display:'flex', alignItems:'flex-start', gap:14, marginBottom:14, paddingBottom:14, borderBottom:'1px solid var(--border)'}}>
+          <Avatar name={player.name} size={56} />
+          <div style={{flex:1, minWidth:0}}>
+            <input value={player.name || ''} onChange={e => updField('name', e.target.value)}
+              style={{fontSize:20, fontWeight:800, color:'var(--text-primary)', background:'transparent', border:'1px solid transparent', borderRadius:6, padding:'2px 6px', width:'100%', outline:'none', fontFamily:'inherit'}}
+              onFocus={e => e.target.style.borderColor='var(--border)'} onBlur={e => e.target.style.borderColor='transparent'} />
+            <div style={{display:'flex', alignItems:'center', gap:10, marginTop:6, flexWrap:'wrap'}}>
+              <label style={{fontSize:11, color:'var(--text-muted)', fontWeight:600}}>#
+                <input value={player.number || ''} onChange={e => updField('number', e.target.value)} placeholder="—"
+                  style={{width:40, marginLeft:4, padding:'3px 6px', fontSize:12, fontWeight:700, color:'var(--brand-cyan)', background:'var(--bg-input)', border:'1px solid var(--border)', borderRadius:5, outline:'none', fontFamily:'inherit'}} />
+              </label>
+              <select value={player.position || ''} onChange={e => updField('position', e.target.value)}
+                style={{padding:'4px 8px', fontSize:11, fontWeight:600, color:'var(--text-secondary)', background:'var(--bg-input)', border:'1px solid var(--border)', borderRadius:5, fontFamily:'inherit', cursor:'pointer'}}>
+                <option value="">Position...</option>
+                {POSITIONS.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+              <button onClick={() => toggleRoster(player._id)}
+                style={{background: inTeam ? teamColor : 'transparent', color: inTeam ? 'white' : teamColor, border:`1px solid ${inTeam ? teamColor : 'var(--border)'}`, borderRadius:12, padding:'3px 10px', fontSize:10, fontWeight:700, cursor:'pointer'}}>
+                {inTeam ? `✓ IN ${currentSub.toUpperCase()}` : `+ ${currentSub.toUpperCase()}`}
+              </button>
+              <button onClick={() => updField('available', player.available === false)}
+                style={{background: player.available === false ? 'var(--red-bg)' : 'var(--green-bg)', color: player.available === false ? 'var(--red)' : 'var(--green)', border:'none', borderRadius:12, padding:'3px 10px', fontSize:10, fontWeight:700, cursor:'pointer'}}>
+                {player.available === false ? 'UNAVAILABLE' : 'AVAILABLE'}
+              </button>
+            </div>
+          </div>
+          <button onClick={onClose} style={{background:'none', border:'none', color:'var(--text-muted)', cursor:'pointer', padding:6, display:'inline-flex', flexShrink:0}}>
+            <Icon name="x" size={18}/>
+          </button>
+        </div>
+
+        {/* TABS */}
+        <div style={{display:'flex', gap:6, marginBottom:16, flexWrap:'wrap'}}>
+          <button style={tabBtn('overview', 'Overview')} onClick={() => setTab('overview')}>Overview</button>
+          <button style={tabBtn('gym', 'Gym Tests')} onClick={() => setTab('gym')}>Gym Tests</button>
+          <button style={tabBtn('feedback', 'Goals & Feedback')} onClick={() => setTab('feedback')}>Goals & Feedback</button>
+          <button style={tabBtn('skills', 'Skill Grades')} onClick={() => setTab('skills')}>Skill Grades</button>
+        </div>
+
+        {/* OVERVIEW */}
+        {tab === 'overview' && (
+          <div>
+            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10, marginBottom:14}}>
+              <div className="form-group" style={{margin:0}}>
+                <label className="form-label">Height</label>
+                <input className="form-input" placeholder="e.g. 168 cm" value={profile.height || ''} onChange={e => patchProfile({ height: e.target.value })} />
+              </div>
+              <div className="form-group" style={{margin:0}}>
+                <label className="form-label">Weight</label>
+                <input className="form-input" placeholder="e.g. 65 kg" value={profile.weight || ''} onChange={e => patchProfile({ weight: e.target.value })} />
+              </div>
+              <div className="form-group" style={{margin:0}}>
+                <label className="form-label">Date of Birth</label>
+                <input type="date" className="form-input" value={profile.dob || ''} onChange={e => patchProfile({ dob: e.target.value })} />
+              </div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Notes / Background</label>
+              <textarea className="form-textarea" placeholder="Strengths, injury history, school, anything coaches should know..."
+                value={profile.notes || ''} onChange={e => patchProfile({ notes: e.target.value })}
+                style={{minHeight: 120}} />
+            </div>
+            <div style={{display:'flex', justifyContent:'flex-end', marginTop:14, paddingTop:14, borderTop:'1px solid var(--border)'}}>
+              <button onClick={() => { if (window.confirm(`Remove ${player.name} from the squad? This deletes all profile data.`)) deletePlayer(playerIdx); }}
+                style={{background:'var(--red-bg)', color:'var(--red)', border:'1px solid var(--red)', borderRadius:8, padding:'8px 14px', fontSize:12, fontWeight:700, cursor:'pointer'}}>
+                Remove player from squad
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* GYM TESTS */}
+        {tab === 'gym' && (
+          <div>
+            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12}}>
+              <div style={{fontSize:12, color:'var(--text-muted)'}}>{gymTests.length} entr{gymTests.length === 1 ? 'y' : 'ies'}</div>
+              <button className="btn btn-primary btn-sm" onClick={addGymTest} style={{display:'inline-flex', alignItems:'center', gap:6}}>
+                <Icon name="plus" size={12}/> Add test result
+              </button>
+            </div>
+            {gymTests.length === 0 ? (
+              <div style={{padding:24, textAlign:'center', color:'var(--text-muted)', background:'var(--bg-input)', borderRadius:8, fontSize:13}}>
+                No gym test data yet. Track sprints, lifts, fitness scores.
+              </div>
+            ) : (
+              <div style={{display:'flex', flexDirection:'column', gap:8}}>
+                {[...gymTests].sort((a,b) => (b.date||'').localeCompare(a.date||'')).map(t => (
+                  <div key={t.id} style={{display:'grid', gridTemplateColumns:'120px 1fr 120px auto', gap:8, padding:'10px', background:'var(--bg-input)', border:'1px solid var(--border)', borderRadius:8, alignItems:'start'}}>
+                    <input type="date" value={t.date || ''} onChange={e => updateGymTest(t.id, { date: e.target.value })}
+                      style={{padding:'6px 8px', fontSize:12, fontFamily:'inherit', background:'#fff', border:'1px solid var(--border)', borderRadius:5, outline:'none'}} />
+                    <input list={`gym-tests-${t.id}`} value={t.test || ''} onChange={e => updateGymTest(t.id, { test: e.target.value })}
+                      placeholder="Test name"
+                      style={{padding:'6px 8px', fontSize:13, fontFamily:'inherit', background:'#fff', border:'1px solid var(--border)', borderRadius:5, outline:'none'}} />
+                    <datalist id={`gym-tests-${t.id}`}>
+                      {DEFAULT_GYM_TESTS.map(g => <option key={g} value={g} />)}
+                    </datalist>
+                    <input value={t.value || ''} onChange={e => updateGymTest(t.id, { value: e.target.value })}
+                      placeholder="Result"
+                      style={{padding:'6px 8px', fontSize:13, fontFamily:'inherit', background:'#fff', border:'1px solid var(--border)', borderRadius:5, outline:'none', fontWeight:600, color:teamColor}} />
+                    <button onClick={() => removeGymTest(t.id)} title="Remove"
+                      style={{background:'none', border:'none', color:'var(--text-muted)', cursor:'pointer', padding:6}}>
+                      <Icon name="x" size={14}/>
+                    </button>
+                    <textarea value={t.notes || ''} onChange={e => updateGymTest(t.id, { notes: e.target.value })}
+                      placeholder="Notes (optional)"
+                      style={{gridColumn:'1 / -1', padding:'6px 8px', fontSize:12, fontFamily:'inherit', background:'#fff', border:'1px solid var(--border)', borderRadius:5, outline:'none', minHeight:34, resize:'vertical'}} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* GOALS & FEEDBACK */}
+        {tab === 'feedback' && (
+          <div style={{display:'flex', flexDirection:'column', gap:20}}>
+            <div>
+              <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10}}>
+                <div style={{fontSize:13, fontWeight:700, color:'var(--text-primary)'}}>Goals ({goals.length})</div>
+                <button className="btn btn-primary btn-sm" onClick={addGoal} style={{display:'inline-flex', alignItems:'center', gap:6}}>
+                  <Icon name="plus" size={12}/> Add goal
+                </button>
+              </div>
+              {goals.length === 0 ? (
+                <div style={{padding:16, textAlign:'center', color:'var(--text-muted)', background:'var(--bg-input)', borderRadius:8, fontSize:12}}>
+                  No goals yet.
+                </div>
+              ) : (
+                <div style={{display:'flex', flexDirection:'column', gap:8}}>
+                  {goals.map(g => (
+                    <div key={g.id} style={{display:'flex', gap:8, padding:10, background:'var(--bg-input)', border:'1px solid var(--border)', borderRadius:8, alignItems:'flex-start'}}>
+                      <select value={g.status || 'active'} onChange={e => updateGoal(g.id, { status: e.target.value })}
+                        style={{padding:'5px 8px', fontSize:11, fontWeight:700, color: g.status === 'done' ? 'var(--green)' : g.status === 'paused' ? 'var(--orange)' : teamColor,
+                          background:'#fff', border:'1px solid var(--border)', borderRadius:12, cursor:'pointer', fontFamily:'inherit', flexShrink:0}}>
+                        <option value="active">Active</option>
+                        <option value="paused">Paused</option>
+                        <option value="done">Done</option>
+                      </select>
+                      <textarea value={g.text || ''} onChange={e => updateGoal(g.id, { text: e.target.value })}
+                        placeholder="What does the player want to work on?"
+                        style={{flex:1, padding:'6px 8px', fontSize:13, fontFamily:'inherit', background:'#fff', border:'1px solid var(--border)', borderRadius:5, outline:'none', minHeight:40, resize:'vertical'}} />
+                      <button onClick={() => removeGoal(g.id)} style={{background:'none', border:'none', color:'var(--text-muted)', cursor:'pointer', padding:4}}>
+                        <Icon name="x" size={14}/>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10}}>
+                <div style={{fontSize:13, fontWeight:700, color:'var(--text-primary)'}}>Coach feedback ({feedback.length})</div>
+                <button className="btn btn-primary btn-sm" onClick={addFeedback} style={{display:'inline-flex', alignItems:'center', gap:6}}>
+                  <Icon name="plus" size={12}/> Add feedback
+                </button>
+              </div>
+              {feedback.length === 0 ? (
+                <div style={{padding:16, textAlign:'center', color:'var(--text-muted)', background:'var(--bg-input)', borderRadius:8, fontSize:12}}>
+                  No feedback yet.
+                </div>
+              ) : (
+                <div style={{display:'flex', flexDirection:'column', gap:8}}>
+                  {feedback.map(f => (
+                    <div key={f.id} style={{padding:10, background:'var(--bg-input)', border:'1px solid var(--border)', borderRadius:8}}>
+                      <div style={{display:'flex', gap:8, marginBottom:6, alignItems:'center'}}>
+                        <input type="date" value={f.date || ''} onChange={e => updateFeedback(f.id, { date: e.target.value })}
+                          style={{padding:'4px 6px', fontSize:11, fontFamily:'inherit', background:'#fff', border:'1px solid var(--border)', borderRadius:4, outline:'none'}} />
+                        <input value={f.from || ''} onChange={e => updateFeedback(f.id, { from: e.target.value })}
+                          placeholder="From (coach name)"
+                          style={{flex:1, padding:'4px 6px', fontSize:11, fontWeight:600, fontFamily:'inherit', background:'#fff', border:'1px solid var(--border)', borderRadius:4, outline:'none'}} />
+                        <button onClick={() => removeFeedback(f.id)} style={{background:'none', border:'none', color:'var(--text-muted)', cursor:'pointer', padding:4}}>
+                          <Icon name="x" size={13}/>
+                        </button>
+                      </div>
+                      <textarea value={f.text || ''} onChange={e => updateFeedback(f.id, { text: e.target.value })}
+                        placeholder="Feedback notes..."
+                        style={{width:'100%', padding:'6px 8px', fontSize:13, fontFamily:'inherit', background:'#fff', border:'1px solid var(--border)', borderRadius:5, outline:'none', minHeight:50, resize:'vertical'}} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* SKILL GRADES */}
+        {tab === 'skills' && (
+          <div>
+            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12, flexWrap:'wrap', gap:8}}>
+              <div style={{fontSize:12, color:'var(--text-muted)'}}>Grade 1 (beginner) → 5 (elite). Click a number to set.</div>
+              <button className="btn btn-ghost btn-sm" onClick={addCustomSkill} style={{display:'inline-flex', alignItems:'center', gap:6}}>
+                <Icon name="plus" size={12}/> Custom skill
+              </button>
+            </div>
+            <div style={{display:'flex', flexDirection:'column', gap:6}}>
+              {allSkills.map(skillName => {
+                const grade = skills[skillName] || 0;
+                const isCustom = !DEFAULT_SKILLS.includes(skillName);
+                return (
+                  <div key={skillName} style={{display:'flex', alignItems:'center', gap:10, padding:'8px 10px', background:'var(--bg-input)', border:'1px solid var(--border)', borderRadius:8}}>
+                    <span style={{flex:1, fontSize:13, fontWeight:500, color:'var(--text-primary)'}}>{skillName}</span>
+                    <div style={{display:'inline-flex', gap:4}}>
+                      {[1,2,3,4,5].map(n => (
+                        <button key={n} onClick={() => setSkillGrade(skillName, grade === n ? 0 : n)}
+                          style={{
+                            width: 28, height: 28, borderRadius: 6,
+                            border: '1px solid ' + (grade >= n ? teamColor : 'var(--border)'),
+                            background: grade >= n ? teamColor : 'transparent',
+                            color: grade >= n ? 'white' : 'var(--text-muted)',
+                            fontWeight: 700, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit'
+                          }}>{n}</button>
+                      ))}
+                    </div>
+                    {isCustom && (
+                      <button onClick={() => removeSkill(skillName)} title="Remove skill"
+                        style={{background:'none', border:'none', color:'var(--text-muted)', cursor:'pointer', padding:4}}>
+                        <Icon name="x" size={13}/>
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <div className="btn-row" style={{marginTop:16}}>
+          <button className="btn btn-primary" onClick={onClose}>Done</button>
+        </div>
       </div>
     </div>
   );
@@ -3870,6 +4208,13 @@ function SquadTracker({ squad, setSquad, roster, setRoster, matchday18, setMatch
   const teamColorBg = currentSub === 'Cup' ? 'var(--accent-glow)' : 'rgba(41,186,229,0.12)';
   const genId = () => 'p_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
   const inRoster = (id) => Array.isArray(roster) && roster.includes(id);
+
+  // Player profile modal
+  const [profileIdx, setProfileIdx] = useState(null);
+  const openProfileById = (id) => {
+    const idx = squad.findIndex(p => p._id === id);
+    if (idx >= 0) setProfileIdx(idx);
+  };
   function toggleRoster(id) {
     setRoster(prev => {
       const arr = Array.isArray(prev) ? prev : [];
@@ -3944,7 +4289,11 @@ function SquadTracker({ squad, setSquad, roster, setRoster, matchday18, setMatch
           <input value={p.number} onChange={e => updatePlayer(p._idx, 'number', e.target.value)} placeholder="#"
             style={{width:34, padding:'2px 4px', fontSize:12, fontWeight:700, textAlign:'center', color:'var(--brand-cyan)', background:'transparent', border:'1px solid transparent', borderRadius:4, outline:'none', fontFamily:'inherit', flexShrink:0}}
             onFocus={e => e.target.style.borderColor='var(--border)'} onBlur={e => e.target.style.borderColor='transparent'} onClick={e => e.stopPropagation()} />
-          <span style={{flex:1, fontSize:13, fontWeight:500, color: isUnavailable ? 'var(--text-muted)' : 'var(--text-primary)', textDecoration: isUnavailable ? 'line-through' : 'none', whiteSpace:'normal', overflowWrap:'break-word', lineHeight:1.25, minWidth:0}}>{p.name}</span>
+          <span onClick={e => { e.stopPropagation(); setProfileIdx(p._idx); }}
+            title="Open profile"
+            style={{flex:1, fontSize:13, fontWeight:500, color: isUnavailable ? 'var(--text-muted)' : 'var(--text-primary)', textDecoration: isUnavailable ? 'line-through' : 'none', whiteSpace:'normal', overflowWrap:'break-word', lineHeight:1.25, minWidth:0, cursor:'pointer'}}
+            onMouseOver={e => e.currentTarget.style.color = isUnavailable ? 'var(--text-secondary)' : 'var(--accent-light)'}
+            onMouseOut={e => e.currentTarget.style.color = isUnavailable ? 'var(--text-muted)' : 'var(--text-primary)'}>{p.name}</span>
           <button onClick={e => { e.stopPropagation(); deletePlayer(p._idx); }} title="Remove from squad"
             style={{background:'none', border:'none', color:'var(--text-muted)', cursor:'pointer', padding:4, display:'inline-flex', flexShrink:0}}>
             <Icon name="x" size={14}/>
@@ -4051,6 +4400,7 @@ function SquadTracker({ squad, setSquad, roster, setRoster, matchday18, setMatch
             teamColor={teamColor}
             teamColorBg={teamColorBg}
             TEAM_POSITIONS={TEAM_POSITIONS}
+            onOpenProfile={openProfileById}
           />
 
           <div style={{fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:1, margin:'24px 0 10px'}}>Squad by position</div>
@@ -4077,6 +4427,21 @@ function SquadTracker({ squad, setSquad, roster, setRoster, matchday18, setMatch
             })}
           </div>
         </>
+      )}
+
+      {profileIdx !== null && squad[profileIdx] && (
+        <PlayerProfileModal
+          player={squad[profileIdx]}
+          playerIdx={profileIdx}
+          updatePlayer={updatePlayer}
+          deletePlayer={(idx) => { deletePlayer(idx); setProfileIdx(null); }}
+          onClose={() => setProfileIdx(null)}
+          currentSub={currentSub}
+          teamColor={teamColor}
+          inRoster={inRoster}
+          toggleRoster={toggleRoster}
+          POSITIONS={POSITIONS}
+        />
       )}
     </div>
   );
