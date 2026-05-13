@@ -447,6 +447,12 @@ const cloudSync = (() => {
     return snap;
   }
 
+  // Captured BEFORE we monkey-patch Storage.prototype, so applySnapshot can
+  // write to localStorage without triggering schedulePush() (which would cause
+  // a sync echo loop on every poll).
+  const origSetItem = Storage.prototype.setItem.bind(localStorage);
+  const origRemoveItem = Storage.prototype.removeItem.bind(localStorage);
+
   // Merge cloud snapshot into local with per-key timestamp resolution.
   // Rule: keep whichever side has the newer __ts. Missing __ts on cloud means
   // we keep local. We never DELETE local keys missing from cloud (defensive —
@@ -464,8 +470,8 @@ const cloudSync = (() => {
 
       if (!localExists) {
         // We don't have this key locally — adopt cloud
-        localStorage.setItem(k, v);
-        if (cloudTs) localStorage.setItem(k + TS_SUFFIX, String(cloudTs));
+        origSetItem(k, v);
+        if (cloudTs) origSetItem(k + TS_SUFFIX, String(cloudTs));
         applied++;
       } else if (localTsRaw && cloudTs <= localTs) {
         // Local has a timestamp and cloud isn't newer — keep local
@@ -475,8 +481,8 @@ const cloudSync = (() => {
         kept++;
       } else if (cloudTs > localTs) {
         // Cloud is genuinely newer — adopt
-        localStorage.setItem(k, v);
-        localStorage.setItem(k + TS_SUFFIX, String(cloudTs));
+        origSetItem(k, v);
+        origSetItem(k + TS_SUFFIX, String(cloudTs));
         applied++;
       } else {
         kept++;
@@ -512,8 +518,12 @@ const cloudSync = (() => {
         const result = applySnapshot(cloud);
         // After merge, lastPushedSnap is local state (which is what we'd push next)
         lastPushedSnap = JSON.stringify(snapshot());
-        if (!silent && (result.applied || result.kept)) {
-          console.log(`[cloudSync] merged: ${result.applied} adopted, ${result.kept} kept local`);
+        if (result.applied > 0) {
+          // CRITICAL: tell React to re-read state from localStorage so its in-memory
+          // state matches the merged data. Without this, the next user edit would
+          // overwrite localStorage with stale React state, wiping the new data.
+          try { window.dispatchEvent(new CustomEvent('cloudSyncMerged', { detail: result })); } catch(e){}
+          if (!silent) console.log(`[cloudSync] merged: ${result.applied} adopted, ${result.kept} kept local`);
         }
       }
       notify('synced', 'Up to date');
@@ -574,9 +584,11 @@ const cloudSync = (() => {
     }
     notify('syncing', 'Connecting...');
     try {
-      // Stamp existing local keys first so they're "claimed as current"
-      // before we pull cloud (prevents stale-cloud overwrite of unstamped local data)
-      ensureLocalTimestamps();
+      // NOTE: we intentionally do NOT pre-stamp local keys here.
+      // Letting cloud-with-__ts beat local-without-__ts is the correct migration path:
+      //   - shared updates (squads, test data) flow from cloud → coaches on first load
+      //   - per-key edits made by THIS coach since loading get __ts on write, so they'll
+      //     beat future cloud pulls automatically.
       const cloud = await pullRaw();
       const cloudHasData = cloud && typeof cloud === 'object' && Object.keys(cloud).some(k => k.startsWith(PLANNER_KEY_PREFIX));
       const localSnap = snapshot();
@@ -1191,6 +1203,32 @@ function App() {
     try { setRoster(JSON.parse(localStorage.getItem(`playiq_${currentTeam}_roster`) || '[]')); } catch(e) {}
   }, []);
 
+  // CRITICAL: When cloudSync merges new data into localStorage (via 30s poll),
+  // refresh React state so subsequent edits don't overwrite the fresh data
+  // with stale React state. This was the bug that wiped test history.
+  useEffect(() => {
+    function handleSyncMerged() {
+      try { setSquad(JSON.parse(localStorage.getItem(`playiq_${currentGroup.id}_squad_v3`) || '[]')); } catch(e){}
+      try { setRoster(JSON.parse(localStorage.getItem(teamKey('roster')) || '[]')); } catch(e){}
+      try { setMatchday18(JSON.parse(localStorage.getItem(teamKey('matchday18')) || '[]')); } catch(e){}
+      try { setCustomActivities(JSON.parse(localStorage.getItem(teamKey('customActivities')) || '{}')); } catch(e){}
+      try { setCoverageData(JSON.parse(localStorage.getItem(teamKey('coverageData')) || '{}')); } catch(e){}
+      try { setUserWeekOverrides(JSON.parse(localStorage.getItem(teamKey('weekOverrides')) || '{}')); } catch(e){}
+      try { setSessionReviews(JSON.parse(localStorage.getItem(teamKey('sessionReviews')) || '{}')); } catch(e){}
+      try { setSeasonConfig(JSON.parse(localStorage.getItem(teamKey('seasonConfig')) || 'null')); } catch(e){}
+      try { setWeekDays(JSON.parse(localStorage.getItem(teamKey('weekDays')) || '{}')); } catch(e){}
+      try { setPlannerNotes(JSON.parse(localStorage.getItem(teamKey('plannerNotes')) || '{}')); } catch(e){}
+      try { setWeeklyGoals(JSON.parse(localStorage.getItem(teamKey('weeklyGoals')) || '{}')); } catch(e){}
+      try {
+        const raw = localStorage.getItem(teamKey('sessionStartTimes'));
+        if (raw) setSessionStartTimes(JSON.parse(raw));
+      } catch(e){}
+      try { setBlueprintLoaded(localStorage.getItem(teamKey('blueprintLoaded')) === 'true'); } catch(e){}
+    }
+    window.addEventListener('cloudSyncMerged', handleSyncMerged);
+    return () => window.removeEventListener('cloudSyncMerged', handleSyncMerged);
+  }, [currentTeam, currentGroup.id]);
+
   // One-time historical test data import (2025 testing) — cross-year matching
   // Searches all year groups (since players age up) but never adds new players.
   useEffect(() => {
@@ -1532,7 +1570,7 @@ function App() {
         ))}
       </nav>
 
-      {activeTab === "planner" && <DailyPlanner customActivities={customActivities} setActiveTab={setActiveTab} setSelectedWeek={setSelectedWeek} setSelectedDay={setSelectedDay} userWeekOverrides={userWeekOverrides} setUserWeekOverrides={setUserWeekOverrides} seasonWeeks={seasonWeeks} weekDays={weekDays} currentTeam={currentTeam} sessionStartTimes={sessionStartTimes} getSessionStartTime={getSessionStartTime} />}
+      {activeTab === "planner" && <DailyPlanner customActivities={customActivities} setActiveTab={setActiveTab} setSelectedWeek={setSelectedWeek} setSelectedDay={setSelectedDay} userWeekOverrides={userWeekOverrides} setUserWeekOverrides={setUserWeekOverrides} seasonWeeks={seasonWeeks} weekDays={weekDays} currentTeam={currentTeam} sessionStartTimes={sessionStartTimes} getSessionStartTime={getSessionStartTime} seasonConfig={seasonConfig} />}
       {activeTab === "session" && <SessionBuilder selectedWeek={selectedWeek} setSelectedWeek={setSelectedWeek} selectedDay={selectedDay} setSelectedDay={setSelectedDay} showAddModal={showAddModal} setShowAddModal={setShowAddModal} showCopyModal={showCopyModal} setShowCopyModal={setShowCopyModal} showPasteModal={showPasteModal} setShowPasteModal={setShowPasteModal} customActivities={customActivities} setCustomActivities={setCustomActivities} coverageData={coverageData} setCoverageData={setCoverageData} userWeekOverrides={userWeekOverrides} setUserWeekOverrides={setUserWeekOverrides} seasonWeeks={seasonWeeks} sessionReviews={sessionReviews} setSessionReviews={setSessionReviews} weekDays={weekDays} setWeekDays={setWeekDays} sessionStartTime={getSessionStartTime(selectedWeek, selectedDay)} setSessionStartTime={(val) => setSessionStartTimeForDay(selectedWeek, selectedDay, val)} currentTeam={currentTeam} currentGroup={currentGroup} currentSub={currentSub} />}
       {activeTab === "season" && <SeasonOverview setActiveTab={setActiveTab} setSelectedWeek={setSelectedWeek} setSelectedDay={setSelectedDay} seasonWeeks={seasonWeeks} userWeekOverrides={userWeekOverrides} customActivities={customActivities} weekDays={weekDays} />}
       {activeTab === "drills" && <DrillLibrary search={drillSearch} setSearch={setDrillSearch} />}
@@ -2948,7 +2986,6 @@ function NewsletterModal({ onClose, weekData, weekDays, customActivities, select
     const focus = (weekData?.focus || '').trim();
     const outcomes = (weekData?.outcomes || '').trim();
     const game = (weekData?.game || '').trim();
-    const blockName = (weekData?.blockName || '').trim();
     const wkLabel = weekData?.week || selectedWeek;
 
     // Helpers
@@ -2959,42 +2996,77 @@ function NewsletterModal({ onClose, weekData, weekDays, customActivities, select
       .replace(/^(CORE:|CORE\s*-|CORE\s+|Skill:|Defence\s*-|Attack\s*-)\s*/i, '')
       .replace(/\s+\([^)]*\)\s*$/, '')
       .trim();
+    const lower1 = (s) => (s || '').replace(/^./, c => c.toLowerCase());
+    const stripPeriod = (s) => (s || '').replace(/\.$/, '');
 
-    // Day-by-day skill list (dedupe per day)
-    const dayLines = [];
+    // Gather per-day drill names (deduped)
+    const dayContent = [];
     days.forEach(d => {
       const acts = customActivities[`${selectedWeek}-${d}`] || [];
       const drills = [...new Set(acts.filter(a => !isTrans(a.activity)).map(a => cleanName(a.activity)).filter(Boolean))];
-      if (drills.length === 0) return;
-      const top = drills.slice(0, 4);
-      dayLines.push(`${d} — ${top.join(', ')}.`);
+      if (drills.length > 0) dayContent.push({ day: d, drills });
     });
 
-    // Build body
+    // === HEADER (subject line + greeting) ===
     const headerLine = `${teamLabel} — Week ${wkLabel} Update`;
-    const intro = focus
-      ? `This week the girls worked on ${focus.toLowerCase().replace(/\.$/, '')}.`
-      : `Here's a quick recap from training this week.`;
-    const skillsPara = dayLines.length ? dayLines.join(' ') : 'Sessions covered our core skill and conditioning blocks.';
+    const greeting = `Hi ${teamLabel} families,`;
 
-    let extras = '';
-    if (outcomes) extras += ` Outcome: ${outcomes.replace(/\.$/, '')}.`;
-    if (game) extras += ` Match this week: ${game}.`;
-    const signoff = blockName ? ` Big effort in our ${blockName} block — keep it up!` : ` Great work, ladies — keep grinding!`;
+    // === BODY — written for parents, conversational ===
+    const bodyParts = [];
 
-    let body = `${intro} ${skillsPara}${extras}${signoff}`;
+    // Opening line
+    if (focus) {
+      bodyParts.push(`This week the girls have been focused on ${lower1(stripPeriod(focus))}.`);
+    } else {
+      bodyParts.push(`Here's a quick wrap of what the girls have been working on at training this week.`);
+    }
 
-    // Cap to WORD_LIMIT words
-    const words = body.split(/\s+/);
-    if (words.length > WORD_LIMIT) body = words.slice(0, WORD_LIMIT - 1).join(' ') + '…';
+    // What they did across the week
+    if (dayContent.length === 1) {
+      const d = dayContent[0];
+      const tops = d.drills.slice(0, 3).map(lower1);
+      bodyParts.push(`In ${d.day}'s session they covered ${tops.join(', ').replace(/,([^,]*)$/, ' and$1')}.`);
+    } else if (dayContent.length === 2) {
+      const a = dayContent[0], b = dayContent[1];
+      const aTops = a.drills.slice(0, 2).map(lower1).join(' and ');
+      const bTops = b.drills.slice(0, 2).map(lower1).join(' and ');
+      bodyParts.push(`${a.day}'s session focused on ${aTops}, and ${b.day} built on that with ${bTops}.`);
+    } else if (dayContent.length >= 3) {
+      const allTopDrills = [...new Set(dayContent.flatMap(d => d.drills.slice(0, 2).map(lower1)))].slice(0, 5);
+      bodyParts.push(`Across ${dayContent.length} sessions we worked on ${allTopDrills.join(', ').replace(/,([^,]*)$/, ' and$1')}.`);
+    } else {
+      bodyParts.push(`We continued building on our core skill and conditioning work.`);
+    }
 
-    return `${headerLine}\n\n${body}`;
+    // Outcomes / what coaches noticed
+    if (outcomes) bodyParts.push(`${stripPeriod(outcomes)}.`);
+
+    // Match this week — practical info for parents
+    if (game) {
+      bodyParts.push(`Looking ahead, we've got ${stripPeriod(game)} — please make sure boots, mouthguards, and a full water bottle are packed.`);
+    }
+
+    // === SIGN OFF ===
+    const signoff = `Thanks for your continued support — the girls love what they're doing.\n\n— Keebra Park GRLA Coaching Staff`;
+
+    // Trim body if approaching 100 words (leaves room for greeting + signoff)
+    let body = bodyParts.join(' ');
+    const TARGET_BODY_WORDS = 80;
+    const bw = body.split(/\s+/).filter(Boolean);
+    if (bw.length > TARGET_BODY_WORDS) body = bw.slice(0, TARGET_BODY_WORDS - 1).join(' ') + '…';
+
+    return `${headerLine}\n\n${greeting}\n\n${body}\n\n${signoff}`;
   }
 
   const [text, setText] = useState(buildNewsletter);
   const [copied, setCopied] = useState(false);
 
-  const wordCount = (text.split(/^.+\n\n/, 2)[1] || text).trim().split(/\s+/).filter(Boolean).length;
+  // Word count = everything except the header subject line (first line before the first blank line)
+  const wordCount = (() => {
+    const parts = text.split(/\n\n/);
+    const body = parts.length > 1 ? parts.slice(1).join(' ') : text;
+    return body.trim().split(/\s+/).filter(Boolean).length;
+  })();
   const overLimit = wordCount > WORD_LIMIT;
 
   function regenerate() {
@@ -3024,9 +3096,9 @@ function NewsletterModal({ onClose, weekData, weekDays, customActivities, select
       <div className="modal" onClick={e => e.stopPropagation()} style={{width: 600, maxWidth: '95vw', maxHeight: '90vh', overflowY: 'auto'}}>
         <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8}}>
           <div>
-            <h3 style={{marginBottom:4}}>Weekly Newsletter</h3>
+            <h3 style={{marginBottom:4}}>Weekly Parent Update</h3>
             <div style={{fontSize:12, color:'var(--text-muted)'}}>
-              Auto-generated from this week's sessions for <strong style={{color:'var(--accent-light)'}}>{teamLabel}</strong>. Edit freely.
+              A friendly weekly recap to send to <strong style={{color:'var(--accent-light)'}}>{teamLabel}</strong> parents. Auto-generated from this week's sessions — edit freely before sending.
             </div>
           </div>
           <button onClick={onClose} style={{background:'none', border:'none', color:'var(--text-muted)', cursor:'pointer', padding:6, display:'inline-flex'}}>
@@ -3915,12 +3987,25 @@ function SeasonSetupModal({ onComplete, onClose, existing }) {
 // ═══════════════════════════════════════════════════════════
 // DAILY PLANNER
 // ═══════════════════════════════════════════════════════════
-function DailyPlanner({ customActivities, setActiveTab, setSelectedWeek, setSelectedDay, userWeekOverrides, setUserWeekOverrides, seasonWeeks, weekDays, currentTeam, sessionStartTimes, getSessionStartTime }) {
+function DailyPlanner({ customActivities, setActiveTab, setSelectedWeek, setSelectedDay, userWeekOverrides, setUserWeekOverrides, seasonWeeks, weekDays, currentTeam, sessionStartTimes, getSessionStartTime, seasonConfig }) {
   const today = new Date();
   const dayName = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][today.getDay()];
   const dateStr = today.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' });
-  // Find "today's" planned session — default to week 1, today's day if exists
-  const currentWeek = seasonWeeks[0];
+
+  // Auto-detect "current week" from season start date when available
+  const autoWeekIdx = useMemo(() => {
+    if (!seasonConfig || !seasonConfig.startDate) return 0;
+    const start = new Date(seasonConfig.startDate);
+    if (isNaN(start.getTime())) return 0;
+    const diffMs = today - start;
+    if (diffMs < 0) return 0;
+    const wk = Math.floor(diffMs / (1000 * 60 * 60 * 24 * 7));
+    return Math.max(0, Math.min(seasonWeeks.length - 1, wk));
+  }, [seasonConfig, seasonWeeks.length]);
+  const [homeWeekIdx, setHomeWeekIdx] = useState(autoWeekIdx);
+  useEffect(() => { setHomeWeekIdx(autoWeekIdx); }, [autoWeekIdx]);
+
+  const currentWeek = seasonWeeks[homeWeekIdx] || seasonWeeks[0];
   const activeDays = (weekDays && weekDays[currentWeek?.week]) || ['Tuesday', 'Thursday'];
   const sessionDay = activeDays.includes(dayName) ? dayName : activeDays[0];
   const customKey = `${currentWeek?.week}-${sessionDay}`;
@@ -4004,6 +4089,92 @@ function DailyPlanner({ customActivities, setActiveTab, setSelectedWeek, setSele
           <input className="form-input" value={weekFocus} onChange={e => updateWeekField('focus', e.target.value)} placeholder="e.g. Defensive line speed, catch-pass under pressure" style={{marginBottom:10}} />
           <label className="form-label" style={{color:'var(--brand-pink)'}}>Desired outcomes</label>
           <textarea className="form-textarea" value={weekOutcomes} onChange={e => updateWeekField('outcomes', e.target.value)} placeholder="What should the team walk away knowing/doing by the end of this week?" style={{minHeight:80}} />
+        </div>
+      </div>
+
+      {/* === WEEKLY VIEW — all training days for the selected week === */}
+      <div className="card" style={{marginTop:16}}>
+        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:10, marginBottom:14}}>
+          <div>
+            <div className="card-title" style={{marginBottom:2}}>This Week's Sessions</div>
+            <div style={{fontSize:12, color:'var(--text-muted)'}}>
+              Week {currentWeek?.week}{currentWeek?.dates ? ' · ' + currentWeek.dates : ''}{currentWeek?.blockName ? ' · ' + currentWeek.blockName : ''}
+            </div>
+          </div>
+          <div style={{display:'flex', alignItems:'center', gap:6}}>
+            <button className="btn-outline" onClick={() => setHomeWeekIdx(i => Math.max(0, i - 1))}
+              disabled={homeWeekIdx === 0}
+              style={{padding:'6px 10px', fontSize:11, opacity: homeWeekIdx === 0 ? 0.4 : 1}}>‹ Prev</button>
+            <select value={homeWeekIdx} onChange={e => setHomeWeekIdx(parseInt(e.target.value, 10))}
+              style={{padding:'6px 10px', fontSize:12, fontWeight:600, fontFamily:'inherit', border:'1px solid var(--border)', borderRadius:6, background:'var(--bg-card)', color:'var(--text-primary)', cursor:'pointer'}}>
+              {seasonWeeks.map((w, i) => (
+                <option key={w.week} value={i}>Week {w.week}{w.dates ? ' · ' + w.dates : ''}</option>
+              ))}
+            </select>
+            <button className="btn-outline" onClick={() => setHomeWeekIdx(i => Math.min(seasonWeeks.length - 1, i + 1))}
+              disabled={homeWeekIdx >= seasonWeeks.length - 1}
+              style={{padding:'6px 10px', fontSize:11, opacity: homeWeekIdx >= seasonWeeks.length - 1 ? 0.4 : 1}}>Next ›</button>
+          </div>
+        </div>
+
+        <div style={{display:'grid', gridTemplateColumns:`repeat(auto-fit, minmax(200px, 1fr))`, gap:10}}>
+          {activeDays.map(day => {
+            const key = `${currentWeek?.week}-${day}`;
+            const startTime = getSessionStartTime ? getSessionStartTime(currentWeek?.week, day) : '16:00';
+            const acts = recalcTimes(customActivities[key] || [], startTime);
+            const drills = acts.filter(a => !isTransition(a.activity || ''));
+            const totalDuration = acts.reduce((sum, a) => sum + (parseInt(a.duration) || 0), 0);
+            const isToday = day === dayName && homeWeekIdx === autoWeekIdx;
+            const accent = isToday ? 'var(--brand-pink)' : 'var(--brand-cyan)';
+            return (
+              <div key={day}
+                onClick={() => { setSelectedWeek(currentWeek?.week); setSelectedDay(day); setActiveTab('session'); }}
+                style={{
+                  padding: 12,
+                  borderRadius: 10,
+                  background: isToday ? 'rgba(233,91,158,0.06)' : 'var(--bg-card)',
+                  border: `1px solid ${isToday ? 'var(--brand-pink)' : 'var(--border)'}`,
+                  borderTop: `3px solid ${accent}`,
+                  cursor: 'pointer',
+                  transition: 'transform 0.1s, box-shadow 0.1s'
+                }}
+                onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)'; }}
+                onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none'; }}>
+                <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:8}}>
+                  <div style={{fontSize:14, fontWeight:700, color: isToday ? 'var(--brand-pink)' : 'var(--text-primary)'}}>
+                    {day}{isToday ? ' · today' : ''}
+                  </div>
+                  <div style={{fontSize:11, fontWeight:600, color:'var(--text-muted)'}}>{startTime}</div>
+                </div>
+                {acts.length === 0 ? (
+                  <div style={{fontSize:11, color:'var(--text-muted)', fontStyle:'italic', padding:'14px 0', textAlign:'center'}}>No session planned</div>
+                ) : (
+                  <>
+                    <div style={{fontSize:10, fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:0.5, marginBottom:6}}>
+                      {drills.length} drill{drills.length === 1 ? '' : 's'} · {totalDuration} min
+                    </div>
+                    {acts.slice(0, 6).map((a, i) => {
+                      const isTrans = isTransition(a.activity || '');
+                      const color = activityColor(a.activity || '');
+                      return (
+                        <div key={i} style={{
+                          display:'flex', gap:6, alignItems:'center',
+                          padding:'3px 0', fontSize:11,
+                          opacity: isTrans ? 0.55 : 1
+                        }}>
+                          <span style={{minWidth:36, fontWeight:700, color: isTrans ? 'var(--text-muted)' : color.border}}>{a.time || '—'}</span>
+                          <span style={{flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', color: isTrans ? 'var(--text-muted)' : 'var(--text-primary)'}}>{a.activity}</span>
+                        </div>
+                      );
+                    })}
+                    {acts.length > 6 && (
+                      <div style={{fontSize:10, color:'var(--text-muted)', marginTop:4, fontStyle:'italic'}}>+ {acts.length - 6} more</div>
+                    )}
+                  </>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 
