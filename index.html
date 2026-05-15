@@ -1251,6 +1251,58 @@ function App() {
     return () => window.removeEventListener('cloudSyncMerged', handleSyncMerged);
   }, [currentTeam, currentGroup.id]);
 
+  // Migration: move old `profile.gymTests` array entries (from earlier bulk imports
+  // and manual one-off rows) into the `profile.testHistory` map so they appear in the
+  // progression charts. Runs once per browser, then never again.
+  useEffect(() => {
+    if (localStorage.getItem('playiq_gymtests_migrated_v1')) return;
+    const cleanSprint = (v) => {
+      if (typeof v !== 'string') return v;
+      const m = v.match(/^0:0:(\d+):(\d{1,2})$/);
+      if (m) return `${m[1]}.${m[2].padStart(2,'0')}`;
+      return v;
+    };
+    let migrated = 0;
+    for (const yg of ['7-8','9-10','11-12']) {
+      const key = `playiq_${yg}_squad_v3`;
+      let squad;
+      try { squad = JSON.parse(localStorage.getItem(key) || '[]'); } catch(e) { continue; }
+      let groupChanged = false;
+      squad = squad.map(p => {
+        if (!p || !p.profile || !Array.isArray(p.profile.gymTests) || p.profile.gymTests.length === 0) return p;
+        const profile = { ...p.profile };
+        profile.testHistory = (profile.testHistory && typeof profile.testHistory === 'object')
+          ? { ...profile.testHistory } : {};
+        const remaining = [];
+        for (const t of profile.gymTests) {
+          if (!t || typeof t !== 'object' || !t.test || !t.date || t.value == null || t.value === '') {
+            if (t) remaining.push(t);
+            continue;
+          }
+          const testName = t.test;
+          let val = String(t.value).trim();
+          if (!val) { remaining.push(t); continue; }
+          if (['10m Sprint','20m Sprint','40m Sprint'].includes(testName)) val = cleanSprint(val);
+          profile.testHistory[testName] = (profile.testHistory[testName] || []).slice();
+          if (!profile.testHistory[testName].some(([d]) => d === t.date)) {
+            profile.testHistory[testName].push([t.date, val]);
+            migrated++;
+          }
+        }
+        Object.keys(profile.testHistory).forEach(tn => {
+          profile.testHistory[tn].sort((a,b) => (a[0]||'').localeCompare(b[0]||''));
+        });
+        profile.gymTests = remaining;
+        groupChanged = true;
+        return { ...p, profile };
+      });
+      if (groupChanged) localStorage.setItem(key, JSON.stringify(squad));
+    }
+    localStorage.setItem('playiq_gymtests_migrated_v1', JSON.stringify({ when: new Date().toISOString(), migrated }));
+    try { setSquad(JSON.parse(localStorage.getItem(`playiq_${currentGroup.id}_squad_v3`) || '[]')); } catch(e){}
+    console.log('[Keebra] gymTests → testHistory migration:', migrated, 'entries moved');
+  }, []);
+
   // Historical test data import (2025 testing) — cross-year matching.
   // SELF-HEALING: if any player anywhere has test history, skip. Otherwise re-run.
   // This protects against the rare case where the cloud bin gets wiped — the
@@ -3019,7 +3071,14 @@ function PasteSessionModal({ onClose, onPaste }) {
 // ═══════════════════════════════════════════════════════════
 function NewsletterModal({ onClose, weekData, weekDays, customActivities, selectedWeek, currentGroup, currentSub }) {
   const teamLabel = currentGroup ? `${currentGroup.label} ${currentSub || ''}`.trim() : 'Team';
-  const WORD_LIMIT = 100;
+  const WORD_LIMIT = 220;
+
+  // Optional context fields — things the auto-gen can't infer
+  const [matchResult, setMatchResult] = useState('');
+  const [matchNotes, setMatchNotes] = useState('');
+  const [conditions, setConditions] = useState('');
+  const [lookAhead, setLookAhead] = useState('');
+  const [coachName, setCoachName] = useState('');
 
   function buildNewsletter() {
     const days = (weekDays && weekDays[selectedWeek]) || ['Tuesday', 'Thursday'];
@@ -3027,6 +3086,11 @@ function NewsletterModal({ onClose, weekData, weekDays, customActivities, select
     const outcomes = (weekData?.outcomes || '').trim();
     const game = (weekData?.game || '').trim();
     const wkLabel = weekData?.week || selectedWeek;
+    const result = (matchResult || '').trim();
+    const matchExtra = (matchNotes || '').trim();
+    const cond = (conditions || '').trim();
+    const ahead = (lookAhead || '').trim();
+    const coach = (coachName || '').trim();
 
     // Helpers
     const isTrans = (n) => typeof n === 'string' && (
@@ -3038,6 +3102,7 @@ function NewsletterModal({ onClose, weekData, weekDays, customActivities, select
       .trim();
     const lower1 = (s) => (s || '').replace(/^./, c => c.toLowerCase());
     const stripPeriod = (s) => (s || '').replace(/\.$/, '');
+    const cap1 = (s) => (s || '').replace(/^./, c => c.toUpperCase());
 
     // Gather per-day drill names (deduped)
     const dayContent = [];
@@ -3047,55 +3112,76 @@ function NewsletterModal({ onClose, weekData, weekDays, customActivities, select
       if (drills.length > 0) dayContent.push({ day: d, drills });
     });
 
-    // === HEADER (subject line + greeting) ===
-    const headerLine = `${teamLabel} — Week ${wkLabel} Update`;
-    const greeting = `Hi ${teamLabel} families,`;
+    // === HEADER (subject line) ===
+    // If there's a result, headline mirrors Mr Schwass / Mrs Webber style:
+    //   "Year 9/10 Titans Cup (30) def. St James (4) – Mrs Webber"
+    // Otherwise: "Years 7/8 Cup – Mrs Carter"
+    let headerLine = teamLabel;
+    if (result) headerLine = `${teamLabel} — ${result}`;
+    if (coach) headerLine = `${headerLine}${result ? '' : ''} – ${coach}`;
+    headerLine = headerLine || `${teamLabel} — Week ${wkLabel} Update`;
 
-    // === BODY — written for parents, conversational ===
+    // === BODY — narrative coach voice, day-by-day ===
     const bodyParts = [];
 
-    // Opening line
-    if (focus) {
-      bodyParts.push(`This week the girls have been focused on ${lower1(stripPeriod(focus))}.`);
+    // Opener: lead with result if there's one, else with weekly focus or generic
+    if (result) {
+      bodyParts.push(`This week the team had ${matchExtra ? lower1(matchExtra) : 'a big week capped off by our match'}.`);
+      if (matchExtra && !matchExtra.toLowerCase().includes('result')) {
+        // matchExtra was the lead — don't repeat it
+      }
+    } else if (focus) {
+      bodyParts.push(`This week the girls continued to build on ${lower1(stripPeriod(focus))} as we work towards the season ahead.`);
     } else {
-      bodyParts.push(`Here's a quick wrap of what the girls have been working on at training this week.`);
+      bodyParts.push(`Here is a quick wrap of what the girls have been working on at training this week.`);
     }
 
-    // What they did across the week
-    if (dayContent.length === 1) {
-      const d = dayContent[0];
+    // Day-by-day narrative — vary verbs to sound natural
+    const verbs = ['focused on', 'centred around', 'worked through', 'continued with', 'covered', 'built into'];
+    dayContent.forEach((d, i) => {
       const tops = d.drills.slice(0, 3).map(lower1);
-      bodyParts.push(`In ${d.day}'s session they covered ${tops.join(', ').replace(/,([^,]*)$/, ' and$1')}.`);
-    } else if (dayContent.length === 2) {
-      const a = dayContent[0], b = dayContent[1];
-      const aTops = a.drills.slice(0, 2).map(lower1).join(' and ');
-      const bTops = b.drills.slice(0, 2).map(lower1).join(' and ');
-      bodyParts.push(`${a.day}'s session focused on ${aTops}, and ${b.day} built on that with ${bTops}.`);
-    } else if (dayContent.length >= 3) {
-      const allTopDrills = [...new Set(dayContent.flatMap(d => d.drills.slice(0, 2).map(lower1)))].slice(0, 5);
-      bodyParts.push(`Across ${dayContent.length} sessions we worked on ${allTopDrills.join(', ').replace(/,([^,]*)$/, ' and$1')}.`);
-    } else {
-      bodyParts.push(`We continued building on our core skill and conditioning work.`);
+      const list = tops.length === 1 ? tops[0]
+        : tops.length === 2 ? `${tops[0]} and ${tops[1]}`
+        : `${tops.slice(0, -1).join(', ')}, and ${tops[tops.length - 1]}`;
+      const verb = verbs[i % verbs.length];
+      if (i === 0) {
+        bodyParts.push(`${d.day}'s session ${verb} ${list}.`);
+      } else if (i === dayContent.length - 1) {
+        bodyParts.push(`${d.day}'s session then ${verb} ${list}, bringing the week together heading into the weekend.`);
+      } else {
+        bodyParts.push(`On ${d.day} we ${verb} ${list}.`);
+      }
+    });
+
+    if (dayContent.length === 0) {
+      bodyParts.push(`Training continued our skill and conditioning blocks this week.`);
     }
 
-    // Outcomes / what coaches noticed
+    // Conditions (e.g. wet weather)
+    if (cond) {
+      bodyParts.push(`${cap1(stripPeriod(cond))}.`);
+    }
+
+    // Coach observations / outcomes
     if (outcomes) bodyParts.push(`${stripPeriod(outcomes)}.`);
 
-    // Match this week — practical info for parents
-    if (game) {
-      bodyParts.push(`Looking ahead, we've got ${stripPeriod(game)} — please make sure boots, mouthguards, and a full water bottle are packed.`);
+    // Looking ahead — match next week, or what's coming
+    if (ahead) {
+      bodyParts.push(`Looking ahead, ${lower1(stripPeriod(ahead))}.`);
+    } else if (game && !result) {
+      bodyParts.push(`Looking ahead, we have ${stripPeriod(game)} — please make sure boots, mouthguards, and a full water bottle are packed.`);
     }
 
     // === SIGN OFF ===
-    const signoff = `Thanks for your continued support — the girls love what they're doing.\n\n— Keebra Park GRLA Coaching Staff`;
+    const signoff = coach
+      ? `Thanks for your continued support of the girls.\n\n– ${coach}`
+      : `Thanks for your continued support of the girls.\n\n– ${teamLabel} Coaching Staff`;
 
-    // Trim body if approaching 100 words (leaves room for greeting + signoff)
     let body = bodyParts.join(' ');
-    const TARGET_BODY_WORDS = 80;
     const bw = body.split(/\s+/).filter(Boolean);
-    if (bw.length > TARGET_BODY_WORDS) body = bw.slice(0, TARGET_BODY_WORDS - 1).join(' ') + '…';
+    if (bw.length > WORD_LIMIT) body = bw.slice(0, WORD_LIMIT - 1).join(' ') + '…';
 
-    return `${headerLine}\n\n${greeting}\n\n${body}\n\n${signoff}`;
+    return `${headerLine}\n\n${body}\n\n${signoff}`;
   }
 
   const [text, setText] = useState(buildNewsletter);
@@ -3138,7 +3224,7 @@ function NewsletterModal({ onClose, weekData, weekDays, customActivities, select
           <div>
             <h3 style={{marginBottom:4}}>Weekly Parent Update</h3>
             <div style={{fontSize:12, color:'var(--text-muted)'}}>
-              A friendly weekly recap to send to <strong style={{color:'var(--accent-light)'}}>{teamLabel}</strong> parents. Auto-generated from this week's sessions — edit freely before sending.
+              A friendly weekly recap to send to <strong style={{color:'var(--accent-light)'}}>{teamLabel}</strong> parents — written in coach-voice, day-by-day. Add any extras below then click <em>Regenerate</em>.
             </div>
           </div>
           <button onClick={onClose} style={{background:'none', border:'none', color:'var(--text-muted)', cursor:'pointer', padding:6, display:'inline-flex'}}>
@@ -3146,11 +3232,50 @@ function NewsletterModal({ onClose, weekData, weekDays, customActivities, select
           </button>
         </div>
 
+        {/* Optional context fields — things the auto-gen can't know */}
+        <details style={{marginTop:8, marginBottom:10, padding:'10px 12px', background:'var(--bg-input)', borderRadius:8}}>
+          <summary style={{cursor:'pointer', fontSize:12, fontWeight:700, color:'var(--text-primary)', listStyle:'none', userSelect:'none'}}>
+            ▸ Add this week's context (match result, weather, what's coming up...)
+          </summary>
+          <div style={{marginTop:12, display:'grid', gridTemplateColumns:'1fr 1fr', gap:10}}>
+            <div className="form-group" style={{margin:0}}>
+              <label className="form-label">Match result (if any)</label>
+              <input className="form-input" value={matchResult} onChange={e => setMatchResult(e.target.value)}
+                placeholder="e.g. Year 9/10 Cup (30) def. St James (4)" />
+            </div>
+            <div className="form-group" style={{margin:0}}>
+              <label className="form-label">Coach signing off</label>
+              <input className="form-input" value={coachName} onChange={e => setCoachName(e.target.value)}
+                placeholder="e.g. Mrs Carter" />
+            </div>
+            <div className="form-group" style={{margin:0, gridColumn:'1 / -1'}}>
+              <label className="form-label">Match notes / how it went (if any)</label>
+              <input className="form-input" value={matchNotes} onChange={e => setMatchNotes(e.target.value)}
+                placeholder="e.g. a tough physical contest where the girls dug deep in wet conditions" />
+            </div>
+            <div className="form-group" style={{margin:0}}>
+              <label className="form-label">Conditions / weather</label>
+              <input className="form-input" value={conditions} onChange={e => setConditions(e.target.value)}
+                placeholder="e.g. with wet weather forecast, please pack a change of clothes" />
+            </div>
+            <div className="form-group" style={{margin:0}}>
+              <label className="form-label">Looking ahead</label>
+              <input className="form-input" value={lookAhead} onChange={e => setLookAhead(e.target.value)}
+                placeholder="e.g. Round 1 vs Mabel Park State School" />
+            </div>
+          </div>
+          <div style={{textAlign:'right', marginTop:10}}>
+            <button onClick={() => setText(buildNewsletter())} className="btn btn-primary btn-sm" style={{display:'inline-flex', alignItems:'center', gap:6}}>
+              <Icon name="rotate" size={11}/> Regenerate with context
+            </button>
+          </div>
+        </details>
+
         <textarea id="newsletter-textarea" value={text} onChange={e => setText(e.target.value)}
           style={{
-            width:'100%', minHeight:240, padding:14, marginTop:8,
+            width:'100%', minHeight:320, padding:14, marginTop:8,
             background:'var(--bg-card)', border:'1px solid var(--border)', borderRadius:10,
-            fontFamily:'inherit', fontSize:14, lineHeight:1.6, color:'var(--text-primary)',
+            fontFamily:'inherit', fontSize:14, lineHeight:1.65, color:'var(--text-primary)',
             resize:'vertical', outline:'none'
           }}
           onFocus={e => e.target.style.borderColor='var(--border-focus)'}
@@ -4653,18 +4778,43 @@ function ImportTestDataModal({ squad, setSquad, onClose }) {
   }, 0);
 
   function doImport() {
+    // Sprint values from Excel can come through as "0:0:3:50" — normalise to "3.50"
+    const cleanSprint = (v) => {
+      if (typeof v !== 'string') return v;
+      const m = v.match(/^0:0:(\d+):(\d{1,2})$/);
+      if (m) return `${m[1]}.${m[2].padStart(2,'0')}`;
+      return v;
+    };
+
     setSquad(prev => prev.map(p => {
       const myRows = matched.filter(m => m.player && m.player._id === p._id && !skipMap[m.idx]);
       if (myRows.length === 0) return p;
-      const newEntries = myRows.flatMap(m => m.tests.map(t => ({
-        id: 'gt_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
-        date: importDate,
-        test: t.test,
-        value: t.value,
-        notes: seasonTag ? `${seasonTag} testing` : '',
-      })));
-      const existing = (p.profile && Array.isArray(p.profile.gymTests)) ? p.profile.gymTests : [];
-      return { ...p, profile: { ...(p.profile || {}), gymTests: [...existing, ...newEntries] } };
+
+      const prof = { ...(p.profile || {}) };
+      // Compact format that drives the progression charts
+      prof.testHistory = { ...(prof.testHistory && typeof prof.testHistory === 'object' ? prof.testHistory : {}) };
+
+      for (const m of myRows) {
+        for (const t of m.tests) {
+          const testName = t.test;
+          let val = (t.value == null ? '' : String(t.value)).trim();
+          if (!val) continue;
+          if (testName === '20m Sprint' || testName === '40m Sprint' || testName === '10m Sprint') {
+            val = cleanSprint(val);
+          }
+          prof.testHistory[testName] = (prof.testHistory[testName] || []).slice();
+          // Replace any existing entry for the same date so re-importing doesn't double up
+          prof.testHistory[testName] = prof.testHistory[testName].filter(([d]) => d !== importDate);
+          prof.testHistory[testName].push([importDate, val]);
+        }
+      }
+
+      // Sort each test's entries chronologically (so trend & sparkline make sense)
+      Object.keys(prof.testHistory).forEach(tn => {
+        prof.testHistory[tn].sort((a, b) => (a[0] || '').localeCompare(b[0] || ''));
+      });
+
+      return { ...p, profile: prof };
     }));
     setStep('done');
   }
@@ -4875,6 +5025,427 @@ function PlayerProfileModal({ player, playerIdx, updatePlayer, deletePlayer, onC
     'Yellow – Developing':{ fg: 'var(--orange)', bg: 'var(--orange-bg)', border: 'var(--orange)' },
     'Red – Needs Work':   { fg: 'var(--red)',    bg: 'var(--red-bg)',    border: 'var(--red)' },
   };
+
+  // Comprehensive "send-to-parents" player report: branded multi-section PDF
+  function exportFullPlayerReport() {
+    const logoSrc = (() => { try { return document.querySelector('.logo-icon img')?.src || ''; } catch(e) { return ''; } })();
+    const teamLabel = currentGroup ? `${currentGroup.label} ${currentSub || ''}`.trim() : '';
+    const fmtShortDate = (s) => {
+      if (!s) return '';
+      const [y, m, d] = s.split('-');
+      if (!y || !m || !d) return s;
+      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      return `${parseInt(d,10)} ${months[parseInt(m,10)-1]} '${y.slice(2)}`;
+    };
+    const today = new Date().toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' });
+    const escape = (s) => (s == null ? '' : String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+    // === SECTION: Snapshot ===
+    const heightWeight = [
+      profile.height ? `Height: ${escape(profile.height)}` : '',
+      profile.weight ? `Weight: ${escape(profile.weight)}` : '',
+      profile.dob ? `DOB: ${escape(profile.dob)}` : '',
+    ].filter(Boolean).join(' · ');
+    const snapshotHtml = `
+      <div class="meta-row">
+        <div class="meta-item"><span class="meta-label">Position</span><span class="meta-value">${escape(player.position || '—')}</span></div>
+        ${player.number ? `<div class="meta-item"><span class="meta-label">Jersey</span><span class="meta-value">#${escape(player.number)}</span></div>` : ''}
+        <div class="meta-item"><span class="meta-label">Year Group</span><span class="meta-value">${escape(currentGroup?.label || '')}</span></div>
+        <div class="meta-item"><span class="meta-label">Team</span><span class="meta-value">${escape(teamLabel)}</span></div>
+        <div class="meta-item"><span class="meta-label">Report Date</span><span class="meta-value">${today}</span></div>
+      </div>
+      ${heightWeight || profile.notes ? `
+        <div class="snapshot">
+          ${heightWeight ? `<div class="hw">${heightWeight}</div>` : ''}
+          ${profile.notes ? `<div class="bio">${escape(profile.notes).replace(/\n/g,'<br/>')}</div>` : ''}
+        </div>
+      ` : ''}
+    `;
+
+    // === SECTION: Skill Grades (visual bars) ===
+    const allSkillKeys = [...DEFAULT_SKILLS];
+    Object.keys(skills).forEach(k => { if (!allSkillKeys.includes(k)) allSkillKeys.push(k); });
+    const gradedSkills = allSkillKeys.filter(k => skills[k] > 0);
+    const strengths = gradedSkills.filter(k => skills[k] >= 4);
+    const growthAreas = gradedSkills.filter(k => skills[k] <= 2);
+    const skillsHtml = gradedSkills.length === 0 ? '' : `
+      <section class="report-section">
+        <div class="section-header"><div class="section-bar"></div><h2>Skill Profile</h2></div>
+        <div class="skills-grid">
+          ${gradedSkills.map(name => {
+            const grade = skills[name];
+            return `
+              <div class="skill-row">
+                <div class="skill-name">${escape(name)}</div>
+                <div class="skill-bars">
+                  ${[1,2,3,4,5].map(n => `<div class="skill-seg ${grade >= n ? 'on' : ''}"></div>`).join('')}
+                </div>
+                <div class="skill-grade">${grade}/5</div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+        ${(strengths.length || growthAreas.length) ? `
+          <div class="strength-growth">
+            ${strengths.length ? `
+              <div class="sg-card sg-strength">
+                <div class="sg-title">★ Strengths</div>
+                <ul>${strengths.map(s => `<li>${escape(s)}</li>`).join('')}</ul>
+              </div>` : ''}
+            ${growthAreas.length ? `
+              <div class="sg-card sg-growth">
+                <div class="sg-title">↗ Growth areas</div>
+                <ul>${growthAreas.map(s => `<li>${escape(s)}</li>`).join('')}</ul>
+              </div>` : ''}
+          </div>
+        ` : ''}
+      </section>
+    `;
+
+    // === SECTION: Performance Testing — inline sparklines ===
+    const testNames = Object.keys(testHistory).sort();
+    const testingHtml = testNames.length === 0 ? '' : `
+      <section class="report-section">
+        <div class="section-header"><div class="section-bar"></div><h2>Performance Testing</h2></div>
+        <div class="tests-grid">
+          ${testNames.map(testName => {
+            const entries = (testHistory[testName] || []).slice().sort((a,b) => (a[0]||'').localeCompare(b[0]||''));
+            const lowerBetter = LOWER_IS_BETTER.has(testName);
+            const valid = entries.filter(e => e[1] && valToNumber(e[1]) != null)
+              .map(e => ({ date: e[0], raw: e[1], n: valToNumber(e[1]) }));
+            if (valid.length === 0) return '';
+            const latest = valid[valid.length - 1];
+            const first = valid[0];
+            const sampleVal = valid.find(v => v.raw)?.raw || '';
+            const isTimeFmt = isTimeFormat(sampleVal);
+            let trendBadge = '';
+            if (valid.length >= 2) {
+              const diff = latest.n - first.n;
+              const better = lowerBetter ? diff < 0 : diff > 0;
+              if (diff !== 0) {
+                trendBadge = `<span class="trend-badge ${better ? 'trend-better' : 'trend-worse'}">${better ? '▲ improved' : '▼ regressed'}</span>`;
+              }
+            }
+            const fmtDelta = (d) => {
+              if (isTimeFmt) {
+                const abs = Math.abs(d);
+                const m = Math.floor(abs / 60), s = Math.round(abs % 60);
+                const sign = d < 0 ? '−' : (d > 0 ? '+' : '');
+                return `${sign}${m > 0 ? m + ':' + String(s).padStart(2,'0') : s + 's'}`;
+              }
+              const r = Math.round(d * 100) / 100;
+              if (r === 0) return '0';
+              return (r > 0 ? '+' : '') + (Number.isInteger(r) ? r : r.toFixed(2));
+            };
+
+            // Build sparkline SVG
+            let sparkSvg = '';
+            if (valid.length >= 2) {
+              const W = 280, H = 60, PADX = 10, PADY = 12;
+              const ns = valid.map(v => v.n);
+              const min = Math.min(...ns), max = Math.max(...ns);
+              const range = (max - min) || 1;
+              const x = (i) => PADX + (W - 2*PADX) * (i / (valid.length - 1));
+              const y = (n) => {
+                const norm = (n - min) / range;
+                const visualPos = lowerBetter ? norm : (1 - norm);
+                return PADY + (H - 2*PADY) * visualPos;
+              };
+              const linePath = valid.map((p, i) => `${i === 0 ? 'M' : 'L'} ${x(i).toFixed(1)} ${y(p.n).toFixed(1)}`).join(' ');
+              const areaPath = linePath + ` L ${x(valid.length-1).toFixed(1)} ${H-PADY} L ${x(0).toFixed(1)} ${H-PADY} Z`;
+              sparkSvg = `
+                <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:${H}px;display:block">
+                  <path d="${areaPath}" fill="#E95B9E" opacity="0.12" />
+                  <path d="${linePath}" stroke="#E95B9E" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+                  ${valid.map((p, i) => `<circle cx="${x(i)}" cy="${y(p.n)}" r="4" fill="white" stroke="#E95B9E" stroke-width="2"/>${(i === 0 || i === valid.length - 1) ? `<text x="${x(i)}" y="${y(p.n) - 8}" text-anchor="middle" font-size="9" font-weight="700" fill="#E95B9E">${escape(p.raw)}</text>` : ''}`).join('')}
+                </svg>
+              `;
+            }
+
+            return `
+              <div class="test-card">
+                <div class="test-name-row">
+                  <div class="test-name">${escape(testName)}</div>
+                  ${trendBadge}
+                </div>
+                <div class="test-stats">
+                  <div class="ts-block">
+                    <div class="ts-label">Latest</div>
+                    <div class="ts-val">${escape(latest.raw)}</div>
+                    <div class="ts-date">${fmtShortDate(latest.date)}</div>
+                  </div>
+                  ${valid.length >= 2 ? `
+                    <div class="ts-block">
+                      <div class="ts-label">Change</div>
+                      <div class="ts-val ts-delta">${fmtDelta(latest.n - first.n)}</div>
+                      <div class="ts-date">vs ${fmtShortDate(first.date)}</div>
+                    </div>` : ''}
+                </div>
+                ${sparkSvg}
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </section>
+    `;
+
+    // === SECTION: Feedback Report ===
+    const feedbackHtml = !reportTemplate.length ? '' : `
+      <section class="report-section page-break">
+        <div class="section-header"><div class="section-bar"></div><h2>Coach Feedback — ${escape(activePositionGroup)}</h2></div>
+        ${feedbackReport.date || feedbackReport.coach ? `
+          <div class="feedback-meta">
+            ${feedbackReport.date ? `<span><strong>Date:</strong> ${escape(feedbackReport.date)}</span>` : ''}
+            ${feedbackReport.coach ? `<span><strong>Coach:</strong> ${escape(feedbackReport.coach)}</span>` : ''}
+          </div>
+        ` : ''}
+        <table class="feedback-table">
+          <thead><tr><th>Skill</th><th>Rating</th><th>Coach Comments</th></tr></thead>
+          <tbody>
+            ${reportTemplate.map(t => {
+              const rating = (feedbackReport.ratings || {})[t.skill] || '';
+              const comment = getCommentFor(t.skill);
+              const palette = RATING_COLORS[rating] || { fg: '#888', bg: '#f5f5f5', border: '#ddd' };
+              return `
+                <tr>
+                  <td class="ft-skill">
+                    <div class="ft-skill-area">${escape(t.area)}</div>
+                    <div class="ft-skill-name">${escape(t.skill)}</div>
+                  </td>
+                  <td class="ft-rating">
+                    ${rating ? `<span class="ft-pill" style="color:${palette.fg};background:${palette.bg};border-color:${palette.border};">${escape(rating.split(' – ')[0])}</span>` : '<span class="ft-empty">—</span>'}
+                  </td>
+                  <td class="ft-comment">${escape(comment) || '<span class="ft-empty">—</span>'}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </section>
+    `;
+
+    // === SECTION: Coach Reflections ===
+    const reflDef = (feedbackReport.reflectionDefence || '').trim();
+    const reflAtk = (feedbackReport.reflectionAttack || '').trim();
+    const reflectionsHtml = (!reflDef && !reflAtk) ? '' : `
+      <section class="report-section">
+        <div class="section-header"><div class="section-bar"></div><h2>Coach Reflections</h2></div>
+        <div class="reflections">
+          ${reflDef ? `
+            <div class="refl refl-defence">
+              <div class="refl-title">Defence</div>
+              <div class="refl-body">${escape(reflDef).replace(/\n/g,'<br/>')}</div>
+            </div>` : ''}
+          ${reflAtk ? `
+            <div class="refl refl-attack">
+              <div class="refl-title">Attack</div>
+              <div class="refl-body">${escape(reflAtk).replace(/\n/g,'<br/>')}</div>
+            </div>` : ''}
+        </div>
+      </section>
+    `;
+
+    // === SECTION: Goals ===
+    const activeGoals = goals.filter(g => g.text && g.status !== 'done');
+    const doneGoals = goals.filter(g => g.text && g.status === 'done');
+    const goalsHtml = (activeGoals.length + doneGoals.length === 0) ? '' : `
+      <section class="report-section">
+        <div class="section-header"><div class="section-bar"></div><h2>Goals & Development Plan</h2></div>
+        ${activeGoals.length ? `
+          <div class="goals-block">
+            <div class="goals-title">Working on</div>
+            <ul class="goals-list">
+              ${activeGoals.map(g => `<li>${escape(g.text)}</li>`).join('')}
+            </ul>
+          </div>
+        ` : ''}
+        ${doneGoals.length ? `
+          <div class="goals-block goals-done-block">
+            <div class="goals-title">Achieved</div>
+            <ul class="goals-list">
+              ${doneGoals.map(g => `<li>${escape(g.text)}</li>`).join('')}
+            </ul>
+          </div>
+        ` : ''}
+      </section>
+    `;
+
+    // === HTML DOCUMENT ===
+    const html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8" />
+<title>${escape(player.name)} — Player Report</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Inter',-apple-system,sans-serif; background:#f5f6f8; color:#1a1a2e; padding:0; }
+  .page-wrap { max-width:820px; margin:0 auto; background:#fff; box-shadow:0 1px 4px rgba(0,0,0,0.08); }
+
+  /* === COVER HEADER === */
+  .cover {
+    padding:32px 36px 22px;
+    background:linear-gradient(135deg, rgba(233,91,158,0.06), rgba(41,186,229,0.06));
+    border-bottom:4px solid #E95B9E;
+    position:relative;
+  }
+  .cover::before { content:''; position:absolute; left:0; right:0; bottom:0; height:2px; background:linear-gradient(90deg,#E95B9E 0%,#E95B9E 50%,#29BAE5 50%,#29BAE5 100%); }
+  .cover-top { display:flex; justify-content:space-between; align-items:flex-start; gap:20px; }
+  .brand { display:flex; align-items:center; gap:14px; }
+  .brand-icon { width:56px; height:56px; background:linear-gradient(135deg,#E95B9E,#29BAE5); border-radius:12px; overflow:hidden; flex-shrink:0; }
+  .brand-icon img { width:100%; height:100%; object-fit:contain; background:white; }
+  .brand-name { font-size:18px; font-weight:900; color:#29BAE5; line-height:1.1; }
+  .brand-sub { font-size:9px; color:#E95B9E; font-weight:700; letter-spacing:2px; text-transform:uppercase; margin-top:3px; }
+  .report-type-pill { display:inline-block; padding:5px 14px; border-radius:20px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:1.5px; background:#1a1a2e; color:white; }
+
+  .player-block { margin-top:26px; }
+  .player-label { font-size:10px; font-weight:700; color:#E95B9E; text-transform:uppercase; letter-spacing:2px; }
+  .player-name { font-size:42px; font-weight:900; color:#1a1a2e; line-height:1; margin-top:6px; letter-spacing:-1px; }
+  .player-tagline { font-size:14px; color:#5e6278; margin-top:8px; font-weight:500; }
+
+  /* === META ROW === */
+  .meta-row { display:flex; flex-wrap:wrap; gap:24px 32px; padding:18px 36px; background:#fafbfc; border-bottom:1px solid #e5e7eb; font-size:12px; }
+  .meta-item { display:flex; flex-direction:column; gap:2px; }
+  .meta-label { color:#9ca3af; font-weight:700; font-size:9px; text-transform:uppercase; letter-spacing:0.8px; }
+  .meta-value { color:#1a1a2e; font-weight:700; font-size:13px; }
+  .snapshot { padding:14px 36px 0; }
+  .snapshot .hw { font-size:11px; color:#6b7280; font-weight:600; margin-bottom:6px; }
+  .snapshot .bio { font-size:12px; color:#1a1a2e; line-height:1.55; padding-top:6px; border-top:1px solid #f0f0f5; }
+
+  /* === SECTIONS === */
+  .report-section { padding:24px 36px 12px; }
+  .section-header { display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+  .section-bar { width:4px; height:22px; background:#E95B9E; border-radius:2px; }
+  .section-header h2 { font-size:18px; font-weight:800; color:#1a1a2e; letter-spacing:-0.3px; }
+
+  /* === SKILLS === */
+  .skills-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px 24px; }
+  .skill-row { display:flex; align-items:center; gap:10px; padding:6px 0; font-size:12px; }
+  .skill-name { flex:1; color:#1a1a2e; font-weight:600; }
+  .skill-bars { display:flex; gap:3px; }
+  .skill-seg { width:14px; height:8px; border-radius:3px; background:#e5e7eb; }
+  .skill-seg.on { background:linear-gradient(90deg,#E95B9E,#29BAE5); }
+  .skill-grade { font-size:11px; font-weight:700; color:#5e6278; min-width:30px; text-align:right; }
+  .strength-growth { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:14px; }
+  .sg-card { padding:14px 16px; border-radius:10px; border:1px solid; }
+  .sg-strength { background:rgba(22,163,74,0.05); border-color:rgba(22,163,74,0.3); }
+  .sg-growth   { background:rgba(217,119,6,0.05); border-color:rgba(217,119,6,0.3); }
+  .sg-title { font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:1px; margin-bottom:6px; }
+  .sg-strength .sg-title { color:#16a34a; }
+  .sg-growth .sg-title { color:#d97706; }
+  .sg-card ul { list-style:none; padding:0; }
+  .sg-card li { font-size:12px; padding:2px 0; color:#1a1a2e; }
+  .sg-card li::before { content:'• '; }
+
+  /* === TESTING === */
+  .tests-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .test-card { padding:12px 14px; background:#fff; border:1px solid #e5e7eb; border-radius:10px; border-left:3px solid #E95B9E; }
+  .test-name-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+  .test-name { font-size:13px; font-weight:800; color:#1a1a2e; }
+  .trend-badge { font-size:9px; font-weight:700; padding:3px 8px; border-radius:10px; }
+  .trend-better { background:rgba(22,163,74,0.1); color:#16a34a; }
+  .trend-worse  { background:rgba(220,38,38,0.1); color:#dc2626; }
+  .test-stats { display:flex; gap:18px; margin-bottom:8px; }
+  .ts-block { display:flex; flex-direction:column; gap:1px; }
+  .ts-label { font-size:8px; font-weight:700; color:#9ca3af; text-transform:uppercase; letter-spacing:0.6px; }
+  .ts-val { font-size:18px; font-weight:800; color:#E95B9E; line-height:1.1; }
+  .ts-delta { font-size:14px; color:#16a34a; }
+  .ts-date { font-size:9px; color:#9ca3af; font-weight:500; }
+
+  /* === FEEDBACK === */
+  .feedback-meta { font-size:11px; color:#6b7280; margin-bottom:10px; display:flex; gap:18px; }
+  .feedback-table { width:100%; border-collapse:collapse; font-size:11px; }
+  .feedback-table thead th { text-align:left; padding:8px 10px; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.8px; color:#6b7280; border-bottom:2px solid #1a1a2e; }
+  .feedback-table tbody tr { border-bottom:1px solid #f0f0f5; page-break-inside:avoid; }
+  .feedback-table td { padding:10px; vertical-align:top; }
+  .ft-skill { width:32%; }
+  .ft-skill-area { font-size:8px; font-weight:700; color:#E95B9E; text-transform:uppercase; letter-spacing:0.6px; }
+  .ft-skill-name { font-size:12px; font-weight:700; color:#1a1a2e; margin-top:2px; }
+  .ft-rating { width:14%; }
+  .ft-pill { display:inline-block; padding:3px 9px; border-radius:11px; font-size:9px; font-weight:700; border:1px solid; }
+  .ft-comment { font-size:11px; line-height:1.5; color:#1a1a2e; }
+  .ft-empty { color:#cbd5e1; }
+
+  /* === REFLECTIONS === */
+  .reflections { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .refl { padding:14px 16px; border-radius:10px; border:1px solid; }
+  .refl-defence { background:rgba(220,38,38,0.04); border-color:rgba(220,38,38,0.25); }
+  .refl-attack  { background:rgba(22,163,74,0.04); border-color:rgba(22,163,74,0.25); }
+  .refl-title { font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:1px; margin-bottom:6px; }
+  .refl-defence .refl-title { color:#dc2626; }
+  .refl-attack .refl-title { color:#16a34a; }
+  .refl-body { font-size:12px; color:#1a1a2e; line-height:1.55; }
+
+  /* === GOALS === */
+  .goals-block { margin-bottom:12px; }
+  .goals-title { font-size:11px; font-weight:800; color:#E95B9E; text-transform:uppercase; letter-spacing:1px; margin-bottom:6px; }
+  .goals-done-block .goals-title { color:#16a34a; }
+  .goals-list { list-style:none; padding:0; }
+  .goals-list li { font-size:12px; padding:6px 0 6px 18px; position:relative; border-bottom:1px dashed #e5e7eb; color:#1a1a2e; }
+  .goals-list li::before { content:'→'; position:absolute; left:0; color:#E95B9E; font-weight:800; }
+  .goals-done-block .goals-list li::before { content:'✓'; color:#16a34a; }
+
+  /* === FOOTER === */
+  .report-footer { margin-top:18px; padding:18px 36px; border-top:2px solid #1a1a2e; display:flex; justify-content:space-between; align-items:center; font-size:10px; color:#9ca3af; background:#fafbfc; }
+  .footer-brand { font-weight:800; color:#E95B9E; letter-spacing:0.3px; }
+  .school-motto { font-style:italic; }
+
+  /* === PRINT === */
+  @page { size:A4; margin:12mm 0; }
+  @media print {
+    body { padding:0; background:#fff; }
+    .page-wrap { box-shadow:none; max-width:100%; }
+    .cover, .report-section, .reflections, .refl, .sg-card, .test-card, .ft-pill, .skill-seg.on, .meta-row, .report-footer {
+      -webkit-print-color-adjust:exact; print-color-adjust:exact;
+    }
+    .report-section { page-break-inside:avoid; }
+    .page-break { page-break-before:always; }
+    .no-print { display:none !important; }
+  }
+</style>
+</head>
+<body>
+  <div class="page-wrap">
+    <!-- COVER -->
+    <div class="cover">
+      <div class="cover-top">
+        <div class="brand">
+          <div class="brand-icon">${logoSrc ? `<img src="${logoSrc}" alt="Keebra"/>` : ''}</div>
+          <div>
+            <div class="brand-name">Keebra Park GRLA</div>
+            <div class="brand-sub">Girls Rugby League Academy</div>
+          </div>
+        </div>
+        <div class="report-type-pill">Player Development Report</div>
+      </div>
+      <div class="player-block">
+        <div class="player-label">Player</div>
+        <div class="player-name">${escape(player.name)}</div>
+        <div class="player-tagline">${escape(player.position || '')}${player.position && currentGroup ? ' · ' : ''}${escape(currentGroup?.label || '')}${teamLabel && currentGroup ? ' · ' : ''}${escape(teamLabel)}</div>
+      </div>
+    </div>
+
+    ${snapshotHtml}
+    ${skillsHtml}
+    ${testingHtml}
+    ${feedbackHtml}
+    ${reflectionsHtml}
+    ${goalsHtml}
+
+    <div class="report-footer">
+      <div><span class="footer-brand">Keebra Park GRLA</span> · Player Development Report</div>
+      <div class="school-motto">Connection · Accountability · Respect · Excellence</div>
+    </div>
+
+    <div class="no-print" style="text-align:center; padding:30px;">
+      <button onclick="window.print()" style="padding:14px 36px; background:#E95B9E; color:white; border:none; border-radius:10px; font-size:14px; font-weight:800; cursor:pointer; font-family:Inter,sans-serif; letter-spacing:0.3px;">📄 Print / Save as PDF</button>
+      <div style="margin-top:10px; font-size:11px; color:#9ca3af;">Use your browser's print dialog and choose "Save as PDF"</div>
+    </div>
+  </div>
+</body></html>`;
+
+    const w = window.open('', '_blank');
+    w.document.write(html);
+    w.document.close();
+  }
 
   function exportFeedbackPDF() {
     const logoSrc = (() => { try { return document.querySelector('.logo-icon img')?.src || ''; } catch(e) { return ''; } })();
@@ -5141,9 +5712,22 @@ function PlayerProfileModal({ player, playerIdx, updatePlayer, deletePlayer, onC
               </button>
             </div>
           </div>
-          <button onClick={onClose} style={{background:'none', border:'none', color:'var(--text-muted)', cursor:'pointer', padding:6, display:'inline-flex', flexShrink:0}}>
-            <Icon name="x" size={18}/>
-          </button>
+          <div style={{display:'flex', flexDirection:'column', gap:6, flexShrink:0, alignItems:'flex-end'}}>
+            <button onClick={onClose} style={{background:'none', border:'none', color:'var(--text-muted)', cursor:'pointer', padding:6, display:'inline-flex'}}>
+              <Icon name="x" size={18}/>
+            </button>
+            <button onClick={exportFullPlayerReport}
+              title="Generate a full PDF report — overview, skills, gym test progression, feedback, reflections and goals"
+              style={{
+                background: `linear-gradient(135deg, ${teamColor}, var(--brand-cyan))`,
+                color: 'white', border: 'none',
+                borderRadius: 8, padding: '8px 14px', fontSize: 11, fontWeight: 800,
+                cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6,
+                whiteSpace: 'nowrap', boxShadow: '0 1px 3px rgba(0,0,0,0.08)', fontFamily:'inherit'
+              }}>
+              <Icon name="download" size={12}/> Player Report PDF
+            </button>
+          </div>
         </div>
 
         {/* TABS */}
