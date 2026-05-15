@@ -762,6 +762,27 @@ function recalcTimes(activities, startTime) {
 // Format: { tests: [...test names...], data: { yearGroup: { name: [[date, season, [val1...val7]], ...] } } }
 const TEST_IMPORT_DATA = {"tests":["Bronco","Broad Jump","Vertical Jump","Max Hang","Push Up","20m Sprint","Med Ball Push"],"data":{"7-8":{"Ashe, Kendyll":[["2025-11-01","Term 4, 2025",["5:56","1.72","44","0:26","6","0:0:3:50","3.52"]],["2025-08-01","Term 3, 2025",["6:25","1.77","38","0:21","8","3.53","3.86"]]],"Asi, Milan":[["2025-11-01","Term 4, 2025",["6:30","0.65","35","0:15","3","","3.65"]],["2025-08-01","Term 3, 2025",["","1.84","36","0:25","14","3.34","3.4"]]],"Christensen, Nevaeh":[["2025-11-01","Term 4, 2025",["6:26","1.7","27","1:04","11","","3.65"]],["2025-08-01","Term 3, 2025",["6:17","1.76","32","1:00","3","3.77","3.33"]]],"Currie, Liarah":[["2025-08-01","Term 3, 2025",["5:52","1.7","40","0:40","20","3.76","3.46"]]],"Davies-Andy, Madika":[["2025-08-01","Term 3, 2025",["","1.85","38","0:16","22","3.62","3.8"]]],"Durban, Scarlett":[["2025-08-01","Term 3, 2025",["6:05","","","","","",""]]],"Hala, Nylah":[["2025-11-01","Term 4, 2025",["5:40","1.92","37","1:11","21","0:0:3:44","3.3"]],["2025-08-01","Term 3, 2025",["","1.81","33","0:33","13","3.53","3.5"]]],"Ioane, Laila":[["2025-08-01","Term 3, 2025",["7:15","1.63","29","0:25","8","4.12","3.4"]]],"Kirman, Kelise":[["2025-11-01","Term 4, 2025",["7:11","1.79","39","0:20","4","0:0:3:52","4.15"]],["2025-08-01","Term 3, 2025",["6:35","1.64","34","0:35","7","3.43","4"]]],"Kumbamong, Keesha":[["2025-11-01","Term 4, 2025",["7:20","1.36","29","0:08","5","0:0:3:64","3.77"]],["2025-08-01","Term 3, 2025",["","1.48","36","0:24","16","3.89","1.6"]]],"Lee, Halle":[["2025-11-01","Term 4, 2025",["7:20","1.86","38","0:21","2","0:0:3:44","4.23"]],["2025-08-01","Term 3, 2025",["6:40","0.89","35","0:09","10","3.32","3.52"]]],"Pere, Heavenly":[["2025-11-01","Term 4, 2025",["7:15","1.76","33","0:26","1","0:0:3:66","4.18"]],["2025-08-01","Term 3, 2025",["","1.67","33","0:24","35","3.48","3.73"]]],"Poa-Maoate, Akaina":[["2025-11-01","Term 4, 2025",["5:39","1.67","","0:21","2","0:0:3:54","3.66"]],["2025-08-01","Term 3, 2025",["5:53","1.88","41","1:10","15","3.92","3.91"]]],"Ratu-Taute, Kassidy":[["2025-11-01","Term 4, 2025",["6:06","","","1:02","3","","3.2"]]],"Roger, Zara":[["2025-11-01","Term 4, 2025",["5:32","1.69","32","0:49","3","0:0:3:32","3.87"]],["2025-08-01","Term 3, 2025",["5:48","1.74","30","1:00","16","3.32","3.8"]]],"Sadlier, Enaj":[["2025-11-01","Term 4, 2025",["6:33","1.86","41","1:01","7","","4.55"]],["2025-08-01","Term 3, 2025",["","0.87","34","0:34","10","3.71","3.83"]]],"Seumanutafa, Annison":[["2025-11-01","Term 4, 2025",["5:47","1.97","36","0:26","21","0:0:3:43","4.32"]],["2025-08-01","Term 3, 2025",["6:13","1.77","35","0:34","31","0:0:3:29","4"]]],"Simon, Nimea":[["2025-08-01","Term 3, 2025",["7:10","1.68","32","0:20","20","4","3.47"]]],"Skeen, Estelle":[["2025-11-01","Term 4, 2025",["5:37","1.82","39","0:30","5","3.61","3.5"]],["2025-08-01","Term 3, 2025",["5:44","1.87","38","0:30","11","3.79","3.4"]]],"Sorensen, Dakota":[["2025-11-01","Term 4, 2025",["6:37","1.77","34","0:15","2","0:0:3:78","3.33"]],["2025-08-01","Term 3, 2025",["6:43","1.88","30","0:24","15","3.51","2.33"]]],"Taele, Faith":[["2025-11-01","Term 4, 2025",["6:46","1.59","29","0:26","4","0:0:3:83","3.4"]],["2025-08-01","Term 3, 2025",["6:45","","","","","",""]]],"Taualofa-Morris, Aquarius":[["2025-11-01","Term 4, 2025",["6:29","1.78","28","0:32","1","0:0:3:56","3.79"]],["2025-08-01","Term 3, 2025",["6:20","","","","","",""]]],"Tauri, Mahalia":[["2025-08-01","Term 3, 2025",["6:39","2.1","43","0:14","10","3.52","4"]]],"Mazzitelli, Sienna":[["2025-11-01","Term 4, 2025",["7:51","1.85","40","0:20","6","0:0:3:59","3.97"]]],"Fepuleai, Lesina":[["2025-11-01","Term 4, 2025",["6:25","2.03","40","0:30","23","","4.2"]]],"Lang-Siu, Jordyn":[["2025-11-01","Term 4, 2025",["6:28","1.95","39","0:31","12","0:0:3:47","4.75"]]],"Alesana, Amora":[["2025-11-01","Term 4, 2025",["6:31","1.89","49","0:10","4","0:0:3:55","4.06"]],["2025-08-01","Term 3, 2025",["6:18","1.9","41","0:23","20","3.36","3.6"]]],"Borrell, RoseAngel":[["2025-11-01","Term 4, 2025",["7:42","1.75","44","0:10","1","0:0:3:76","4.7"]],["2025-08-01","Term 3, 2025",["7:36","1.76","38","0:10","20","3.72","3.9"]]],"Brown, Marlee":[["2025-08-01","Term 3, 2025",["7:36","1.35","37","0:06","16","3.95","4"]]],"Chami, Liyana":[["2025-08-01","Term 3, 2025",["6:13","2","41","0:17","20","3.55","4.13"]]],"De Thierry, Tahlia":[["2025-11-01","Term 4, 2025",["6:01","1.89","34","0:16","0","0:0:3:46","3.96"]],["2025-08-01","Term 3, 2025",["6:19","1.5","34","","","3.52","3.32"]]],"Faleafaga, Nhakita-Rose":[["2025-08-01","Term 3, 2025",["6:29","","","","","",""]]],"Freemantle, Paige":[["2025-11-01","Term 4, 2025",["9:26","1.31","22","0:05","0","0:0:4:04","4.37"]],["2025-08-01","Term 3, 2025",["9:29","1.4","25","0:06","16","4.46","4.1"]]],"Guthrie, Tatum-Lee":[["2025-08-01","Term 3, 2025",["","","","0:06","","4.46","4.1"]]],"Hepi-Te Huia, Parekaawa":[["2025-11-01","Term 4, 2025",["7:24","1.67","","","","0:0:3:83","5.28"]]],"Hotai-Walters, Tiare":[["2025-11-01","Term 4, 2025",["7:31","1.56","50","0:13","2","0:0:3:72","4.1"]],["2025-08-01","Term 3, 2025",["7:30","1.7","35","0:12","","3.63","4.5"]]],"Karaka, Krystal-Marie":[["2025-11-01","Term 4, 2025",["7:27","1.67","43","0:06","0","0:0:3:07","3.7"]]],"Kavana, Cahpri":[["2025-11-01","Term 4, 2025",["5:39","1.94","42","","","0:0:3:40","3.72"]],["2025-08-01","Term 3, 2025",["","1.77","37","0:20","17","3.42","3.8"]]],"Kiria-Ratu, Eva-Grace":[["2025-11-01","Term 4, 2025",["6:14","1.88","57","0:45","3","0:0:3:61","4.65"]],["2025-08-01","Term 3, 2025",["6:22","1.8","45","0:40","20","3.98","4.43"]]],"Kumbamong, Daneeka":[["2025-11-01","Term 4, 2025",["6:30","1.86","42","0:50","15","0:0:3:21","4.34"]],["2025-08-01","Term 3, 2025",["6:27","1.8","40","0:40","14","3.31","3.84"]]],"Latu, Koralee":[["2025-11-01","Term 4, 2025",["8:38","1.75","","","","0:0:3:93",""]]],"Mataiti, Laylah":[["2025-11-01","Term 4, 2025",["6:58","1.56","","","","0:0:3:85","3.89"]],["2025-08-01","Term 3, 2025",["","1.51","35","0:32","12","3.89","3.6"]]],"McGregor, Hollie":[["2025-11-01","Term 4, 2025",["7:55","1.18","32","0:07","0","0:0:4:05","3.82"]],["2025-08-01","Term 3, 2025",["8:27","1.29","25","0:07","10","4.21","3.85"]]],"McKee, Mika":[["2025-11-01","Term 4, 2025",["6:50","1.79","37","0:17","7","0:0:3:53","3.76"]],["2025-08-01","Term 3, 2025",["","1.84","36","0:22","28","3.9","3.62"]]],"Monika-Taramai, Kayelyn":[["2025-11-01","Term 4, 2025",["7:06","","","0:20","6","","3.65"]],["2025-08-01","Term 3, 2025",["8:56","1.61","29","0:21","14","4.01","2.8"]]],"Nia, Ava":[["2025-11-01","Term 4, 2025",["5:30","0.9","31","0:10","29","","4.1"]],["2025-08-01","Term 3, 2025",["5:29","1.58","39","0:32","34","3.32","3.74"]]],"Opai, Nitara":[["2025-11-01","Term 4, 2025",["5:51","1.77","40","1:00","27","0:0:3:57","3.8"]],["2025-08-01","Term 3, 2025",["5:56","1.92","38","0:30","20","3.41","3.32"]]],"Paeu, Psyesha":[["2025-08-01","Term 3, 2025",["","1.84","49","0:13","","3.59","4"]]],"Parry, Caysha":[["2025-08-01","Term 3, 2025",["","1.6","41","0:31","15","3.63","4.9"]]],"Pulemagafa, Havana":[["2025-11-01","Term 4, 2025",["7:22","1.85","49","0:10","1","","4.2"]],["2025-08-01","Term 3, 2025",["7:00","1.44","45","0:17","31","3.67","4.2"]]],"Ruiz, Abbie":[["2025-11-01","Term 4, 2025",["6:33","1.98","","","","0:0:3:02","4"]],["2025-08-01","Term 3, 2025",["","2.3","49","0:57","23","3","3"]]],"Sauvao, Alofa":[["2025-11-01","Term 4, 2025",["6:43","2.01","44","0:20","12","0:0:3:32","4.62"]],["2025-08-01","Term 3, 2025",["","2.4","35","0:31","33","3.24","4.37"]]],"Selwyn, Aaliah":[["2025-11-01","Term 4, 2025",["6:20","1.94","43","0:17","15","0:0:3:29","4.1"]],["2025-08-01","Term 3, 2025",["","1.76","39","1:01","30","3.23","4.7"]]],"Simpson, Leila":[["2025-11-01","Term 4, 2025",["6:05","1.9","49","0:42","13","","4.84"]]],"Smith, Kaea":[["2025-11-01","Term 4, 2025",["6:14","1.75","","","","0:0:3:93","4.3"]],["2025-08-01","Term 3, 2025",["6:12","1.67","31","0:20","15","3.37","4.1"]]],"Tagaloa, Zaria":[["2025-11-01","Term 4, 2025",["8:03","1.73","37","0:34","4","","4.92"]],["2025-08-01","Term 3, 2025",["8:10","1.78","37","0:30","21","3.64","4.3"]]],"Tangitutu, Bella":[["2025-11-01","Term 4, 2025",["6:43","1.65","30","0:27","11","0:0:3:56","3.2"]],["2025-08-01","Term 3, 2025",["","1.82","27","0:42","6","3.65","3.22"]]],"Teles, Aurora":[["2025-08-01","Term 3, 2025",["7:06","1.56","36","0:25","","4.07","4.37"]]],"Tihema, MJ":[["2025-11-01","Term 4, 2025",["6:38","1.33","32","0:49","8","","4.07"]],["2025-08-01","Term 3, 2025",["","1.45","31","0:22","20","3.59","3.4"]]],"Tonga, Sisilia":[["2025-08-01","Term 3, 2025",["6:20","2.04","41","0:30","20","3.65","3.13"]]],"Usher, Alyanah":[["2025-11-01","Term 4, 2025",["7:25","1.55","33","0:23","1","0:0:3:87","4"]],["2025-08-01","Term 3, 2025",["","1.31","34","0:07","20","","3.91"]]],"Wharerau-Smith, Tiana":[["2025-08-01","Term 3, 2025",["6:29","1.61","33","0:48","12","4.14",""]]],"William, Cenniah":[["2025-08-01","Term 3, 2025",["","2","49","0:37","32","3.41","4.1"]]],"Pulepule, Bailey":[["2025-11-01","Term 4, 2025",["6:45","2.05","48","0:43","13","","4.88"]]],"Flynn, Harlee":[["2025-11-01","Term 4, 2025",["6:17","1.95","34","0:24","13","0:0:3:58","3.4"]]]},"9-10":{"Akauola, Allegra":[["2025-11-01","Term 4, 2025",["6:45","1.67","33","0:28","13","","4.5"]],["2025-08-01","Term 3, 2025",["6:40","1.68","27","0:18","29(knees)","4.53","3.91"]]],"Atarau, Kobie":[["2025-11-01","Term 4, 2025",["5:40","1.76","53","0:33","14","3.29","4.3"]],["2025-08-01","Term 3, 2025",["5:50","1.9","47","0:30","24","3.26","4.23"]]],"Barnes, Sade":[["2025-11-01","Term 4, 2025",["7:47","1.3","23","0:11","3","","2.96"]],["2025-08-01","Term 3, 2025",["8:35","1.1","23","0:02","7","4.62","2.68"]]],"Betham, Rosa":[["2025-11-01","Term 4, 2025",["6:15","","","","","",""]],["2025-08-01","Term 3, 2025",["6:30","1.56","32","0:34","15(knees)","3.78","4.04"]]],"Bush, Aaliyah":[["2025-08-01","Term 3, 2025",["6:27","1.7","32","0:15","10","3.79","4.92"]]],"Byrne-Hunia, Tiarni":[["2025-11-01","Term 4, 2025",["6:51","1.9","11","0:13","9","","3.8"]],["2025-08-01","Term 3, 2025",["6:41","1.78","47","0:21","10","3.65","3.18"]]],"Cable-Reid, Aaliyah":[["2025-11-01","Term 4, 2025",["7:10","1.45","36","0:24","5","","4.33"]],["2025-08-01","Term 3, 2025",["7:08","1.43","34","0:20","7","3.69","4"]]],"Campbell, Jayla":[["2025-11-01","Term 4, 2025",["6:02","1.98","40","0:39","15","","4.89"]],["2025-08-01","Term 3, 2025",["5:44","2.05","45","0:38","24","3.45","4.57"]]],"Chambers, Shariyah":[["2025-11-01","Term 4, 2025",["6:41","1.73","40","1:04","10","","4.65"]],["2025-08-01","Term 3, 2025",["6:31","","","","","",""]]],"Fangupo, Alisi":[["2025-11-01","Term 4, 2025",["7:32","1.5","45","0:12","4","","4.7"]]],"Freeman, Addison":[["2025-11-01","Term 4, 2025",["6:58","1.7","33","1:21","9","","3.65"]],["2025-08-01","Term 3, 2025",["","1.83","","0:51","","","3.5"]]],"French, Tanaya":[["2025-11-01","Term 4, 2025",["5:21","1.68","37","0:25","12","","3.3"]],["2025-08-01","Term 3, 2025",["5:21","1.8","42","0:25","22(knees)","3.42","3.7"]]],"Geldard, Leilani":[["2025-08-01","Term 3, 2025",["7:05","1.93","43","1:04","4","3.38","3.79"]]],"Goodall, Marley":[["2025-11-01","Term 4, 2025",["6:22","1.58","34","0:26","2","3.91","3.24"]],["2025-08-01","Term 3, 2025",["6:38","1.64","31","0:13","1","3.62","3.29"]]],"Hala, Meleane":[["2025-11-01","Term 4, 2025",["5:13","","","","","",""]],["2025-08-01","Term 3, 2025",["5:33","2.24","54","0:15","20","3.02","3.9"]]],"Hepi, Shyla":[["2025-11-01","Term 4, 2025",["6:47","2","41","0:34","10","","4.28"]],["2025-08-01","Term 3, 2025",["6:35","1.94","41","0:46","9","3.5","3.9"]]],"Johnson, Marlee":[["2025-11-01","Term 4, 2025",["7:21","1.73","34","0:20","4","4.43",""]],["2025-08-01","Term 3, 2025",["7:23","1.8","39","0:10","6","3.49",""]]],"Jones, Jasmin":[["2025-11-01","Term 4, 2025",["7:47","","30","0:12","3","","3.6"]],["2025-08-01","Term 3, 2025",["","1.55","","0:11","","","3.4"]]],"Katipa, Sahvahniya":[["2025-11-01","Term 4, 2025",["7:50","1.62","33","0:25","4","","3.9"]],["2025-08-01","Term 3, 2025",["6:38","1.55","31","0:30","26","3.36","3.6"]]],"Kemp, Maia":[["2025-11-01","Term 4, 2025",["7:19","1.43","37","0:08","2","","4.26"]],["2025-08-01","Term 3, 2025",["7:20","1.88","36","0:11","4","4.22","4.38"]]],"Latu, Bailey":[["2025-11-01","Term 4, 2025",["7:18","2","36","0:14","10","3.98","4"]],["2025-08-01","Term 3, 2025",["7:38","2.16","38","0:07","2","3.39","3.77"]]],"Lavender, Brooklyn":[["2025-11-01","Term 4, 2025",["7:42","1.79","36","0:19","11","","4.3"]],["2025-08-01","Term 3, 2025",["7:26","1.71","28","0:21","23","","3.88"]]],"Leiataua, Priscilla":[["2025-11-01","Term 4, 2025",["","1.1","","10","2","","4.25"]]],"Lepou, Summer":[["2025-11-01","Term 4, 2025",["7:11","","27","","","",""]],["2025-08-01","Term 3, 2025",["6:25","1.09","31","0:23","15(knees)","","4"]]],"Matchitt, Kyzlah":[["2025-11-01","Term 4, 2025",["","","","0:45","15","","4.3"]],["2025-08-01","Term 3, 2025",["6:50","1.81","40","0:30","10","3.36","4.67"]]],"Paku, Shanita":[["2025-11-01","Term 4, 2025",["6:20","1.63","26","0:13","4","3.97","4"]],["2025-08-01","Term 3, 2025",["6:15","1.76","32","0:21","15(knees)","3.73","3.6"]]],"Ratu-Taute, Sierra":[["2025-11-01","Term 4, 2025",["5:41","1.87","39","0:31","9","","4.62"]],["2025-08-01","Term 3, 2025",["6:05","1.93","","0:40","","",""]]],"Robinson, Manaia":[["2025-11-01","Term 4, 2025",["5:37","1.83","36","0:37","20","3.39","3.26"]]],"Rose, Lacey":[["2025-11-01","Term 4, 2025",["7:38","1.64","30","0:18","10","","3.95"]],["2025-08-01","Term 3, 2025",["7:45","1.71","27","0:18","7","3.68","4.02"]]],"Scott, Britney":[["2025-11-01","Term 4, 2025",["6:45","1.86","43","0:54","20","","4.3"]],["2025-08-01","Term 3, 2025",["6:55","","","","","",""]]],"Spehr, Charlee":[["2025-11-01","Term 4, 2025",["7:32","1.15","28","0:24","10","","3.5"]],["2025-08-01","Term 3, 2025",["8:20","1.3","","","","","3.3"]]],"Spehr, Meegan":[["2025-11-01","Term 4, 2025",["7:28","1.49","33","0:44","11","","3.55"]],["2025-08-01","Term 3, 2025",["7:59","1.39","","0:40","","","3.6"]]],"Steedman, Kuru":[["2025-11-01","Term 4, 2025",["","1.75","41","1:11","10","3.61","4"]],["2025-08-01","Term 3, 2025",["6:50","1.8","38","0:30","7","3.27","3.96"]]],"Su'a, Orietta":[["2025-11-01","Term 4, 2025",["7:06","1.52","33","0:22","3","","4.48"]],["2025-08-01","Term 3, 2025",["7:31","1.06","29","0:09","13","3.83","4.5"]]],"Tairea-Katipa, Meremaraea":[["2025-08-01","Term 3, 2025",["6:39","1.61","32","0:17","13","3.76","3.66"]]],"Tangitutu, Talia":[["2025-11-01","Term 4, 2025",["7:36","","","","","",""]],["2025-08-01","Term 3, 2025",["7:44","1.25","20","0:05","4","3.4","3.4"]]],"Taulepa, Kanani":[["2025-11-01","Term 4, 2025",["7:48","1.32","38","0:12","3","","4.6"]],["2025-08-01","Term 3, 2025",["7:44","1.34","39","0:14","4","3.71","3.76"]]],"Tongi, Siahi":[["2025-11-01","Term 4, 2025",["6:27","1.7","47","0:12","17","","4.9"]]],"Tuake, Maharleya":[["2025-08-01","Term 3, 2025",["6:05","1.78","38","0:17","28(knees)","","3.79"]]],"Tufuga, Imani":[["2025-11-01","Term 4, 2025",["6:12","1.65","31","0:15","4","4.01","4.73"]],["2025-08-01","Term 3, 2025",["6:05","1.68","32","0:11","20(knees)","3.77","4.45"]]],"Viliamu, Nevaeh":[["2025-08-01","Term 3, 2025",["7:22","1.81","37","0:17","10","3.45","3.94"]]],"Vuidreketi, Asenaca":[["2025-11-01","Term 4, 2025",["7:30","1.47","32","0:10","3","","4.75"]],["2025-08-01","Term 3, 2025",["7:35","1.62","33","0:05","16(knees)","3.86","4.7"]]],"Whaiapu, Jayda":[["2025-08-01","Term 3, 2025",["7:10","1.75","","0:26","25","3.83","4.83"]]],"Aislabie, Avah":[["2025-11-01","Term 4, 2025",["6:29","1.74","40","0:50","21","0:0:4:11","3.95"]],["2025-08-01","Term 3, 2025",["6:28","1.81","41","0:43","17","0:0:3:35","3.23"]]],"Brown-Hopa, Alasiah":[["2025-11-01","Term 4, 2025",["","1.66","44","0:17","4","3.64","4.1"]],["2025-08-01","Term 3, 2025",["7:17","1.7","40","0:22","","3.52","3.75"]]],"Filikitonga, Olivia":[["2025-11-01","Term 4, 2025",["6:45","1.64","39","0:16","16","0:0:3:91","5.4"]],["2025-08-01","Term 3, 2025",["6:27","1.81","43","0:25","17","3.28","5.12"]]],"Flores, Jaida":[["2025-11-01","Term 4, 2025",["5:54","2.07","58","0:15","15","0:0:3:67","5.15"]],["2025-08-01","Term 3, 2025",["5:50","1.95","","0:53","15","","5.4"]]],"Kawana, Sharleen":[["2025-08-01","Term 3, 2025",["5:58","1.73","37","0:35","21","3.46","4.86"]]],"Khalil, Marissa":[["2025-11-01","Term 4, 2025",["6:03","1.92","33","1:11","17","0:0:3:36","4.48"]],["2025-08-01","Term 3, 2025",["6:09","1.87","41","0:35","25","3.26","3.83"]]],"Kingi, Halina":[["2025-08-01","Term 3, 2025",["6:24","1.76","39","0:38","16","3.52","4.64"]]],"Laterre, Zihade":[["2025-08-01","Term 3, 2025",["6:44","1.72","54","1:30","19","3.21","4.18"]]],"Mataiti, Havana":[["2025-11-01","Term 4, 2025",["","","","1:15","11","","3.8"]]],"Matheson-Johnson, Shakaye":[["2025-11-01","Term 4, 2025",["5:36","","","","","",""]],["2025-08-01","Term 3, 2025",["5:35","2.11","44","0:25","37","3.17",""]]],"Mau, Ruby-Rose":[["2025-11-01","Term 4, 2025",["5:53","1.85","41","0:24","5","0:0:3:99","3.95"]],["2025-08-01","Term 3, 2025",["5:37","1.82","42","0:15","4","3.27","3.9"]]],"Nati, Marmie":[["2025-11-01","Term 4, 2025",["6:07","2.23","43","1:21","25","0:0:3:66","5.5"]],["2025-08-01","Term 3, 2025",["5:59","2.14","47","1:00","30","",""]]],"O'Brien, Ivy":[["2025-11-01","Term 4, 2025",["","2.08","50","0:45","15","0:0:3:52","5.43"]],["2025-08-01","Term 3, 2025",["6:35","1.94","41","0:46","9","3.5","3.9"]]],"O'Neill, Indigo":[["2025-08-01","Term 3, 2025",["","","45","","","",""]]],"Papalii, Oriana-Rose":[["2025-08-01","Term 3, 2025",["7:17","2.19","54","1:20","38","3.18","4.58"]]],"Petley, Che":[["2025-11-01","Term 4, 2025",["6:21","1.73","33","0:30","10","0:0:3:21","4.18"]],["2025-08-01","Term 3, 2025",["6:04","1.9","","0:25","10","","3.9"]]],"Piutau, Ayvah":[["2025-11-01","Term 4, 2025",["6:11","1.94","39","0:21","12","0:0:4:01","4.2"]]],"Price, Harper":[["2025-11-01","Term 4, 2025",["5:52","1.58","36","0:39","10","0:0:4:04","3.88"]],["2025-08-01","Term 3, 2025",["6:01","1.7","37","0:27","15","3.64","4"]]],"Ratima, Reitumanava":[["2025-11-01","Term 4, 2025",["8:13","1.69","38","0:10","5","0:0:4:17","3.9"]]],"Sikahele, Kesaia":[["2025-11-01","Term 4, 2025",["6:57","1.83","42","0:18","11","0:0:3:99","4.6"]],["2025-08-01","Term 3, 2025",["6:25","1.84","47","0:35","20","","4.33"]]],"Skeen, Iris":[["2025-11-01","Term 4, 2025",["6:31","1.74","45","0:29","5","0:0:3:72","4.7"]],["2025-08-01","Term 3, 2025",["7:07","1.95","40","0:31","17","3.48","4.64"]]],"Smith, Jenna":[["2025-11-01","Term 4, 2025",["6:10","1.97","37","0:42","12","0:0:3:77","4.1"]],["2025-08-01","Term 3, 2025",["6:10","1.95","36","0:27","16","3.3","3.63"]]],"Smith, Manaia":[["2025-11-01","Term 4, 2025",["6:25","1.52","28","0:13","20","0","4.2"]],["2025-08-01","Term 3, 2025",["","1.7","","0:35","15","","4.7"]]],"Smith, Tamiia":[["2025-11-01","Term 4, 2025",["6:37","1.54","37","0:55","5","0:0:3:32","5.2"]],["2025-08-01","Term 3, 2025",["7:02","","","","","",""]]],"Tasi-Sale, Milana":[["2025-11-01","Term 4, 2025",["7:00","1.64","34","0:21","8","0:0:4:29","4.9"]],["2025-08-01","Term 3, 2025",["6:39","1.72","47","0:15","6","3.58","4.23"]]],"Te Kotahi, Maleea":[["2025-08-01","Term 3, 2025",["6:28","1.92","36","0:28","27","3.23","4.63"]]],"Tusa, Kyara":[["2025-11-01","Term 4, 2025",["6:56","","47","0:36","11","0:0:3:92","4.51"]],["2025-08-01","Term 3, 2025",["6:25","1.64","48","0:27","12","3.48","4.56"]]],"Walker, Mia":[["2025-11-01","Term 4, 2025",["6:34","2.17","59","","28","0:0:4:06","5.35"]]],"Watene, Ezmae":[["2025-08-01","Term 3, 2025",["6:24","1.84","53","0:43","23","3.13","5.12"]]],"Webber, Aylah":[["2025-11-01","Term 4, 2025",["","1.65","36","0:30","6","","3.8"]],["2025-08-01","Term 3, 2025",["6:40","1.81","40","0:33","6","3.66","3.9"]]],"Wickliffe, Jae-Jae":[["2025-08-01","Term 3, 2025",["5:52","2.01","53","0:31","23","3.26","4.35"]]]}}};
 
+// Feedback report templates — skill criteria + auto-comments by year group / position
+const FEEDBACK_TEMPLATES = {"Year 7-8":[{"area":"Core Skills","skill":"Tackle Technique","criteria":"• Correct shoulder contact and safe head placement\n• Controls body position through contact\n• Finishes dominant or neutral\n• Recovers quickly to defensive line","comments":{"Green – Exceeds":"Defence: consistently strong in tackle technique – safe contact, good body height and wins most collisions.","Yellow – Developing":"Defence: tackle technique is developing – focus on body height, leg drive and finishing the tackle dominant more often.","Red – Needs Work":"Defence: tackle technique needs significant work – improve safe contact, footwork into contact and commitment in collisions."}},{"area":"Core Skills","skill":"Ruck Awareness","criteria":"• Moves quickly into marker\n• Communicates with other marker\n• Adjusts to play-the-ball tempo\n• Tracks ball movement effectively","comments":{"Green – Exceeds":"Defence: shows strong ruck awareness – adjusts marker spacing, reads the dummy-half and reacts quickly to quick play-the-balls.","Yellow – Developing":"Defence: ruck awareness is improving – keep working on reading the dummy-half and getting set early around the ruck.","Red – Needs Work":"Defence: ruck awareness needs attention – focus on getting square, organising markers and reacting quicker around the ruck."}},{"area":"Core Skills","skill":"Passing (Short & Long)","criteria":"• Accurate both sides\n• Ball travels flat and quick\n• Balanced stance before delivery\n• Looks before passing","comments":{"Green – Exceeds":"Attack: passes accurately and on time – hits teammates in stride and can pass effectively both sides.","Yellow – Developing":"Attack: passing is developing – focus on consistent technique, passing earlier and being accurate under pressure.","Red – Needs Work":"Attack: passing needs improvement – work on basic technique, timing and hitting targets more consistently."}},{"area":"Core Skills","skill":"Catch & Catch Position","criteria":"• Hands ready early\n• Eyes track ball into hands\n• Balanced stance at catch\n• Maintains possession through contact","comments":{"Green – Exceeds":"Skill: shows reliable catching skills – presents early targets and controls the ball under pressure.","Yellow – Developing":"Skill: catching is developing – focus on early hand targets, watching the ball in and controlling it under contact.","Red – Needs Work":"Skill: catching needs attention – improve hand position, concentration and ball security under pressure."}},{"area":"Core Skills","skill":"Game Understanding","criteria":"• Knows team shape and rules\n• Recognises overlap opportunities\n• Makes safe pass/run choices\n• Reacts correctly to defensive cues","comments":{"Green – Exceeds":"Game understanding: reads the game well – understands shapes, numbers and where the space is.","Yellow – Developing":"Game understanding is developing – keep learning team shapes and where the best options are each set.","Red – Needs Work":"Game understanding needs development – focus on learning team systems and recognising numbers and space."}},{"area":"Mindset / Effort","skill":"Work Ethic / General Attitude","criteria":"• Works hard every set\n• Encourages others\n• Listens to feedback\n• Maintains discipline","comments":{"Green – Exceeds":"Mindset: outstanding work ethic and attitude – trains hard, competes in everything and lifts those around them.","Yellow – Developing":"Mindset: effort and attitude are building – keep bringing consistent energy and focus to every session.","Red – Needs Work":"Mindset: effort and attitude need work – commit to higher standards in training, concentration and team-first behaviours."}}],"Y9-10 Forwards":[{"area":"FORWARDS – Defensive","skill":"Tackle Technique","criteria":"• Maintains correct body height and shoulder contact\n• Uses leg drive to finish dominant\n• Adjusts technique to player speed/size\n• Resets quickly into defensive line","comments":{"Green – Exceeds":"Defence: consistently strong in tackle technique – safe contact, good body height and wins most collisions.","Yellow – Developing":"Defence: tackle technique is developing – focus on body height, leg drive and finishing the tackle dominant more often.","Red – Needs Work":"Defence: tackle technique needs significant work – improve safe contact, footwork into contact and commitment in collisions."}},{"area":"FORWARDS – Defensive","skill":"Ruck Awareness","criteria":"• Arrives early and balanced at marker\n• Communicates inside/outside spacing\n• Adapts line speed based on opposition tempo\n• Uses appropriate ruck control technique (split/check, chill, negative)","comments":{"Green – Exceeds":"Defence: shows strong ruck awareness – adjusts marker spacing, reads the dummy-half and reacts quickly to quick play-the-balls.","Yellow – Developing":"Defence: ruck awareness is improving – keep working on reading the dummy-half and getting set early around the ruck.","Red – Needs Work":"Defence: ruck awareness needs attention – focus on getting square, organising markers and reacting quicker around the ruck."}},{"area":"FORWARDS – Defensive","skill":"Defensive Line Movement","criteria":"• Holds inside shoulder integrity\n• Adjusts line depth and speed to attacking shape\n• Communicates with inside defenders\n• Recovers shape after tackles","comments":{"Green – Exceeds":"Defence: holds a strong defensive line – stays connected, communicates and adjusts line speed effectively.","Yellow – Developing":"Defence: defensive line movements are developing – work on staying connected, pushing together and making clear calls.","Red – Needs Work":"Defence: defensive line integrity needs work – avoid disconnects, improve talk and push earlier off the line."}},{"area":"FORWARDS – Attacking","skill":"Ball Carry into Contact","criteria":"• Leads with hips and low body height\n• Drives legs through contact\n• Controls ball with two hands pre-contact\n• Lands on front to generate ruck speed","comments":{"Green – Exceeds":"Attack: carries the ball strongly – wins post-contact metres and controls the play-the-ball well.","Yellow – Developing":"Attack: ball carry is developing – focus on leg drive, body height and winning the contact more often.","Red – Needs Work":"Attack: ball carry needs improvement – work on running tougher lines, leg drive through contact and ball security."}},{"area":"FORWARDS – Attacking","skill":"Play-the-Ball Speed","criteria":"• Controls body movement through ground\n• Plays ball cleanly and square\n• Avoids penalties for slow or off-balance PTBs\n• Communicates next play speed","comments":{"Green – Exceeds":"Attack: consistently produces quick, clean play-the-balls that help the team play on the front foot.","Yellow – Developing":"Attack: play-the-ball speed is improving – focus on landing on your front and getting to your feet faster.","Red – Needs Work":"Attack: play-the-ball needs improvement – avoid slow, messy rucks and work on body control to speed the game up."}},{"area":"FORWARDS – Attacking","skill":"Catch & Catch Position","criteria":"• Eyes track ball early\n• Adjusts footwork and stance\n• Controls catch under contact\n• Transfers quickly to carry position","comments":{"Green – Exceeds":"Skill: shows reliable catching skills – presents early targets and controls the ball under pressure.","Yellow – Developing":"Skill: catching is developing – focus on early hand targets, watching the ball in and controlling it under contact.","Red – Needs Work":"Skill: catching needs attention – improve hand position, concentration and ball security under pressure."}}],"Y9-10 Backs":[{"area":"BACKS – Defensive","skill":"Tackle Technique","criteria":"• Maintains control in one-on-one tackles\n• Adjusts angle to track attacking hips\n• Finishes with dominant control or push-out\n• Recovers field position post-tackle","comments":{"Green – Exceeds":"Defence: consistently strong in tackle technique – safe contact, good body height and wins most collisions.","Yellow – Developing":"Defence: tackle technique is developing – focus on body height, leg drive and finishing the tackle dominant more often.","Red – Needs Work":"Defence: tackle technique needs significant work – improve safe contact, footwork into contact and commitment in collisions."}},{"area":"BACKS – Defensive","skill":"Ruck Awareness","criteria":"• Positions early in space\n• Adjusts line depth to maintain width\n• Supports middle communication\n• Tracks ball movement accurately","comments":{"Green – Exceeds":"Defence: shows strong ruck awareness – adjusts marker spacing, reads the dummy-half and reacts quickly to quick play-the-balls.","Yellow – Developing":"Defence: ruck awareness is improving – keep working on reading the dummy-half and getting set early around the ruck.","Red – Needs Work":"Defence: ruck awareness needs attention – focus on getting square, organising markers and reacting quicker around the ruck."}},{"area":"BACKS – Defensive","skill":"Defensive Line Movement","criteria":"• Stays connected to inside defender\n• Pushes up and slides as required\n• Reacts to kick and second-phase play\n• Communicates edge alignment","comments":{"Green – Exceeds":"Defence: holds a strong defensive line – stays connected, communicates and adjusts line speed effectively.","Yellow – Developing":"Defence: defensive line movements are developing – work on staying connected, pushing together and making clear calls.","Red – Needs Work":"Defence: defensive line integrity needs work – avoid disconnects, improve talk and push earlier off the line."}},{"area":"BACKS – Attacking","skill":"Catch & Catch Position","criteria":"• Hands up early, eyes fixed on ball\n• Adjusts stance for high or fast passes\n• Maintains balance and control\n• Transfers to carry or offload quickly","comments":{"Green – Exceeds":"Skill: shows reliable catching skills – presents early targets and controls the ball under pressure.","Yellow – Developing":"Skill: catching is developing – focus on early hand targets, watching the ball in and controlling it under contact.","Red – Needs Work":"Skill: catching needs attention – improve hand position, concentration and ball security under pressure."}},{"area":"BACKS – Attacking","skill":"Support Play","criteria":"• Reads ball carrier cues\n• Times run to stay connected\n• Supports from inside and outside\n• Communicates availability to ball carrier","comments":{"Green – Exceeds":"Attack: works hard in support – stays alive on plays and puts themselves in good positions to receive the ball.","Yellow – Developing":"Attack: support play is developing – focus on staying connected to the ball and pushing on line breaks.","Red – Needs Work":"Attack: support play needs attention – work on effort to push in support and staying active around the ball."}},{"area":"BACKS – Attacking","skill":"Passing (Short & Long)","criteria":"• Passes in stride, both sides\n• Adjusts length based on space\n• Keeps ball flat and direct\n• Maintains control under pressure","comments":{"Green – Exceeds":"Attack: passes accurately and on time – hits teammates in stride and can pass effectively both sides.","Yellow – Developing":"Attack: passing is developing – focus on consistent technique, passing earlier and being accurate under pressure.","Red – Needs Work":"Attack: passing needs improvement – work on basic technique, timing and hitting targets more consistently."}}],"Y9-10 Service":[{"area":"SERVICE – Defensive","skill":"Tackle Technique","criteria":"• Controls tackle around ruck area\n• Finishes low and fast\n• Uses inside leg drive to slow ruck\n• Recovers into A/B defence","comments":{"Green – Exceeds":"Defence: consistently strong in tackle technique – safe contact, good body height and wins most collisions.","Yellow – Developing":"Defence: tackle technique is developing – focus on body height, leg drive and finishing the tackle dominant more often.","Red – Needs Work":"Defence: tackle technique needs significant work – improve safe contact, footwork into contact and commitment in collisions."}},{"area":"SERVICE – Defensive","skill":"Ruck Awareness","criteria":"• Reads dummy-half cues early\n• Communicates A-defence shape\n• Adjusts marker spacing dynamically\n• Anticipates quick play-the-ball threat","comments":{"Green – Exceeds":"Defence: shows strong ruck awareness – adjusts marker spacing, reads the dummy-half and reacts quickly to quick play-the-balls.","Yellow – Developing":"Defence: ruck awareness is improving – keep working on reading the dummy-half and getting set early around the ruck.","Red – Needs Work":"Defence: ruck awareness needs attention – focus on getting square, organising markers and reacting quicker around the ruck."}},{"area":"SERVICE – Defensive","skill":"Defensive Line Movement","criteria":"• Pushes early from inside shoulder\n• Commands short-side communication\n• Holds line until ball release\n• Directs line reload after tackle","comments":{"Green – Exceeds":"Defence: holds a strong defensive line – stays connected, communicates and adjusts line speed effectively.","Yellow – Developing":"Defence: defensive line movements are developing – work on staying connected, pushing together and making clear calls.","Red – Needs Work":"Defence: defensive line integrity needs work – avoid disconnects, improve talk and push earlier off the line."}},{"area":"SERVICE – Attacking","skill":"Catch & Catch Position","criteria":"• Hands up early at base of ruck\n• Feet set and balanced before pass\n• Smooth transfer to passing position\n• Reads defensive markers before play","comments":{"Green – Exceeds":"Skill: shows reliable catching skills – presents early targets and controls the ball under pressure.","Yellow – Developing":"Skill: catching is developing – focus on early hand targets, watching the ball in and controlling it under contact.","Red – Needs Work":"Skill: catching needs attention – improve hand position, concentration and ball security under pressure."}},{"area":"SERVICE – Attacking","skill":"Attacking Decision-Making","criteria":"• Scans defence before engaging\n• Chooses correct run/pass/kick option\n• Varies tempo to create space\n• Communicates play direction clearly","comments":{"Green – Exceeds":"Attack: makes strong decisions with the ball – chooses the right option often and helps the team play to strengths.","Yellow – Developing":"Attack: decision-making is developing – focus on scanning earlier and choosing simple, effective options.","Red – Needs Work":"Attack: decision-making needs work – slow the game down mentally and focus on clear, simple choices each play."}},{"area":"SERVICE – Attacking","skill":"Passing (Short & Long)","criteria":"• Delivers flat, fast passes both sides\n• Adjusts speed for player depth\n• Keeps ball in front of receiver\n• Executes while moving at pace","comments":{"Green – Exceeds":"Attack: passes accurately and on time – hits teammates in stride and can pass effectively both sides.","Yellow – Developing":"Attack: passing is developing – focus on consistent technique, passing earlier and being accurate under pressure.","Red – Needs Work":"Attack: passing needs improvement – work on basic technique, timing and hitting targets more consistently."}}],"Y11-12 Middles":[{"area":"MIDDLES – Defensive","skill":"Tackle Technique","criteria":"• Wins contact zone through body height control\n• Uses tempo (dominant, neutral, surrender) purposefully\n• Controls wrestle phase to slow opposition\n• Organises line reload post-tackle","comments":{"Green – Exceeds":"Defence: consistently strong in tackle technique – safe contact, good body height and wins most collisions.","Yellow – Developing":"Defence: tackle technique is developing – focus on body height, leg drive and finishing the tackle dominant more often.","Red – Needs Work":"Defence: tackle technique needs significant work – improve safe contact, footwork into contact and commitment in collisions."}},{"area":"MIDDLES – Defensive","skill":"Ruck Awareness","criteria":"• Reads opposition shape early\n• Commands A/B defender alignment\n• Adapts ruck tempo through pressure\n• Communicates ruck cues to edge defenders","comments":{"Green – Exceeds":"Defence: shows strong ruck awareness – adjusts marker spacing, reads the dummy-half and reacts quickly to quick play-the-balls.","Yellow – Developing":"Defence: ruck awareness is improving – keep working on reading the dummy-half and getting set early around the ruck.","Red – Needs Work":"Defence: ruck awareness needs attention – focus on getting square, organising markers and reacting quicker around the ruck."}},{"area":"MIDDLES – Defensive","skill":"Defensive Line Movements","criteria":"• Leads line integrity and inside shoulder talk\n• Adjusts depth and width to attacking threats\n• Pushes line speed to force errors\n• Directs cover defence rotations","comments":{"Green – Exceeds":"Defence: holds a strong defensive line – stays connected, communicates and adjusts line speed effectively.","Yellow – Developing":"Defence: defensive line movements are developing – work on staying connected, pushing together and making clear calls.","Red – Needs Work":"Defence: defensive line integrity needs work – avoid disconnects, improve talk and push earlier off the line."}},{"area":"MIDDLES – Attacking","skill":"Ball Carry into Contact","criteria":"• Changes line late to beat contact\n• Wins post-contact metres consistently\n• Uses footwork pre-contact\n• Maintains ball control under heavy pressure","comments":{"Green – Exceeds":"Attack: carries the ball strongly – wins post-contact metres and controls the play-the-ball well.","Yellow – Developing":"Attack: ball carry is developing – focus on leg drive, body height and winning the contact more often.","Red – Needs Work":"Attack: ball carry needs improvement – work on running tougher lines, leg drive through contact and ball security."}},{"area":"MIDDLES – Attacking","skill":"Play-the-Ball Speed","criteria":"• Lands forward and rolls quickly\n• Controls body through ground phase\n• Avoids penalties while speeding ruck\n• Communicates tempo to dummy half","comments":{"Green – Exceeds":"Attack: consistently produces quick, clean play-the-balls that help the team play on the front foot.","Yellow – Developing":"Attack: play-the-ball speed is improving – focus on landing on your front and getting to your feet faster.","Red – Needs Work":"Attack: play-the-ball needs improvement – avoid slow, messy rucks and work on body control to speed the game up."}},{"area":"MIDDLES – Attacking","skill":"Catch & Catch Position","criteria":"• Presents target early\n• Uses subtle body cues to deceive defenders\n• Transfers to offload or carry instantly\n• Maintains control under pressure","comments":{"Green – Exceeds":"Skill: shows reliable catching skills – presents early targets and controls the ball under pressure.","Yellow – Developing":"Skill: catching is developing – focus on early hand targets, watching the ball in and controlling it under contact.","Red – Needs Work":"Skill: catching needs attention – improve hand position, concentration and ball security under pressure."}}],"Y11-12 Edge Back-Row":[{"area":"EDGE BACK-ROW – Defensive","skill":"Tackle Technique","criteria":"• Wins shoulder battle in edge channel\n• Controls tackle tempo and finish position\n• Adapts body height to wide defenders\n• Recovers to line fast after tackle","comments":{"Green – Exceeds":"Defence: consistently strong in tackle technique – safe contact, good body height and wins most collisions.","Yellow – Developing":"Defence: tackle technique is developing – focus on body height, leg drive and finishing the tackle dominant more often.","Red – Needs Work":"Defence: tackle technique needs significant work – improve safe contact, footwork into contact and commitment in collisions."}},{"area":"EDGE BACK-ROW – Defensive","skill":"Ruck Awareness","criteria":"• Supports inside defender with spacing cues\n• Identifies attacking shape (unders/overs)\n• Adjusts spacing to shut down threats\n• Communicates with halves for coverage","comments":{"Green – Exceeds":"Defence: shows strong ruck awareness – adjusts marker spacing, reads the dummy-half and reacts quickly to quick play-the-balls.","Yellow – Developing":"Defence: ruck awareness is improving – keep working on reading the dummy-half and getting set early around the ruck.","Red – Needs Work":"Defence: ruck awareness needs attention – focus on getting square, organising markers and reacting quicker around the ruck."}},{"area":"EDGE BACK-ROW – Defensive","skill":"Defensive Line Movements","criteria":"• Pushes early to close time/space\n• Reads lead and decoy runners\n• Coordinates inside and outside pushes\n• Maintains discipline on slide","comments":{"Green – Exceeds":"Defence: holds a strong defensive line – stays connected, communicates and adjusts line speed effectively.","Yellow – Developing":"Defence: defensive line movements are developing – work on staying connected, pushing together and making clear calls.","Red – Needs Work":"Defence: defensive line integrity needs work – avoid disconnects, improve talk and push earlier off the line."}},{"area":"EDGE BACK-ROW – Attacking","skill":"Support Play & Ball Carry into Contact","criteria":"• Times support line with half/centre\n• Hits holes at pace\n• Uses fend and footwork pre-contact\n• Lands forward and controls PTB","comments":{"Green – Exceeds":"Attack: carries the ball strongly – wins post-contact metres and controls the play-the-ball well.","Yellow – Developing":"Attack: ball carry is developing – focus on leg drive, body height and winning the contact more often.","Red – Needs Work":"Attack: ball carry needs improvement – work on running tougher lines, leg drive through contact and ball security."}},{"area":"EDGE BACK-ROW – Attacking","skill":"Play-the-Ball Speed","criteria":"• Lands front-on and rolls instantly\n• Avoids penalties for ruck errors\n• Controls body in contact exit\n• Encourages quick play rhythm","comments":{"Green – Exceeds":"Attack: consistently produces quick, clean play-the-balls that help the team play on the front foot.","Yellow – Developing":"Attack: play-the-ball speed is improving – focus on landing on your front and getting to your feet faster.","Red – Needs Work":"Attack: play-the-ball needs improvement – avoid slow, messy rucks and work on body control to speed the game up."}},{"area":"EDGE BACK-ROW – Attacking","skill":"Catching into Contact","criteria":"• Hands out early to catch on advantage line\n• Controls ball through contact\n• Transfers power through hips\n• Maintains balance post-contact","comments":{"Green – Exceeds":"Skill: shows reliable catching skills – presents early targets and controls the ball under pressure.","Yellow – Developing":"Skill: catching is developing – focus on early hand targets, watching the ball in and controlling it under contact.","Red – Needs Work":"Skill: catching needs attention – improve hand position, concentration and ball security under pressure."}}],"Y11-12 Outside Backs":[{"area":"OUTSIDE BACKS – Defensive","skill":"Tackle Technique","criteria":"• Wins tackle space on edge\n• Controls contact tempo to prevent offload\n• Stays balanced under step or fend\n• Maintains defensive width discipline","comments":{"Green – Exceeds":"Defence: consistently strong in tackle technique – safe contact, good body height and wins most collisions.","Yellow – Developing":"Defence: tackle technique is developing – focus on body height, leg drive and finishing the tackle dominant more often.","Red – Needs Work":"Defence: tackle technique needs significant work – improve safe contact, footwork into contact and commitment in collisions."}},{"area":"OUTSIDE BACKS – Defensive","skill":"Defensive Line Movements","criteria":"• Reads sweep shapes and overlaps\n• Tracks inside shoulder movement\n• Communicates push/hold cues\n• Controls kick-chase alignment","comments":{"Green – Exceeds":"Defence: holds a strong defensive line – stays connected, communicates and adjusts line speed effectively.","Yellow – Developing":"Defence: defensive line movements are developing – work on staying connected, pushing together and making clear calls.","Red – Needs Work":"Defence: defensive line integrity needs work – avoid disconnects, improve talk and push earlier off the line."}},{"area":"OUTSIDE BACKS – Defensive","skill":"Catch & Catch Position","criteria":"• Wins contested high balls\n• Adjusts body for ground recoveries\n• Controls under fatigue\n• Transitions quickly to counter-attack","comments":{"Green – Exceeds":"Skill: shows reliable catching skills – presents early targets and controls the ball under pressure.","Yellow – Developing":"Skill: catching is developing – focus on early hand targets, watching the ball in and controlling it under contact.","Red – Needs Work":"Skill: catching needs attention – improve hand position, concentration and ball security under pressure."}},{"area":"OUTSIDE BACKS – Attacking","skill":"Support Play","criteria":"• Runs smart inside and outside lines\n• Reacts to line breaks fast\n• Communicates space availability\n• Finishes efficiently at line","comments":{"Green – Exceeds":"Attack: works hard in support – stays alive on plays and puts themselves in good positions to receive the ball.","Yellow – Developing":"Attack: support play is developing – focus on staying connected to the ball and pushing on line breaks.","Red – Needs Work":"Attack: support play needs attention – work on effort to push in support and staying active around the ball."}},{"area":"OUTSIDE BACKS – Attacking","skill":"Attack Decision-Making","criteria":"• Reads defensive numbers\n• Executes correct pass/run/kick\n• Adjusts tempo to exploit weakness\n• Creates line breaks through timing","comments":{"Green – Exceeds":"Attack: makes strong decisions with the ball – chooses the right option often and helps the team play to strengths.","Yellow – Developing":"Attack: decision-making is developing – focus on scanning earlier and choosing simple, effective options.","Red – Needs Work":"Attack: decision-making needs work – slow the game down mentally and focus on clear, simple choices each play."}},{"area":"OUTSIDE BACKS – Attacking","skill":"Passing (Short & Long)","criteria":"• Passes in motion, both sides\n• Keeps ball flat and accurate\n• Uses deception before pass\n• Hits receiver in stride","comments":{"Green – Exceeds":"Attack: passes accurately and on time – hits teammates in stride and can pass effectively both sides.","Yellow – Developing":"Attack: passing is developing – focus on consistent technique, passing earlier and being accurate under pressure.","Red – Needs Work":"Attack: passing needs improvement – work on basic technique, timing and hitting targets more consistently."}}],"Y11-12 Service":[{"area":"SERVICE – Defensive","skill":"Tackle Technique","criteria":"• Wins contact near ruck\n• Controls opponent to slow play-the-ball\n• Maintains low body position\n• Organises A/B defenders","comments":{"Green – Exceeds":"Defence: consistently strong in tackle technique – safe contact, good body height and wins most collisions.","Yellow – Developing":"Defence: tackle technique is developing – focus on body height, leg drive and finishing the tackle dominant more often.","Red – Needs Work":"Defence: tackle technique needs significant work – improve safe contact, footwork into contact and commitment in collisions."}},{"area":"SERVICE – Defensive","skill":"Ruck Awareness","criteria":"• Reads dummy-half intentions\n• Adjusts marker spacing\n• Directs A-line coverage\n• Reacts instantly to quick PTBs","comments":{"Green – Exceeds":"Defence: shows strong ruck awareness – adjusts marker spacing, reads the dummy-half and reacts quickly to quick play-the-balls.","Yellow – Developing":"Defence: ruck awareness is improving – keep working on reading the dummy-half and getting set early around the ruck.","Red – Needs Work":"Defence: ruck awareness needs attention – focus on getting square, organising markers and reacting quicker around the ruck."}},{"area":"SERVICE – Defensive","skill":"Defensive Line Movements","criteria":"• Commands short-side organisation\n• Holds line integrity\n• Adjusts line tempo for ruck speed\n• Supports middles with comms","comments":{"Green – Exceeds":"Defence: holds a strong defensive line – stays connected, communicates and adjusts line speed effectively.","Yellow – Developing":"Defence: defensive line movements are developing – work on staying connected, pushing together and making clear calls.","Red – Needs Work":"Defence: defensive line integrity needs work – avoid disconnects, improve talk and push earlier off the line."}},{"area":"SERVICE – Attacking","skill":"Passing (Short & Long)","criteria":"• Passes cleanly off both sides under pressure\n• Adjusts speed and angle by defensive shape\n• Uses eyes and body cues\n• Hits targets consistently in stride","comments":{"Green – Exceeds":"Attack: passes accurately and on time – hits teammates in stride and can pass effectively both sides.","Yellow – Developing":"Attack: passing is developing – focus on consistent technique, passing earlier and being accurate under pressure.","Red – Needs Work":"Attack: passing needs improvement – work on basic technique, timing and hitting targets more consistently."}},{"area":"SERVICE – Attacking","skill":"Attack Decision-Making","criteria":"• Scans before ruck\n• Varies tempo to unbalance defence\n• Executes correct option repeatedly\n• Directs teammates vocally","comments":{"Green – Exceeds":"Attack: makes strong decisions with the ball – chooses the right option often and helps the team play to strengths.","Yellow – Developing":"Attack: decision-making is developing – focus on scanning earlier and choosing simple, effective options.","Red – Needs Work":"Attack: decision-making needs work – slow the game down mentally and focus on clear, simple choices each play."}},{"area":"SERVICE – Attacking","skill":"Support Play","criteria":"• Pushes early from inside/outside\n• Reads ruck shape\n• Times support runs\n• Links effectively between middle and edge","comments":{"Green – Exceeds":"Attack: works hard in support – stays alive on plays and puts themselves in good positions to receive the ball.","Yellow – Developing":"Attack: support play is developing – focus on staying connected to the ball and pushing on line breaks.","Red – Needs Work":"Attack: support play needs attention – work on effort to push in support and staying active around the ball."}}]};
+
+// Map (yearGroupId, position) → which feedback template key to use
+function getFeedbackPositionGroup(yearGroupId, position) {
+  if (yearGroupId === '7-8') return 'Year 7-8';
+  const pos = (position || '').toLowerCase();
+  if (yearGroupId === '9-10') {
+    if (['halfback','five-eighth','hooker'].includes(pos)) return 'Y9-10 Service';
+    if (['fullback','wing','centre'].includes(pos)) return 'Y9-10 Backs';
+    return 'Y9-10 Forwards'; // prop, lock, second row, interchange, utility, unset
+  }
+  if (yearGroupId === '11-12') {
+    if (['halfback','five-eighth','hooker'].includes(pos)) return 'Y11-12 Service';
+    if (['fullback','wing','centre'].includes(pos)) return 'Y11-12 Outside Backs';
+    if (['second row'].includes(pos)) return 'Y11-12 Edge Back-Row';
+    return 'Y11-12 Middles'; // prop, lock, interchange, utility, unset
+  }
+  return 'Year 7-8';
+}
+
 const DRILL_LIBRARY = {
   "Positional Craft": {
     color: "#E95B9E",
@@ -1224,6 +1245,7 @@ function App() {
         if (raw) setSessionStartTimes(JSON.parse(raw));
       } catch(e){}
       try { setBlueprintLoaded(localStorage.getItem(teamKey('blueprintLoaded')) === 'true'); } catch(e){}
+      try { setCustomDrills(JSON.parse(localStorage.getItem('playiq_customDrills') || '{}')); } catch(e){}
     }
     window.addEventListener('cloudSyncMerged', handleSyncMerged);
     return () => window.removeEventListener('cloudSyncMerged', handleSyncMerged);
@@ -1335,6 +1357,14 @@ function App() {
   const [showPasteModal, setShowPasteModal] = useState(false);
 
   // Team-scoped state. When team changes, we reload from the new team's storage.
+  // Custom drills — GLOBAL (shared across all teams), persisted at playiq_customDrills
+  const [customDrills, setCustomDrills] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('playiq_customDrills') || '{}'); } catch(e) { return {}; }
+  });
+  useEffect(() => {
+    localStorage.setItem('playiq_customDrills', JSON.stringify(customDrills));
+  }, [customDrills]);
+
   const [customActivities, setCustomActivities] = useState(() => {
     try { return JSON.parse(localStorage.getItem(`playiq_${currentTeam}_customActivities`) || '{}'); } catch(e) { return {}; }
   });
@@ -1581,9 +1611,9 @@ function App() {
       </nav>
 
       {activeTab === "planner" && <DailyPlanner customActivities={customActivities} setActiveTab={setActiveTab} setSelectedWeek={setSelectedWeek} setSelectedDay={setSelectedDay} userWeekOverrides={userWeekOverrides} setUserWeekOverrides={setUserWeekOverrides} seasonWeeks={seasonWeeks} weekDays={weekDays} currentTeam={currentTeam} sessionStartTimes={sessionStartTimes} getSessionStartTime={getSessionStartTime} seasonConfig={seasonConfig} />}
-      {activeTab === "session" && <SessionBuilder selectedWeek={selectedWeek} setSelectedWeek={setSelectedWeek} selectedDay={selectedDay} setSelectedDay={setSelectedDay} showAddModal={showAddModal} setShowAddModal={setShowAddModal} showCopyModal={showCopyModal} setShowCopyModal={setShowCopyModal} showPasteModal={showPasteModal} setShowPasteModal={setShowPasteModal} customActivities={customActivities} setCustomActivities={setCustomActivities} coverageData={coverageData} setCoverageData={setCoverageData} userWeekOverrides={userWeekOverrides} setUserWeekOverrides={setUserWeekOverrides} seasonWeeks={seasonWeeks} sessionReviews={sessionReviews} setSessionReviews={setSessionReviews} weekDays={weekDays} setWeekDays={setWeekDays} sessionStartTime={getSessionStartTime(selectedWeek, selectedDay)} setSessionStartTime={(val) => setSessionStartTimeForDay(selectedWeek, selectedDay, val)} currentTeam={currentTeam} currentGroup={currentGroup} currentSub={currentSub} />}
+      {activeTab === "session" && <SessionBuilder selectedWeek={selectedWeek} setSelectedWeek={setSelectedWeek} selectedDay={selectedDay} setSelectedDay={setSelectedDay} showAddModal={showAddModal} setShowAddModal={setShowAddModal} showCopyModal={showCopyModal} setShowCopyModal={setShowCopyModal} showPasteModal={showPasteModal} setShowPasteModal={setShowPasteModal} customActivities={customActivities} setCustomActivities={setCustomActivities} coverageData={coverageData} setCoverageData={setCoverageData} userWeekOverrides={userWeekOverrides} setUserWeekOverrides={setUserWeekOverrides} seasonWeeks={seasonWeeks} sessionReviews={sessionReviews} setSessionReviews={setSessionReviews} weekDays={weekDays} setWeekDays={setWeekDays} sessionStartTime={getSessionStartTime(selectedWeek, selectedDay)} setSessionStartTime={(val) => setSessionStartTimeForDay(selectedWeek, selectedDay, val)} currentTeam={currentTeam} currentGroup={currentGroup} currentSub={currentSub} customDrills={customDrills} />}
       {activeTab === "season" && <SeasonOverview setActiveTab={setActiveTab} setSelectedWeek={setSelectedWeek} setSelectedDay={setSelectedDay} seasonWeeks={seasonWeeks} userWeekOverrides={userWeekOverrides} customActivities={customActivities} weekDays={weekDays} />}
-      {activeTab === "drills" && <DrillLibrary search={drillSearch} setSearch={setDrillSearch} />}
+      {activeTab === "drills" && <DrillLibrary search={drillSearch} setSearch={setDrillSearch} customDrills={customDrills} setCustomDrills={setCustomDrills} />}
       {activeTab === "squad" && <SquadTracker squad={squad} setSquad={setSquad} roster={roster} setRoster={setRoster} matchday18={matchday18} setMatchday18={setMatchday18} currentSub={currentSub} currentGroup={currentGroup} />}
 
       {showSeasonSetup && <SeasonSetupModal onComplete={handleSetupSeason} onClose={() => setShowSeasonSetup(false)} existing={seasonConfig} />}
@@ -1610,7 +1640,7 @@ function App() {
   );
 }
 
-function SessionBuilder({ selectedWeek, setSelectedWeek, selectedDay, setSelectedDay, showAddModal, setShowAddModal, showCopyModal, setShowCopyModal, showPasteModal, setShowPasteModal, customActivities, setCustomActivities, coverageData, setCoverageData, userWeekOverrides, setUserWeekOverrides, seasonWeeks, sessionReviews, setSessionReviews, weekDays, setWeekDays, sessionStartTime, setSessionStartTime, currentTeam, currentGroup, currentSub }) {
+function SessionBuilder({ selectedWeek, setSelectedWeek, selectedDay, setSelectedDay, showAddModal, setShowAddModal, showCopyModal, setShowCopyModal, showPasteModal, setShowPasteModal, customActivities, setCustomActivities, coverageData, setCoverageData, userWeekOverrides, setUserWeekOverrides, seasonWeeks, sessionReviews, setSessionReviews, weekDays, setWeekDays, sessionStartTime, setSessionStartTime, currentTeam, currentGroup, currentSub, customDrills }) {
   const SEASON_WEEKS = seasonWeeks || DEFAULT_SEASON_WEEKS;
   const [draggedIndex, setDraggedIndex] = useState(null);
   const [editingWeekInfo, setEditingWeekInfo] = useState(false);
@@ -2122,18 +2152,18 @@ function SessionBuilder({ selectedWeek, setSelectedWeek, selectedDay, setSelecte
 
         <div className="day-tabs" style={{position:'relative', flexWrap:'wrap'}}>
           {days.map(d => {
-            const isCustom = !defaultDaysForWeek.includes(d);
+            const canRemove = days.length > 1;
             return (
               <button key={d} className={`day-tab ${selectedDay === d ? 'active' : ''}`}
                 onClick={() => setSelectedDay(d)}
-                style={{position:'relative', paddingRight: isCustom ? 28 : 18}}>
+                style={{position:'relative', paddingRight: canRemove ? 28 : 18}}>
                 {d}
-                {isCustom && (
+                {canRemove && (
                   <span onClick={e => { e.stopPropagation(); removeWeekDay(d); }}
                     style={{position:'absolute', top:'50%', right:6, transform:'translateY(-50%)', color:'var(--text-muted)', cursor:'pointer', display:'inline-flex', padding:2, borderRadius:3}}
                     onMouseOver={e => { e.currentTarget.style.color = 'var(--red)'; e.currentTarget.style.background = 'var(--red-bg)'; }}
                     onMouseOut={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent'; }}
-                    title={`Remove ${d}`}
+                    title={`Remove ${d} from this week`}
                   ><Icon name="x" size={11}/></span>
                 )}
               </button>
@@ -2276,7 +2306,7 @@ function SessionBuilder({ selectedWeek, setSelectedWeek, selectedDay, setSelecte
         setShowGenerateModal(false);
       }} startTime={sessionStartTime} />}
       {showBlockModal && <GenerateBlockModal onClose={() => setShowBlockModal(false)} customActivities={customActivities} setCustomActivities={setCustomActivities} userWeekOverrides={userWeekOverrides} setUserWeekOverrides={setUserWeekOverrides} />}
-      {showAddModal && <AddDrillModal onClose={() => setShowAddModal(false)} onAdd={handleAddDrill} />}
+      {showAddModal && <AddDrillModal onClose={() => setShowAddModal(false)} onAdd={handleAddDrill} customDrills={customDrills} />}
       {showCopyModal && <CopySessionModal onClose={() => setShowCopyModal(false)} onCopy={handleCopySession} currentWeek={selectedWeek} currentDay={selectedDay} currentTeam={currentTeam} customActivities={customActivities} seasonWeeks={seasonWeeks} />}
       {showPasteModal && <PasteSessionModal onClose={() => setShowPasteModal(false)} onPaste={handlePasteSession} />}
       {showNewsletterModal && (
@@ -3451,9 +3481,22 @@ function EditActivityModal({ activity, onClose, onSave, onDelete, canBeParallel 
   );
 }
 
-function AddDrillModal({ onClose, onAdd }) {
+function AddDrillModal({ onClose, onAdd, customDrills }) {
+  // Merge built-in + custom drills for the picker
+  const mergedLibrary = useMemo(() => {
+    const merged = {};
+    Object.entries(DRILL_LIBRARY).forEach(([cat, data]) => {
+      merged[cat] = { ...data, drills: [...data.drills] };
+    });
+    Object.entries(customDrills || {}).forEach(([cat, list]) => {
+      if (!Array.isArray(list) || list.length === 0) return;
+      if (!merged[cat]) merged[cat] = { color: '#8b5cf6', drills: [] };
+      merged[cat] = { ...merged[cat], drills: [...merged[cat].drills, ...list] };
+    });
+    return merged;
+  }, [customDrills]);
   const [mode, setMode] = useState('library'); // 'library' | 'custom'
-  const [category, setCategory] = useState(Object.keys(DRILL_LIBRARY)[0]);
+  const [category, setCategory] = useState(Object.keys(mergedLibrary)[0]);
   const [selectedDrill, setSelectedDrill] = useState("");
   const [customName, setCustomName] = useState("");
   const [customFocus, setCustomFocus] = useState("");
@@ -3462,7 +3505,7 @@ function AddDrillModal({ onClose, onAdd }) {
   const [staff, setStaff] = useState("");
   const [notes, setNotes] = useState("");
 
-  const drills = DRILL_LIBRARY[category]?.drills || [];
+  const drills = mergedLibrary[category]?.drills || [];
   const canSubmit = mode === 'library' ? !!selectedDrill : !!customName.trim();
 
   function handleSubmit() {
@@ -3512,7 +3555,7 @@ function AddDrillModal({ onClose, onAdd }) {
             <div className="form-group">
               <label className="form-label">Category</label>
               <select className="form-select" value={category} onChange={e => { setCategory(e.target.value); setSelectedDrill(""); }}>
-                {Object.keys(DRILL_LIBRARY).map(c => <option key={c} value={c}>{c}</option>)}
+                {Object.keys(mergedLibrary).map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
             <div className="form-group">
@@ -3662,9 +3705,11 @@ function SeasonOverview({ setActiveTab, setSelectedWeek, setSelectedDay, seasonW
   );
 }
 
-function DrillLibrary({ search, setSearch }) {
+function DrillLibrary({ search, setSearch, customDrills, setCustomDrills }) {
   const [expandedDrill, setExpandedDrill] = useState(null);
   const [openCats, setOpenCats] = useState({});
+  const [showAddDrill, setShowAddDrill] = useState(false);
+  const [editingDrill, setEditingDrill] = useState(null); // { category, name } or null
 
   function toggleCat(cat) {
     setOpenCats(prev => ({ ...prev, [cat]: !prev[cat] }));
@@ -3673,16 +3718,65 @@ function DrillLibrary({ search, setSearch }) {
   // When searching, auto-open all matching categories
   const isCatOpen = (cat) => search ? true : !!openCats[cat];
 
+  // Merge built-in + custom drills. Custom drills get isCustom: true.
+  const mergedLibrary = useMemo(() => {
+    const merged = {};
+    Object.entries(DRILL_LIBRARY).forEach(([cat, data]) => {
+      merged[cat] = { ...data, drills: data.drills.map(d => ({ ...d, isCustom: false })) };
+    });
+    Object.entries(customDrills || {}).forEach(([cat, drills]) => {
+      if (!Array.isArray(drills) || drills.length === 0) return;
+      if (!merged[cat]) {
+        merged[cat] = { color: '#8b5cf6', drills: [] };
+      }
+      const custom = drills.map(d => ({ ...d, isCustom: true }));
+      merged[cat] = { ...merged[cat], drills: [...merged[cat].drills, ...custom] };
+    });
+    return merged;
+  }, [customDrills]);
+
+  // Edit/remove custom drill
+  function saveCustomDrill(originalKey, drill) {
+    setCustomDrills(prev => {
+      const next = { ...(prev || {}) };
+      // If editing, remove the old entry
+      if (originalKey) {
+        const [oldCat, oldName] = originalKey;
+        if (next[oldCat]) {
+          next[oldCat] = next[oldCat].filter(d => d.name !== oldName);
+          if (next[oldCat].length === 0) delete next[oldCat];
+        }
+      }
+      const { category, ...rest } = drill;
+      next[category] = next[category] || [];
+      // Replace if same name exists in this cat
+      next[category] = next[category].filter(d => d.name !== rest.name);
+      next[category].push(rest);
+      return next;
+    });
+  }
+  function removeCustomDrill(category, name) {
+    if (!window.confirm(`Remove "${name}" from your custom drills?`)) return;
+    setCustomDrills(prev => {
+      const next = { ...(prev || {}) };
+      if (next[category]) {
+        next[category] = next[category].filter(d => d.name !== name);
+        if (next[category].length === 0) delete next[category];
+      }
+      return next;
+    });
+  }
+
   const filtered = useMemo(() => {
-    if (!search) return DRILL_LIBRARY;
+    if (!search) return mergedLibrary;
     const s = search.toLowerCase();
     const result = {};
-    Object.entries(DRILL_LIBRARY).forEach(([cat, data]) => {
+    Object.entries(mergedLibrary).forEach(([cat, data]) => {
       const matches = data.drills.filter(d => d.name.toLowerCase().includes(s) || (d.notes && d.notes.toLowerCase().includes(s)) || cat.toLowerCase().includes(s));
       if (matches.length > 0) result[cat] = { ...data, drills: matches };
     });
     return result;
-  }, [search]);
+  }, [search, mergedLibrary]);
 
   const totalDrills = Object.values(filtered).reduce((sum, c) => sum + c.drills.length, 0);
 
@@ -3727,12 +3821,18 @@ function DrillLibrary({ search, setSearch }) {
           <span className="search-icon">&#x2315;</span>
           <input className="search-input" placeholder="Search drills by name, category, or notes..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <div style={{display:'flex', gap:8, marginBottom:14, flexWrap:'wrap'}}>
-          <button className="btn-outline" onClick={() => { const all = {}; Object.keys(filtered).forEach(c => all[c] = true); setOpenCats(all); }}>
-            <span className="ico">▼</span> Expand All
-          </button>
-          <button className="btn-outline" onClick={() => setOpenCats({})}>
-            <span className="ico">▶</span> Collapse All
+        <div style={{display:'flex', gap:8, marginBottom:14, flexWrap:'wrap', justifyContent:'space-between'}}>
+          <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
+            <button className="btn-outline" onClick={() => { const all = {}; Object.keys(filtered).forEach(c => all[c] = true); setOpenCats(all); }}>
+              <span className="ico">▼</span> Expand All
+            </button>
+            <button className="btn-outline" onClick={() => setOpenCats({})}>
+              <span className="ico">▶</span> Collapse All
+            </button>
+          </div>
+          <button className="btn btn-primary btn-sm" onClick={() => { setEditingDrill(null); setShowAddDrill(true); }}
+            style={{display:'inline-flex', alignItems:'center', gap:6}}>
+            <Icon name="plus" size={13}/> Add Drill
           </button>
         </div>
         <div className="drill-categories">
@@ -3760,8 +3860,25 @@ function DrillLibrary({ search, setSearch }) {
                             <span>
                               {d.name}
                               {d.position && <span style={{fontSize:10, color:'var(--text-muted)', marginLeft:6}}>({d.position})</span>}
+                              {d.isCustom && <span style={{fontSize:9, fontWeight:700, padding:'1px 6px', borderRadius:8, background:'rgba(139,92,246,0.15)', color:'#8b5cf6', marginLeft:6, textTransform:'uppercase', letterSpacing:0.5}}>Custom</span>}
                             </span>
-                            <span className="drill-arrow">▶</span>
+                            <span style={{display:'flex', alignItems:'center', gap:4}}>
+                              {d.isCustom && (
+                                <>
+                                  <span onClick={e => { e.stopPropagation(); setEditingDrill({ category: cat, drill: d }); setShowAddDrill(true); }}
+                                    title="Edit custom drill"
+                                    style={{padding:3, cursor:'pointer', color:'var(--text-muted)', fontSize:11, borderRadius:3}}
+                                    onMouseOver={e => { e.currentTarget.style.color = 'var(--accent-light)'; e.currentTarget.style.background = 'var(--accent-glow)'; }}
+                                    onMouseOut={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent'; }}>✎</span>
+                                  <span onClick={e => { e.stopPropagation(); removeCustomDrill(cat, d.name); }}
+                                    title="Remove custom drill"
+                                    style={{padding:3, cursor:'pointer', color:'var(--text-muted)', fontSize:11, borderRadius:3}}
+                                    onMouseOver={e => { e.currentTarget.style.color = 'var(--red)'; e.currentTarget.style.background = 'var(--red-bg)'; }}
+                                    onMouseOut={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent'; }}>✕</span>
+                                </>
+                              )}
+                              <span className="drill-arrow">▶</span>
+                            </span>
                           </div>
 
                           {isExpanded && (
@@ -3820,6 +3937,101 @@ function DrillLibrary({ search, setSearch }) {
               </div>
             );
           })}
+        </div>
+      </div>
+
+      {showAddDrill && (
+        <AddCustomDrillModal
+          mergedLibrary={mergedLibrary}
+          initial={editingDrill}
+          onClose={() => { setShowAddDrill(false); setEditingDrill(null); }}
+          onSave={(drill) => {
+            const originalKey = editingDrill ? [editingDrill.category, editingDrill.drill.name] : null;
+            saveCustomDrill(originalKey, drill);
+            setShowAddDrill(false);
+            setEditingDrill(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function AddCustomDrillModal({ mergedLibrary, initial, onClose, onSave }) {
+  const existingCats = Object.keys(mergedLibrary || DRILL_LIBRARY).sort();
+  const init = initial?.drill || {};
+  const initCat = initial?.category || '';
+  const [name, setName] = useState(init.name || '');
+  const [category, setCategory] = useState(initCat);
+  const [newCategory, setNewCategory] = useState('');
+  const [position, setPosition] = useState(init.position || '');
+  const [notes, setNotes] = useState(init.notes || '');
+  const [useNewCat, setUseNewCat] = useState(!initCat);
+
+  const finalCategory = useNewCat ? newCategory.trim() : category;
+  const canSave = !!name.trim() && !!finalCategory;
+
+  function handleSave() {
+    if (!canSave) return;
+    onSave({
+      category: finalCategory,
+      name: name.trim(),
+      position: position.trim(),
+      notes: notes.trim(),
+    });
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{width: 520, maxWidth:'95vw', maxHeight:'90vh', overflowY:'auto'}}>
+        <h3>{initial ? 'Edit custom drill' : 'Add a custom drill'}</h3>
+        <p style={{fontSize:12, color:'var(--text-secondary)', marginTop:4, marginBottom:14}}>
+          Custom drills sit alongside the built-in library and show up in the Add-to-Session picker.
+        </p>
+
+        <div className="form-group">
+          <label className="form-label">Drill name *</label>
+          <input className="form-input" autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="e.g. 4v4 Edge Defence" />
+        </div>
+
+        <div className="form-group">
+          <label className="form-label">Category *</label>
+          {!useNewCat ? (
+            <div style={{display:'flex', gap:8}}>
+              <select className="form-select" value={category} onChange={e => setCategory(e.target.value)} style={{flex:1}}>
+                <option value="">— Choose a category —</option>
+                {existingCats.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <button className="btn btn-ghost btn-sm" onClick={() => { setUseNewCat(true); }}>
+                + New
+              </button>
+            </div>
+          ) : (
+            <div style={{display:'flex', gap:8}}>
+              <input className="form-input" value={newCategory} onChange={e => setNewCategory(e.target.value)} placeholder="New category name" style={{flex:1}} autoFocus />
+              <button className="btn btn-ghost btn-sm" onClick={() => { setUseNewCat(false); setNewCategory(''); }}>
+                Pick existing
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="form-group">
+          <label className="form-label">Position tag (optional)</label>
+          <input className="form-input" value={position} onChange={e => setPosition(e.target.value)} placeholder="e.g. Halves, Middles, All" />
+        </div>
+
+        <div className="form-group">
+          <label className="form-label">Coaching notes (optional)</label>
+          <textarea className="form-textarea" value={notes} onChange={e => setNotes(e.target.value)}
+            placeholder="What you're coaching, the setup, key cues..." style={{minHeight:100}} />
+        </div>
+
+        <div className="btn-row">
+          <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" onClick={handleSave} disabled={!canSave}>
+            {initial ? 'Save changes' : 'Add to library'}
+          </button>
         </div>
       </div>
     </div>
@@ -4601,7 +4813,7 @@ const DEFAULT_GYM_TESTS = [
   'Vertical Jump'
 ];
 
-function PlayerProfileModal({ player, playerIdx, updatePlayer, deletePlayer, onClose, currentSub, teamColor, inRoster, toggleRoster, POSITIONS }) {
+function PlayerProfileModal({ player, playerIdx, updatePlayer, deletePlayer, onClose, currentSub, teamColor, inRoster, toggleRoster, POSITIONS, currentGroup }) {
   const [tab, setTab] = useState('overview');
   const profile = player.profile || {};
 
@@ -4630,6 +4842,183 @@ function PlayerProfileModal({ player, playerIdx, updatePlayer, deletePlayer, onC
   const goals = Array.isArray(profile.goals) ? profile.goals : [];
   const feedback = Array.isArray(profile.feedback) ? profile.feedback : [];
   const skills = profile.skills && typeof profile.skills === 'object' ? profile.skills : {};
+
+  // === FEEDBACK REPORT ===
+  const feedbackReport = (profile.feedbackReport && typeof profile.feedbackReport === 'object') ? profile.feedbackReport : {};
+  // feedbackReport shape: { positionGroup, date, coach, ratings: { skill: 'Green – Exceeds' }, customComments: { skill: '...' }, reflectionDefence, reflectionAttack }
+  const autoPositionGroup = getFeedbackPositionGroup(currentGroup?.id || '7-8', player.position);
+  const activePositionGroup = feedbackReport.positionGroup || autoPositionGroup;
+  const reportTemplate = FEEDBACK_TEMPLATES[activePositionGroup] || [];
+  function patchReport(patch) {
+    patchProfile({ feedbackReport: { ...feedbackReport, ...patch } });
+  }
+  function setReportRating(skill, rating) {
+    const ratings = { ...(feedbackReport.ratings || {}), [skill]: rating };
+    patchReport({ ratings });
+  }
+  function setReportCustomComment(skill, comment) {
+    const cc = { ...(feedbackReport.customComments || {}) };
+    if (comment && comment.trim()) cc[skill] = comment;
+    else delete cc[skill];
+    patchReport({ customComments: cc });
+  }
+  function getCommentFor(skill) {
+    const cc = feedbackReport.customComments || {};
+    if (cc[skill] != null) return cc[skill];
+    const rating = (feedbackReport.ratings || {})[skill];
+    if (!rating) return '';
+    const tpl = reportTemplate.find(t => t.skill === skill);
+    return (tpl?.comments?.[rating]) || '';
+  }
+  const RATING_COLORS = {
+    'Green – Exceeds':    { fg: 'var(--green)',  bg: 'var(--green-bg)',  border: 'var(--green)' },
+    'Yellow – Developing':{ fg: 'var(--orange)', bg: 'var(--orange-bg)', border: 'var(--orange)' },
+    'Red – Needs Work':   { fg: 'var(--red)',    bg: 'var(--red-bg)',    border: 'var(--red)' },
+  };
+
+  function exportFeedbackPDF() {
+    const logoSrc = (() => { try { return document.querySelector('.logo-icon img')?.src || ''; } catch(e) { return ''; } })();
+    const teamLabel = currentGroup ? `${currentGroup.label} ${currentSub || ''}`.trim() : '';
+    const rows = reportTemplate.map(t => {
+      const rating = (feedbackReport.ratings || {})[t.skill] || '';
+      const comment = getCommentFor(t.skill);
+      const palette = RATING_COLORS[rating] || { fg: '#666', bg: '#f5f5f5', border: '#ddd' };
+      const criteriaHtml = (t.criteria || '').split('\n').map(l => `<li>${l.replace(/^•\s*/, '')}</li>`).join('');
+      return `
+        <tr>
+          <td class="col-skill">
+            <div class="skill-area">${t.area}</div>
+            <div class="skill-name">${t.skill}</div>
+            <ul class="criteria">${criteriaHtml}</ul>
+          </td>
+          <td class="col-rating">
+            ${rating ? `<span class="rating-pill" style="background:${palette.bg};color:${palette.fg};border-color:${palette.border};">${rating}</span>` : '<span class="rating-empty">—</span>'}
+          </td>
+          <td class="col-comment">${comment || '—'}</td>
+        </tr>
+      `;
+    }).join('');
+    const reflDef = (feedbackReport.reflectionDefence || '').replace(/\n/g, '<br/>') || '—';
+    const reflAtk = (feedbackReport.reflectionAttack || '').replace(/\n/g, '<br/>') || '—';
+    const dateStr = feedbackReport.date || new Date().toISOString().slice(0,10);
+    const coachStr = feedbackReport.coach || '';
+
+    const html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8" />
+<title>Keebra Park GRLA — ${player.name} Feedback Report</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Inter',-apple-system,sans-serif; background:#fff; color:#1a1a2e; padding:0; }
+  .header-stripe { background:#fff; padding:24px 40px 18px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:4px solid #E95B9E; position:relative; }
+  .header-stripe::before { content:''; position:absolute; left:0; right:0; bottom:0; height:2px; background:linear-gradient(90deg,#E95B9E 0%,#E95B9E 50%,#29BAE5 50%,#29BAE5 100%); }
+  .header-left { display:flex; align-items:center; gap:14px; }
+  .brand-icon { width:60px; height:60px; background:linear-gradient(135deg,#E95B9E,#29BAE5); border-radius:10px; overflow:hidden; flex-shrink:0; }
+  .brand-icon img { width:100%; height:100%; object-fit:contain; background:white; }
+  .brand-text { font-size:20px; font-weight:900; color:#29BAE5; line-height:1.1; }
+  .brand-sub { font-size:10px; color:#E95B9E; font-weight:700; letter-spacing:2px; text-transform:uppercase; margin-top:2px; }
+  .report-title { font-size:22px; font-weight:900; margin-top:14px; color:#1a1a2e; letter-spacing:-0.3px; }
+  .report-sub { font-size:13px; color:#5e6278; margin-top:4px; }
+  .header-right { text-align:right; }
+  .team-pill { display:inline-block; padding:5px 12px; border-radius:20px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:1px; background:rgba(233,91,158,0.12); color:#E95B9E; border:1px solid rgba(233,91,158,0.3); }
+
+  .meta-row { display:flex; gap:24px; padding:14px 40px; background:#f8f9fb; border-bottom:1px solid #e5e7eb; font-size:12px; flex-wrap:wrap; }
+  .meta-item { display:flex; gap:6px; align-items:center; }
+  .meta-label { color:#6b7280; font-weight:600; }
+  .meta-value { color:#1a1a2e; font-weight:700; }
+
+  .page { padding:24px 40px 32px; max-width:1100px; margin:0 auto; }
+  table.skills-table { width:100%; border-collapse:collapse; margin-top:8px; font-size:12px; }
+  table.skills-table thead th { text-align:left; padding:8px 10px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.8px; color:#6b7280; border-bottom:2px solid #1a1a2e; }
+  table.skills-table tbody tr { border-bottom:1px solid #f0f0f5; page-break-inside:avoid; }
+  table.skills-table td { padding:14px 10px; vertical-align:top; }
+  .col-skill { width:35%; }
+  .col-rating { width:18%; }
+  .col-comment { width:47%; color:#1a1a2e; line-height:1.5; }
+  .skill-area { font-size:9px; font-weight:700; color:#E95B9E; text-transform:uppercase; letter-spacing:0.8px; }
+  .skill-name { font-size:14px; font-weight:700; margin-top:2px; }
+  .criteria { margin-top:6px; padding-left:16px; }
+  .criteria li { font-size:11px; color:#5e6278; line-height:1.55; margin:1px 0; }
+  .rating-pill { display:inline-block; padding:4px 10px; border-radius:14px; font-size:10px; font-weight:700; border:1px solid; }
+  .rating-empty { color:#9ca3af; font-size:14px; }
+
+  .reflections { margin-top:24px; display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+  .reflection { padding:14px 16px; border-radius:10px; border:1px solid #e5e7eb; }
+  .refl-defence { background:rgba(220,38,38,0.04); border-color:rgba(220,38,38,0.25); }
+  .refl-attack  { background:rgba(22,163,74,0.04); border-color:rgba(22,163,74,0.25); }
+  .refl-title { font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:1px; margin-bottom:6px; }
+  .refl-defence .refl-title { color:#dc2626; }
+  .refl-attack .refl-title { color:#16a34a; }
+  .refl-body { font-size:12px; color:#1a1a2e; line-height:1.55; min-height:60px; white-space:pre-wrap; }
+
+  .footer { margin-top:30px; padding-top:14px; border-top:2px solid #1a1a2e; display:flex; justify-content:space-between; font-size:10px; color:#9ca3af; }
+  .footer-brand { font-weight:700; color:#E95B9E; }
+  .school-motto { font-style:italic; }
+
+  @media print {
+    body { padding:0; }
+    .header-stripe { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    .rating-pill { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    .reflection { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    .no-print { display:none !important; }
+  }
+</style>
+</head>
+<body>
+  <div class="header-stripe">
+    <div>
+      <div class="header-left">
+        <div class="brand-icon">${logoSrc ? `<img src="${logoSrc}" alt="Keebra"/>` : ''}</div>
+        <div>
+          <div class="brand-text">Player Feedback Report</div>
+          <div class="brand-sub">Keebra Park · Girls Rugby League Academy</div>
+        </div>
+      </div>
+      <div class="report-title">${player.name || 'Player'}</div>
+      <div class="report-sub">${player.position || ''}${player.number ? ' · #' + player.number : ''}${activePositionGroup ? ' · ' + activePositionGroup : ''}</div>
+    </div>
+    <div class="header-right">
+      ${teamLabel ? '<div class="team-pill">' + teamLabel + '</div>' : ''}
+    </div>
+  </div>
+
+  <div class="meta-row">
+    <div class="meta-item"><span class="meta-label">Date:</span> <span class="meta-value">${dateStr}</span></div>
+    <div class="meta-item"><span class="meta-label">Coach:</span> <span class="meta-value">${coachStr || '—'}</span></div>
+  </div>
+
+  <div class="page">
+    <table class="skills-table">
+      <thead><tr><th>Skill / Criteria</th><th>Rating</th><th>Coach Comments</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+
+    <div class="reflections">
+      <div class="reflection refl-defence">
+        <div class="refl-title">Coach Reflection — Defence</div>
+        <div class="refl-body">${reflDef}</div>
+      </div>
+      <div class="reflection refl-attack">
+        <div class="refl-title">Coach Reflection — Attack</div>
+        <div class="refl-body">${reflAtk}</div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div><span class="footer-brand">Keebra Park GRLA</span> · Player Feedback Report</div>
+      <div class="school-motto">Connection · Accountability · Respect · Excellence</div>
+    </div>
+
+    <div class="no-print" style="text-align:center; margin-top:32px;">
+      <button onclick="window.print()" style="padding:12px 32px; background:#E95B9E; color:white; border:none; border-radius:8px; font-size:14px; font-weight:700; cursor:pointer; font-family:Inter,sans-serif;">Print / Save as PDF</button>
+    </div>
+  </div>
+</body></html>`;
+
+    const w = window.open('', '_blank');
+    w.document.write(html);
+    w.document.close();
+  }
   const today = () => new Date().toISOString().slice(0, 10);
 
   // === GYM TESTS ===
@@ -4761,7 +5150,8 @@ function PlayerProfileModal({ player, playerIdx, updatePlayer, deletePlayer, onC
         <div style={{display:'flex', gap:6, marginBottom:16, flexWrap:'wrap'}}>
           <button style={tabBtn('overview', 'Overview')} onClick={() => setTab('overview')}>Overview</button>
           <button style={tabBtn('gym', 'Gym Tests')} onClick={() => setTab('gym')}>Gym Tests</button>
-          <button style={tabBtn('feedback', 'Goals & Feedback')} onClick={() => setTab('feedback')}>Goals & Feedback</button>
+          <button style={tabBtn('report', 'Feedback Report')} onClick={() => setTab('report')}>Feedback Report</button>
+          <button style={tabBtn('feedback', 'Goals & Notes')} onClick={() => setTab('feedback')}>Goals & Notes</button>
           <button style={tabBtn('skills', 'Skill Grades')} onClick={() => setTab('skills')}>Skill Grades</button>
         </div>
 
@@ -4994,6 +5384,111 @@ function PlayerProfileModal({ player, playerIdx, updatePlayer, deletePlayer, onC
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* FEEDBACK REPORT (skill ratings + reflections) */}
+        {tab === 'report' && (
+          <div>
+            {/* Header bar with report meta + position group selector + print button */}
+            <div style={{display:'flex', flexWrap:'wrap', gap:10, alignItems:'center', justifyContent:'space-between', padding:'12px 14px', background:'var(--bg-input)', borderRadius:10, marginBottom:14}}>
+              <div style={{display:'flex', gap:14, alignItems:'center', flexWrap:'wrap'}}>
+                <div>
+                  <div style={{fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:0.5}}>Date</div>
+                  <input type="date" value={feedbackReport.date || today()} onChange={e => patchReport({ date: e.target.value })}
+                    style={{padding:'4px 8px', fontSize:12, fontFamily:'inherit', background:'#fff', border:'1px solid var(--border)', borderRadius:5, outline:'none', marginTop:2}} />
+                </div>
+                <div>
+                  <div style={{fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:0.5}}>Coach</div>
+                  <input value={feedbackReport.coach || ''} onChange={e => patchReport({ coach: e.target.value })} placeholder="Coach name"
+                    style={{padding:'4px 8px', fontSize:12, fontFamily:'inherit', background:'#fff', border:'1px solid var(--border)', borderRadius:5, outline:'none', marginTop:2}} />
+                </div>
+                <div>
+                  <div style={{fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:0.5}}>Position Group</div>
+                  <select value={activePositionGroup} onChange={e => patchReport({ positionGroup: e.target.value })}
+                    style={{padding:'4px 8px', fontSize:12, fontFamily:'inherit', background:'#fff', border:'1px solid var(--border)', borderRadius:5, outline:'none', cursor:'pointer', marginTop:2}}>
+                    {Object.keys(FEEDBACK_TEMPLATES).map(k => <option key={k} value={k}>{k}</option>)}
+                  </select>
+                </div>
+              </div>
+              <button onClick={exportFeedbackPDF} className="btn-outline" style={{padding:'8px 14px', fontSize:12, fontWeight:700, display:'inline-flex', alignItems:'center', gap:6, color:teamColor, borderColor:teamColor}}>
+                <Icon name="download" size={13}/> Print / Export PDF
+              </button>
+            </div>
+
+            <div style={{fontSize:11, color:'var(--text-muted)', marginBottom:10}}>
+              Rate each skill — Green / Yellow / Red. The comment auto-fills from the template, but you can override it with custom wording. Reflections sit at the bottom.
+            </div>
+
+            <div style={{display:'flex', flexDirection:'column', gap:10}}>
+              {reportTemplate.map(t => {
+                const rating = (feedbackReport.ratings || {})[t.skill] || '';
+                const palette = RATING_COLORS[rating] || null;
+                const comment = getCommentFor(t.skill);
+                const isCustom = (feedbackReport.customComments || {})[t.skill] != null;
+                return (
+                  <div key={t.skill} style={{padding:'12px 14px', background:'var(--bg-card)', border:`1px solid ${palette ? palette.border : 'var(--border)'}`, borderRadius:10, borderLeft:`4px solid ${palette ? palette.border : 'var(--border)'}`}}>
+                    <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, flexWrap:'wrap'}}>
+                      <div style={{flex:1, minWidth:200}}>
+                        <div style={{fontSize:10, fontWeight:700, color:teamColor, textTransform:'uppercase', letterSpacing:0.8}}>{t.area}</div>
+                        <div style={{fontSize:14, fontWeight:700, color:'var(--text-primary)', marginTop:2}}>{t.skill}</div>
+                        <div style={{fontSize:11, color:'var(--text-secondary)', lineHeight:1.55, marginTop:6, whiteSpace:'pre-wrap'}}>{t.criteria}</div>
+                      </div>
+                      <div style={{display:'flex', flexDirection:'column', gap:6}}>
+                        {['Green – Exceeds','Yellow – Developing','Red – Needs Work'].map(r => {
+                          const p = RATING_COLORS[r];
+                          const active = rating === r;
+                          return (
+                            <button key={r} onClick={() => setReportRating(t.skill, active ? '' : r)}
+                              style={{
+                                padding:'5px 10px', fontSize:10, fontWeight:700, borderRadius:14, cursor:'pointer',
+                                background: active ? p.bg : 'transparent',
+                                color: active ? p.fg : 'var(--text-muted)',
+                                border:`1px solid ${active ? p.border : 'var(--border)'}`,
+                                whiteSpace:'nowrap', fontFamily:'inherit'
+                              }}>
+                              {r}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <div style={{marginTop:10, paddingTop:10, borderTop:'1px solid var(--border)'}}>
+                      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:4}}>
+                        <div style={{fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:0.5}}>
+                          Coach comment {isCustom && <span style={{color:teamColor}}>(custom)</span>}
+                        </div>
+                        {isCustom && (
+                          <button onClick={() => setReportCustomComment(t.skill, '')} title="Revert to auto comment"
+                            style={{background:'none', border:'none', color:'var(--text-muted)', cursor:'pointer', fontSize:10, padding:0, textDecoration:'underline'}}>
+                            revert to auto
+                          </button>
+                        )}
+                      </div>
+                      <textarea value={comment} onChange={e => setReportCustomComment(t.skill, e.target.value)}
+                        placeholder={rating ? 'Auto comment from template — click to override' : 'Set a rating to auto-fill, or type a comment'}
+                        style={{width:'100%', padding:'8px 10px', fontSize:12, fontFamily:'inherit', background:'var(--bg-input)', border:'1px solid var(--border)', borderRadius:6, outline:'none', resize:'vertical', minHeight:48, color:'var(--text-primary)', lineHeight:1.5}} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Coach reflections */}
+            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginTop:16}}>
+              <div style={{padding:'12px 14px', background:'var(--red-bg)', border:'1px solid var(--red)', borderRadius:10}}>
+                <div style={{fontSize:11, fontWeight:800, color:'var(--red)', textTransform:'uppercase', letterSpacing:1, marginBottom:6}}>Coach Reflection — Defence</div>
+                <textarea value={feedbackReport.reflectionDefence || ''} onChange={e => patchReport({ reflectionDefence: e.target.value })}
+                  placeholder="Overall defensive observations, focus areas, things she does well..."
+                  style={{width:'100%', padding:'8px 10px', fontSize:12, fontFamily:'inherit', background:'#fff', border:'1px solid var(--border)', borderRadius:6, outline:'none', resize:'vertical', minHeight:80, color:'var(--text-primary)', lineHeight:1.5}} />
+              </div>
+              <div style={{padding:'12px 14px', background:'var(--green-bg)', border:'1px solid var(--green)', borderRadius:10}}>
+                <div style={{fontSize:11, fontWeight:800, color:'var(--green)', textTransform:'uppercase', letterSpacing:1, marginBottom:6}}>Coach Reflection — Attack</div>
+                <textarea value={feedbackReport.reflectionAttack || ''} onChange={e => patchReport({ reflectionAttack: e.target.value })}
+                  placeholder="Overall attacking observations, strengths, growth areas..."
+                  style={{width:'100%', padding:'8px 10px', fontSize:12, fontFamily:'inherit', background:'#fff', border:'1px solid var(--border)', borderRadius:6, outline:'none', resize:'vertical', minHeight:80, color:'var(--text-primary)', lineHeight:1.5}} />
+              </div>
+            </div>
           </div>
         )}
 
@@ -5406,6 +5901,7 @@ function SquadTracker({ squad, setSquad, roster, setRoster, matchday18, setMatch
           inRoster={inRoster}
           toggleRoster={toggleRoster}
           POSITIONS={POSITIONS}
+          currentGroup={currentGroup}
         />
       )}
     </div>
