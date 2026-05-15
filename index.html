@@ -1229,11 +1229,21 @@ function App() {
     return () => window.removeEventListener('cloudSyncMerged', handleSyncMerged);
   }, [currentTeam, currentGroup.id]);
 
-  // One-time historical test data import (2025 testing) — cross-year matching
-  // Searches all year groups (since players age up) but never adds new players.
+  // Historical test data import (2025 testing) — cross-year matching.
+  // SELF-HEALING: if any player anywhere has test history, skip. Otherwise re-run.
+  // This protects against the rare case where the cloud bin gets wiped — the
+  // embedded data restores itself on next page load instead of being lost.
+  // Never adds new players (matched-only).
   useEffect(() => {
-    if (localStorage.getItem('playiq_test_import_v2')) return;
     if (typeof TEST_IMPORT_DATA === 'undefined' || !TEST_IMPORT_DATA.data) return;
+    // Self-heal check: if test history is already present anywhere, no need to re-run.
+    const hasAnyHistory = ['7-8','9-10','11-12'].some(yg => {
+      try {
+        const sq = JSON.parse(localStorage.getItem(`playiq_${yg}_squad_v3`) || '[]');
+        return sq.some(p => p?.profile?.testHistory && Object.keys(p.profile.testHistory).length > 0);
+      } catch(e) { return false; }
+    });
+    if (hasAnyHistory) return;
     const flipName = (n) => {
       if (!n) return n;
       if (n.includes(',')) { const p = n.split(',').map(x=>x.trim()); if (p.length===2 && p[0] && p[1]) return p[1]+' '+p[0]; }
