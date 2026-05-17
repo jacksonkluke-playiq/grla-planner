@@ -1246,9 +1246,35 @@ function SyncStatusBadge() {
   );
 }
 
+// Compute which season week today falls in, given a team's seasonConfig.
+// Returns a week string ("1".."N"); falls back to "1" if no config or today is before/after the season.
+function computeCurrentWeek(seasonConfig) {
+  if (!seasonConfig || !seasonConfig.startDate || !seasonConfig.totalWeeks) return "1";
+  const start = new Date(seasonConfig.startDate);
+  if (isNaN(start.getTime())) return "1";
+  const today = new Date();
+  // Normalize both to midnight to avoid off-by-one near midnight
+  start.setHours(0,0,0,0);
+  today.setHours(0,0,0,0);
+  const diffDays = Math.floor((today - start) / (1000 * 60 * 60 * 24));
+  if (diffDays < 0) return "1"; // season hasn't started yet
+  const wk = Math.floor(diffDays / 7) + 1;
+  const total = Number(seasonConfig.totalWeeks) || 10;
+  if (wk > total) return String(total); // past the end — pin to last week
+  return String(wk);
+}
+
 function App() {
   const [activeTab, setActiveTab] = useState("planner");
-  const [selectedWeek, setSelectedWeek] = useState("1");
+  // selectedWeek defaults to whichever week today falls in for the *current team's* season.
+  // Read seasonConfig out of localStorage here so this fires synchronously before first render.
+  const [selectedWeek, setSelectedWeek] = useState(() => {
+    try {
+      const team = localStorage.getItem('playiq_currentTeam') || '9-10-cup';
+      const cfg = JSON.parse(localStorage.getItem(`playiq_${team}_seasonConfig`) || 'null');
+      return computeCurrentWeek(cfg);
+    } catch(e) { return "1"; }
+  });
   // Teams — each team has its own scoped data (squad, sessions, notes, etc.)
   const AGE_GROUPS = [
     { id: '7-8',   label: 'Years 7/8',   short: '7/8'   },
@@ -1693,7 +1719,12 @@ function App() {
     try { setRoster(JSON.parse(localStorage.getItem(teamKey('roster')) || '[]')); } catch(e) { setRoster([]); }
     try { setMatchday18(JSON.parse(localStorage.getItem(teamKey('matchday18')) || '[]')); } catch(e) { setMatchday18([]); }
     try { setSessionReviews(JSON.parse(localStorage.getItem(teamKey('sessionReviews')) || '{}')); } catch(e) { setSessionReviews({}); }
-    try { setSeasonConfig(JSON.parse(localStorage.getItem(teamKey('seasonConfig')) || 'null')); } catch(e) { setSeasonConfig(null); }
+    try {
+      const cfg = JSON.parse(localStorage.getItem(teamKey('seasonConfig')) || 'null');
+      setSeasonConfig(cfg);
+      // Jump to whichever week today falls in for this team's season config
+      setSelectedWeek(computeCurrentWeek(cfg));
+    } catch(e) { setSeasonConfig(null); setSelectedWeek("1"); }
     try { setWeekDays(JSON.parse(localStorage.getItem(teamKey('weekDays')) || '{}')); } catch(e) { setWeekDays({}); }
     try { setPlannerNotes(JSON.parse(localStorage.getItem(teamKey('plannerNotes')) || '{}')); } catch(e) { setPlannerNotes({}); }
     try { setWeeklyGoals(JSON.parse(localStorage.getItem(teamKey('weeklyGoals')) || '{}')); } catch(e) { setWeeklyGoals({}); }
