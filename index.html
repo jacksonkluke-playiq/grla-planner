@@ -508,6 +508,33 @@ const cloudSync = (() => {
     return await res.json();
   }
 
+  // Destructively pull from cloud — adopt every cloud value regardless of local __ts.
+  // For use when local timestamps are inflated or you intentionally want to discard
+  // local-only changes. Tells React to re-read after applying.
+  async function forcePull() {
+    if (!CLOUD_CONFIG.enabled) return null;
+    notify('syncing', 'Force-pulling from cloud...');
+    try {
+      const cloud = await pullRaw();
+      if (!cloud || typeof cloud !== 'object') { notify('error', 'No cloud data'); return null; }
+      let applied = 0;
+      for (const [k, v] of Object.entries(cloud)) {
+        if (typeof v !== 'string') continue;
+        if (!k.startsWith(PLANNER_KEY_PREFIX)) continue;
+        origSetItem(k, v);
+        applied++;
+      }
+      lastPushedSnap = JSON.stringify(snapshot());
+      try { window.dispatchEvent(new CustomEvent('cloudSyncMerged', { detail: { applied, kept: 0, forced: true } })); } catch(e){}
+      notify('synced', `Force-pulled ${applied} key${applied === 1 ? '' : 's'}`);
+      return { applied };
+    } catch (e) {
+      notify('error', e.message);
+      console.warn('[cloudSync] forcePull error:', e);
+      return null;
+    }
+  }
+
   async function pull(silent = false) {
     if (!CLOUD_CONFIG.enabled) return null;
     if (!silent) notify('syncing', 'Pulling latest...');
@@ -559,18 +586,31 @@ const cloudSync = (() => {
     const origSet = Storage.prototype.setItem;
     const origRemove = Storage.prototype.removeItem;
     Storage.prototype.setItem = function(k, v) {
-      origSet.call(this, k, v);
+      // CRITICAL: only stamp __ts + schedule push when the value ACTUALLY changes.
+      // React effects fire on every mount and re-write the same value back, which
+      // (with the previous "always-stamp" logic) inflated every key's timestamp to
+      // "now" on every page load and caused other coaches' edits to be ignored on pull.
       if (this === localStorage && typeof k === 'string' && k.startsWith(PLANNER_KEY_PREFIX) && !isTsKey(k)) {
-        // Stamp the change so sync can resolve conflicts
-        try { origSet.call(localStorage, k + TS_SUFFIX, String(Date.now())); } catch(e){}
-        schedulePush();
+        const prev = localStorage.getItem(k);
+        origSet.call(this, k, v);
+        if (prev !== v) {
+          try { origSet.call(localStorage, k + TS_SUFFIX, String(Date.now())); } catch(e){}
+          schedulePush();
+        }
+      } else {
+        origSet.call(this, k, v);
       }
     };
     Storage.prototype.removeItem = function(k) {
-      origRemove.call(this, k);
       if (this === localStorage && typeof k === 'string' && k.startsWith(PLANNER_KEY_PREFIX) && !isTsKey(k)) {
-        try { origRemove.call(localStorage, k + TS_SUFFIX); } catch(e){}
-        schedulePush();
+        const had = localStorage.getItem(k) !== null;
+        origRemove.call(this, k);
+        if (had) {
+          try { origRemove.call(localStorage, k + TS_SUFFIX); } catch(e){}
+          schedulePush();
+        }
+      } else {
+        origRemove.call(this, k);
       }
     };
   }
@@ -613,7 +653,7 @@ const cloudSync = (() => {
     }
   }
 
-  return { bootstrap, pull, subscribe, getStatus: () => status, isConfigured: () =>
+  return { bootstrap, pull, forcePull, subscribe, getStatus: () => status, isConfigured: () =>
     CLOUD_CONFIG.enabled && CLOUD_CONFIG.binId && !CLOUD_CONFIG.binId.startsWith('PASTE_') };
 })();
 
@@ -1234,12 +1274,25 @@ function SyncStatusBadge() {
                     animation: (s.state === 'syncing' || s.state === 'pending') ? 'fadeInOut 1.2s infinite' : 'none'}} />
       <span>{p.label}</span>
       {showRefresh && (
-        <button onClick={() => cloudSync.pull()} title="Pull latest from cloud"
+        <button onClick={() => cloudSync.pull()} title="Pull latest from cloud (merges with local)"
           style={{border:'none', background:'transparent', color:p.fg, cursor:'pointer', padding:0, marginLeft:2,
                   display:'inline-flex', alignItems:'center', fontSize:11}}>
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/>
           </svg>
+        </button>
+      )}
+      {showRefresh && (
+        <button
+          onClick={() => {
+            if (!window.confirm('Force-pull from cloud?\n\nThis adopts every value from the cloud bin and discards any local-only edits that have not yet synced. Use this if other coaches edits are not appearing for you.\n\nProceed?')) return;
+            cloudSync.forcePull();
+          }}
+          title="Force pull from cloud — adopts every cloud value regardless of timestamps. Discards local-only edits."
+          style={{border:'none', background:'transparent', color:p.fg, cursor:'pointer', padding:'0 0 0 2px',
+                  display:'inline-flex', alignItems:'center', fontSize:11, opacity:0.7}}
+        >
+          ⇩
         </button>
       )}
     </div>
@@ -6522,7 +6575,7 @@ function ProgramOverview({ setActiveTab, setCurrentTeam }) {
       Object.keys(hist).forEach(testName => {
         const raw = hist[testName] || [];
         const valid = raw.filter(e => e && e[1])
-          .map(([d, v]) => ({ d, v, n: valToNumber(v) }))
+          .map(([d, v]) => { const nv = normalizeTestValue(testName, v); return { d, v: nv, n: valToNumber(nv) }; })
           .filter(e => e.n != null)
           .sort((a,b) => (a.d||'').localeCompare(b.d||''));
         if (valid.length === 0) return;
@@ -6940,7 +6993,7 @@ function ProgramOverview({ setActiveTab, setCurrentTeam }) {
           const hist = p?.profile?.testHistory?.[detailTest];
           if (!Array.isArray(hist) || hist.length === 0) return;
           const valid = hist.filter(e => e && e[1])
-            .map(([d, v]) => ({ d, v, n: valToNumber(v) }))
+            .map(([d, v]) => { const nv = normalizeTestValue(detailTest, v); return { d, v: nv, n: valToNumber(nv) }; })
             .filter(e => e.n != null)
             .sort((a,b) => (a.d||'').localeCompare(b.d||''));
           if (valid.length === 0) return;
@@ -6981,7 +7034,7 @@ function ProgramOverview({ setActiveTab, setCurrentTeam }) {
           const hist = ap?.profile?.testHistory || {};
           athleteAllTests = Object.keys(hist).sort().map(tn => {
             const valid = (hist[tn] || []).filter(e => e && e[1])
-              .map(([d, v]) => ({ d, v, n: valToNumber(v) }))
+              .map(([d, v]) => { const nv = normalizeTestValue(tn, v); return { d, v: nv, n: valToNumber(nv) }; })
               .filter(e => e.n != null)
               .sort((a,b) => (a.d||'').localeCompare(b.d||''));
             const std = TESTING_STANDARDS[detailAthlete.schoolYear]?.[tn] || null;
@@ -7250,6 +7303,7 @@ function SquadTracker({ squad, setSquad, roster, setRoster, matchday18, setMatch
   const [bulkText, setBulkText] = useState('');
   const [bulkPreview, setBulkPreview] = useState([]);
   const [filterView, setFilterView] = useState('all');
+  const [yearFilter, setYearFilter] = useState('all'); // 'all' | individual school year (e.g. '7', '8')
   const [dragIdx, setDragIdx] = useState(null);
   const [dragOverPos, setDragOverPos] = useState(null);
 
@@ -7335,16 +7389,27 @@ function SquadTracker({ squad, setSquad, roster, setRoster, matchday18, setMatch
   function handleGroupDragOver(e, pos) { e.preventDefault(); setDragOverPos(pos); }
   function handleGroupDrop(e, target) { e.preventDefault(); setDragOverPos(null); if (dragIdx === null) return; setSquad(prev => prev.map((p, i) => i === dragIdx ? { ...p, position: target } : p)); setDragIdx(null); }
 
+  // Year-level filter — derived from the current age group (e.g. '7-8' → years 7 and 8).
+  const groupYears = (currentGroup?.id || '').split('-').filter(Boolean);
+  const playerSchoolYear = (p) => effectiveSchoolYear(p, currentGroup?.id || '');
+  const yearMatch = (p) => yearFilter === 'all' || playerSchoolYear(p) === yearFilter;
+
   const filtered = squad.map((p, i) => ({ ...p, _idx: i })).filter(p => {
+    if (!yearMatch(p)) return false;
     if (filterView === 'available') return p.available !== false;
     if (filterView === 'unavailable') return p.available === false;
     if (filterView === 'inTeam') return inRoster(p._id);
     if (filterView === 'notInTeam') return !inRoster(p._id);
     return true;
   });
-  const availableCount = squad.filter(p => p.available !== false).length;
-  const unavailableCount = squad.filter(p => p.available === false).length;
-  const rosterCount = Array.isArray(roster) ? roster.filter(id => squad.some(p => p._id === id)).length : 0;
+  // Counts respect the year filter so chip labels feel accurate
+  const yearScoped = squad.filter(yearMatch);
+  const availableCount = yearScoped.filter(p => p.available !== false).length;
+  const unavailableCount = yearScoped.filter(p => p.available === false).length;
+  const rosterCount = Array.isArray(roster) ? roster.filter(id => yearScoped.some(p => p._id === id)).length : 0;
+  // Per-year counts (always against full squad — used to label the year chips)
+  const yearCounts = {};
+  groupYears.forEach(y => { yearCounts[y] = squad.filter(p => playerSchoolYear(p) === y).length; });
   const grouped = {};
   for (const pos of ALL_SLOTS) grouped[pos] = [];
   filtered.forEach(p => { const pos = p.position && POSITIONS.includes(p.position) ? p.position : 'Unassigned'; grouped[pos].push(p); });
@@ -7444,12 +7509,35 @@ function SquadTracker({ squad, setSquad, roster, setRoster, matchday18, setMatch
         )}
       </div>
 
+      {squad.length > 0 && groupYears.length > 1 && (
+        <div style={{display:'flex', gap:6, marginBottom:8, marginTop:4, alignItems:'center', flexWrap:'wrap'}}>
+          <span style={{fontSize:11, color:'var(--text-muted)', fontWeight:600, marginRight:2}}>Year:</span>
+          <button
+            className={`day-tab ${yearFilter === 'all' ? 'active' : ''}`}
+            onClick={() => setYearFilter('all')}
+            style={{fontSize:11, padding:'6px 14px'}}
+          >
+            All ({squad.length})
+          </button>
+          {groupYears.map(y => (
+            <button
+              key={y}
+              className={`day-tab ${yearFilter === y ? 'active' : ''}`}
+              onClick={() => setYearFilter(y)}
+              style={{fontSize:11, padding:'6px 14px'}}
+            >
+              Year {y} ({yearCounts[y] || 0})
+            </button>
+          ))}
+        </div>
+      )}
+
       {squad.length > 0 && (
         <div style={{display:'flex', gap:4, marginBottom:12, marginTop:4, flexWrap:'wrap'}}>
           {[
-            {id:'all', label:`All (${squad.length})`},
+            {id:'all', label:`All (${yearScoped.length})`},
             {id:'inTeam', label:`In ${currentSub} (${rosterCount})`},
-            {id:'notInTeam', label:`Not in ${currentSub} (${squad.length - rosterCount})`},
+            {id:'notInTeam', label:`Not in ${currentSub} (${yearScoped.length - rosterCount})`},
             {id:'available', label:`Available (${availableCount})`},
             {id:'unavailable', label:`Unavailable (${unavailableCount})`}
           ].map(f => (
