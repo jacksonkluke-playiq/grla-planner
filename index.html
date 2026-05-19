@@ -575,6 +575,8 @@ const cloudSync = (() => {
         await pushRaw(snap);
         lastPushedSnap = snapStr;
         notify('synced', 'Saved');
+        // Layer 1: auto-snapshot after successful push (throttled to one per 10 min).
+        try { versionHistory.snapshot('auto', 'After cloud save'); } catch(e) {}
       } catch (e) {
         notify('error', e.message);
         console.warn('[cloudSync] push error:', e);
@@ -655,6 +657,319 @@ const cloudSync = (() => {
 
   return { bootstrap, pull, forcePull, subscribe, getStatus: () => status, isConfigured: () =>
     CLOUD_CONFIG.enabled && CLOUD_CONFIG.binId && !CLOUD_CONFIG.binId.startsWith('PASTE_') };
+})();
+
+// ═══════════════════════════════════════════════════════════
+// VERSION HISTORY — Layer 1 of the multi-user data-safety plan.
+// Captures full localStorage snapshots so coaches can restore after
+// accidental wipes, race conditions, or migration mishaps.
+//
+// • Auto-snapshot after every cloud push, throttled to one per 10 min
+//   of activity (or one per destructive operation, no throttle).
+// • Last 15 snapshots are retained in localStorage at playiq_history_v1.
+// • Manual "Save snapshot now" + "Restore" available from sync badge.
+// • Restore always backs up the current state first so no action is irreversible.
+// ═══════════════════════════════════════════════════════════
+const HISTORY_KEY = 'playiq_history_v1';
+const HISTORY_MAX_SNAPSHOTS = 15;
+const HISTORY_AUTO_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
+const versionHistory = (() => {
+  const listeners = new Set();
+  let lastAutoSnap = 0;
+  function read() {
+    try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch(e) { return []; }
+  }
+  function write(snapshots) {
+    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(snapshots)); }
+    catch(e) {
+      // Quota exceeded — drop oldest until it fits
+      console.warn('[versionHistory] localStorage quota — pruning', e);
+      while (snapshots.length > 1) {
+        snapshots.shift();
+        try { localStorage.setItem(HISTORY_KEY, JSON.stringify(snapshots)); return; } catch(_) {}
+      }
+    }
+    listeners.forEach(fn => { try { fn(snapshots); } catch(e){} });
+  }
+  function subscribe(fn) { listeners.add(fn); fn(read()); return () => listeners.delete(fn); }
+
+  function captureNow(trigger, reason) {
+    const data = {};
+    let size = 0;
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k) continue;
+      // Snapshot everything under the planner prefix EXCEPT history itself
+      // (would cause exponential growth) and per-key timestamps.
+      if (!k.startsWith(PLANNER_KEY_PREFIX)) continue;
+      if (k === HISTORY_KEY) continue;
+      if (k.endsWith('__ts')) continue;
+      const v = localStorage.getItem(k);
+      data[k] = v;
+      size += k.length + (v ? v.length : 0);
+    }
+    const snap = {
+      id: 'snap_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+      at: new Date().toISOString(),
+      trigger,    // 'auto' | 'manual' | 'pre-migration' | 'pre-resync' | 'pre-restore' | 'pre-forcepull' | 'pre-removeleavers'
+      reason: reason || '',
+      size,
+      keys: Object.keys(data).length,
+      data,
+    };
+    const list = read();
+    list.push(snap);
+    // Keep only the most recent N
+    while (list.length > HISTORY_MAX_SNAPSHOTS) list.shift();
+    write(list);
+    return snap;
+  }
+
+  function snapshot(trigger, reason, force) {
+    const now = Date.now();
+    if (!force && trigger === 'auto') {
+      if (now - lastAutoSnap < HISTORY_AUTO_INTERVAL_MS) return null;
+    }
+    lastAutoSnap = now;
+    return captureNow(trigger, reason);
+  }
+
+  function list() { return read(); }
+  function find(id) { return read().find(s => s.id === id); }
+
+  function restore(id) {
+    const snap = find(id);
+    if (!snap) return { ok: false, error: 'Snapshot not found' };
+    // First, back up the CURRENT state so the restore itself can be undone.
+    captureNow('pre-restore', `Backup before restoring to ${new Date(snap.at).toLocaleString()}`);
+    // Clear current playiq_* keys (except history itself), then apply snapshot.
+    const toRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(PLANNER_KEY_PREFIX) && k !== HISTORY_KEY) toRemove.push(k);
+    }
+    toRemove.forEach(k => { try { localStorage.removeItem(k); } catch(e) {} });
+    Object.entries(snap.data).forEach(([k, v]) => { try { localStorage.setItem(k, v); } catch(e) {} });
+    return { ok: true, snap };
+  }
+
+  function deleteSnapshot(id) {
+    const list = read().filter(s => s.id !== id);
+    write(list);
+  }
+
+  function clearAll() {
+    write([]);
+  }
+
+  return { snapshot, list, find, restore, deleteSnapshot, clearAll, subscribe };
+})();
+
+// ═══════════════════════════════════════════════════════════
+// OP LOG — Layer 2 POC (phase 1, parallel mode).
+// Append-only operation log for squad mutations. Eliminates the "last
+// snapshot wipes other coach's changes" failure mode: each squad change
+// is its own atomic record, replayed by every browser. Two coaches making
+// independent changes both end up in the log instead of clobbering each other.
+//
+// Storage: kept in the SAME JSONBin bin under `_oplog_v1` (no extra bin to
+// create). Pushes are read-then-merge to preserve ops that other coaches
+// have appended since our last pull.
+//
+// Phase 1 (this commit): ops are emitted ALONGSIDE the existing snapshot
+// sync — snapshot is still authoritative. We're verifying the op pipeline
+// works on the school network. Phase 2 will flip squad keys to op-log
+// authoritative and exclude them from snapshot sync.
+//
+// Op schema:
+//   { id, ts, by, type, ... }
+// Types (phase 1, squad only):
+//   squad.add        { yg, player }
+//   squad.remove     { yg, playerId }
+//   squad.update     { yg, playerId, patch }       // partial player update
+//   squad.profile    { yg, playerId, profilePatch } // partial profile update
+// ═══════════════════════════════════════════════════════════
+const OPLOG_KEY_LOCAL = 'playiq_oplog_seen_v1';   // local: last seen op IDs (Set serialized)
+const OPLOG_FIELD = '_oplog_v1';                    // cloud bin field
+const OPLOG_MAX_LOCAL = 2000;
+const OPLOG_POLL_MS = 3000;                         // 3 sec poll
+const opLog = (() => {
+  const listeners = new Set();
+  let pendingPush = [];      // ops created locally but not yet flushed to cloud
+  let pushTimer = null;
+  let seenIds = new Set();   // dedupe — op IDs already applied locally
+  let lastFeed = [];         // recent ops (most recent first) for UI
+  const FEED_MAX = 100;
+
+  function loadSeen() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(OPLOG_KEY_LOCAL) || '[]');
+      seenIds = new Set(Array.isArray(raw) ? raw : []);
+    } catch(e) { seenIds = new Set(); }
+  }
+  function saveSeen() {
+    // Keep only the last N to bound localStorage usage
+    const arr = Array.from(seenIds);
+    const trimmed = arr.slice(Math.max(0, arr.length - OPLOG_MAX_LOCAL));
+    seenIds = new Set(trimmed);
+    try { localStorage.setItem(OPLOG_KEY_LOCAL, JSON.stringify(trimmed)); } catch(e){}
+  }
+  function notify() {
+    listeners.forEach(fn => { try { fn(lastFeed); } catch(e){} });
+  }
+  function subscribe(fn) { listeners.add(fn); fn(lastFeed); return () => listeners.delete(fn); }
+  function getFeed() { return lastFeed; }
+
+  // Identity (best-effort: per-browser random id, persisted)
+  function getActorId() {
+    let id = localStorage.getItem('playiq_actor_id');
+    if (!id) { id = 'coach_' + Math.random().toString(36).slice(2, 8); localStorage.setItem('playiq_actor_id', id); }
+    return id;
+  }
+  function getActorName() {
+    // If the user set a coach name in settings, use it. Otherwise fall back to actor id.
+    return localStorage.getItem('playiq_actor_name') || getActorId();
+  }
+
+  // Apply a single op to localStorage squad state. Idempotent — ops are
+  // dedupe'd by id before reaching apply().
+  function applyToSquad(op) {
+    if (!op || !op.type || !op.yg) return false;
+    const key = `playiq_${op.yg}_squad_v3`;
+    let squad;
+    try { squad = JSON.parse(localStorage.getItem(key) || '[]'); } catch(e) { squad = []; }
+    if (!Array.isArray(squad)) squad = [];
+    let changed = false;
+    if (op.type === 'squad.add') {
+      if (!op.player || !op.player._id) return false;
+      if (squad.some(p => p && p._id === op.player._id)) return false; // already present
+      squad.push(op.player); changed = true;
+    } else if (op.type === 'squad.remove') {
+      const before = squad.length;
+      squad = squad.filter(p => !p || p._id !== op.playerId);
+      changed = squad.length !== before;
+    } else if (op.type === 'squad.update') {
+      squad = squad.map(p => {
+        if (p && p._id === op.playerId) { changed = true; return { ...p, ...op.patch }; }
+        return p;
+      });
+    } else if (op.type === 'squad.profile') {
+      squad = squad.map(p => {
+        if (p && p._id === op.playerId) {
+          changed = true;
+          return { ...p, profile: { ...(p.profile || {}), ...op.profilePatch } };
+        }
+        return p;
+      });
+    } else {
+      return false;
+    }
+    if (changed) {
+      try { localStorage.setItem(key, JSON.stringify(squad)); } catch(e){}
+    }
+    return changed;
+  }
+
+  // Compose an op and add it to the local pending queue.
+  function emit(type, data) {
+    const op = {
+      id: 'op_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+      ts: Date.now(),
+      by: getActorName(),
+      type,
+      ...data,
+    };
+    seenIds.add(op.id); saveSeen();
+    pendingPush.push(op);
+    lastFeed = [op, ...lastFeed].slice(0, FEED_MAX);
+    notify();
+    schedulePush();
+    return op;
+  }
+
+  function schedulePush() {
+    if (!CLOUD_CONFIG.enabled) return;
+    if (pushTimer) clearTimeout(pushTimer);
+    pushTimer = setTimeout(flushPush, 1200);
+  }
+
+  // Read-then-merge push: pulls current bin, merges in our pending ops, writes back.
+  // Race window is small. Conflicts only lose if two coaches push at exactly the same instant.
+  async function flushPush() {
+    if (pendingPush.length === 0) return;
+    const toPush = pendingPush.slice();
+    pendingPush = [];
+    try {
+      const res = await fetch(`https://api.jsonbin.io/v3/b/${CLOUD_CONFIG.binId}/latest`, {
+        headers: { 'X-Master-Key': CLOUD_CONFIG.apiKey, 'X-Bin-Meta': 'false' },
+      });
+      if (!res.ok) throw new Error(`pull failed ${res.status}`);
+      const current = await res.json();
+      const existingOps = Array.isArray(current && current[OPLOG_FIELD]) ? current[OPLOG_FIELD] : [];
+      const existingIds = new Set(existingOps.map(o => o && o.id));
+      const merged = [...existingOps, ...toPush.filter(o => !existingIds.has(o.id))];
+      // Cap on-cloud log size (older ops dropped — compaction will be added later)
+      const CLOUD_LOG_CAP = 5000;
+      const trimmed = merged.length > CLOUD_LOG_CAP ? merged.slice(merged.length - CLOUD_LOG_CAP) : merged;
+      const payload = { ...current, [OPLOG_FIELD]: trimmed };
+      const put = await fetch(`https://api.jsonbin.io/v3/b/${CLOUD_CONFIG.binId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-Master-Key': CLOUD_CONFIG.apiKey },
+        body: JSON.stringify(payload),
+      });
+      if (!put.ok) throw new Error(`push failed ${put.status}`);
+      console.log(`[opLog] pushed ${toPush.length} op${toPush.length===1?'':'s'} (total ${trimmed.length} on cloud)`);
+    } catch(e) {
+      console.warn('[opLog] push error — re-queueing:', e);
+      // Re-queue for next attempt
+      pendingPush.unshift(...toPush);
+    }
+  }
+
+  async function pullOnce(silent) {
+    if (!CLOUD_CONFIG.enabled) return null;
+    try {
+      const res = await fetch(`https://api.jsonbin.io/v3/b/${CLOUD_CONFIG.binId}/latest`, {
+        headers: { 'X-Master-Key': CLOUD_CONFIG.apiKey, 'X-Bin-Meta': 'false' },
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      const ops = Array.isArray(data && data[OPLOG_FIELD]) ? data[OPLOG_FIELD] : [];
+      let applied = 0;
+      for (const op of ops) {
+        if (!op || !op.id) continue;
+        if (seenIds.has(op.id)) continue;
+        // Apply to localStorage
+        const ok = applyToSquad(op);
+        seenIds.add(op.id);
+        if (ok) applied++;
+        lastFeed = [op, ...lastFeed].slice(0, FEED_MAX);
+      }
+      if (applied > 0) {
+        saveSeen();
+        if (!silent) console.log(`[opLog] applied ${applied} new op${applied===1?'':'s'}`);
+        // Tell React state to re-read
+        try { window.dispatchEvent(new CustomEvent('cloudSyncMerged', { detail: { applied, source:'oplog' } })); } catch(e){}
+        notify();
+      } else if (ops.length > seenIds.size) {
+        // Some ops we'd already seen — just update feed silently
+        notify();
+      }
+      return { applied, total: ops.length };
+    } catch(e) {
+      console.warn('[opLog] pull error:', e);
+      return null;
+    }
+  }
+
+  async function bootstrap() {
+    loadSeen();
+    if (!CLOUD_CONFIG.enabled) return;
+    await pullOnce(true);
+    setInterval(() => pullOnce(true), OPLOG_POLL_MS);
+  }
+
+  return { bootstrap, emit, pullOnce, flushPush, subscribe, getFeed, getActorName };
 })();
 
 // ═══════════════════════════════════════════════════════════
@@ -800,7 +1115,7 @@ function recalcTimes(activities, startTime) {
 
 // One-time historical test data import (2025 Term 3 + Term 4)
 // Format: { tests: [...test names...], data: { yearGroup: { name: [[date, season, [val1...val7]], ...] } } }
-const TEST_IMPORT_DATA = {"tests":["Bronco","Broad Jump","Vertical Jump","Max Hang","Push Up","20m Sprint","Med Ball Push","Beep Test","Bench (kg)","Squat (kg)"],"data":{"7-8":{"Ahipene, Aeris":{"schoolYear":"7","terms":[["2026-02-01",["7:07","1.64","","","","","2.9","","",""]],["2026-05-01",["","1.5","","2","","","2.8","","",""]]]},"Bateup, Heidy":{"schoolYear":"7","terms":[["2026-02-01",["DNF","1.32","","","","","2.7","","",""]],["2026-05-01",["","1.18","","18","","","3","","",""]]]},"Berryman, Amaia":{"schoolYear":"7","terms":[["2026-02-01",["6:36","1.9","","","","","4.04","","",""]],["2026-05-01",["","2.06","","1","","","4.35","","",""]]]},"Berryman, Ashlyn":{"schoolYear":"7","terms":[["2026-02-01",["7:24","1.73","","","","","4.4","","",""]],["2026-05-01",["","1.81","","46","","","3.8","","",""]]]},"Chan Boon, Penina":{"schoolYear":"7","terms":[["2026-02-01",["6:39","1.8","","","","","3.4","","",""]],["2026-05-01",["","1.72","","31","","","3.3","","",""]]]},"Clarke-Teika, Phoenix":{"schoolYear":"7","terms":[["2026-02-01",["7:21","1.58","","","","","3.2","","",""]],["2026-05-01",["","1.49","","23","","","3.3","","",""]]]},"Fangupo, Carolinah":{"schoolYear":"7","terms":[["2026-02-01",["8:18","1.38","","","","","3.7","","",""]],["2026-05-01",["","1.14","","8","","","3.4","","",""]]]},"Gaitau, Wynter":{"schoolYear":"7","terms":[["2026-05-01",["","1.4","","30","","","3","","",""]]]},"Guthrie, Rema-Rae":{"schoolYear":"7","terms":[["2026-02-01",["5:43","1.55","","","","","3","","",""]],["2026-05-01",["","1.56","","43","","","3.3","","",""]]]},"Haimona, Amania":{"schoolYear":"7","terms":[["2026-02-01",["7:42","1.47","","","","","3.2","","",""]],["2026-05-01",["","1.48","","26","","","3.6","","",""]]]},"Hanson, Ellie":{"schoolYear":"7","terms":[["2026-02-01",["8:40","1.53","","","","","2.9","","",""]],["2026-05-01",["","3.7","","41","","","1.39","","",""]]]},"Harnden, Ella":{"schoolYear":"7","terms":[["2026-02-01",["5:50","1.68","","","","","2.6","","",""]],["2026-05-01",["","1.38","","36","","","3.15","","",""]]]},"Hippi, Kyrah":{"schoolYear":"7","terms":[["2026-02-01",["7:39","1.44","","","","","2.8","","",""]],["2026-05-01",["","1.67","","25","","","2.91","","",""]]]},"Kawana, Torah-Lea":{"schoolYear":"7","terms":[["2026-02-01",["9:00","1.64","","","","","2.6","","",""]],["2026-05-01",["","1.67","","23","","","2.78","","",""]]]},"Kirikiri, Aleeyah":{"schoolYear":"7","terms":[["2026-02-01",["6:56","1.66","","","","","2.72","","",""]],["2026-05-01",["","1.69","","2","","","2.9","","",""]]]},"Kopae, Karly Kopae":{"schoolYear":"7","terms":[["2026-02-01",["6:02","1.72","","","","","3.6","","",""]]]},"Leifi, Irie":{"schoolYear":"7","terms":[["2026-02-01",["","1.64","","","","","3.8","","",""]],["2026-05-01",["","1.48","","28","","","3.9","","",""]]]},"Mataoa, Khodie":{"schoolYear":"7","terms":[["2026-02-01",["7:27","1.49","","","","","2.87","","",""]],["2026-05-01",["","1.68","","37","","","3.74","","",""]]]},"Noa, Taya":{"schoolYear":"7","terms":[["2026-02-01",["6:08","1.53","","","","","3.2","","",""]],["2026-05-01",["","1.78","","1","","","3.45","","",""]]]},"O'Brien Magele, Brooklyn":{"schoolYear":"7","terms":[["2026-02-01",["6:12","1.92","","","","","3.2","","",""]],["2026-05-01",["","1.68","","50","","","3.35","","",""]]]},"Pauline Kemile Mataiti, Irie":{"schoolYear":"7","terms":[["2026-02-01",["5:29","1.72","","","","","3.65","","",""]]]},"Pepe, Lexis":{"schoolYear":"7","terms":[["2026-02-01",["6:01","1.63","","","","","3.4","","",""]],["2026-05-01",["","1.58","","1","","","3.95","","",""]]]},"Ropati, Harper":{"schoolYear":"7","terms":[["2026-02-01",["6:58","1.97","","","","","3.25","","",""]],["2026-05-01",["","1.69","","27","","","3.7","","",""]]]},"Sa'u, Zuri":{"schoolYear":"7","terms":[["2026-02-01",["6:12","1.67","","","","","3.73","","",""]],["2026-05-01",["","1.63","","41","","","3.93","","",""]]]},"Schultz, Abby":{"schoolYear":"7","terms":[["2026-02-01",["8:20","1.6","","","","","3.6","","",""]],["2026-05-01",["","1.55","","25","","","3.17","","",""]]]},"Sharma, Ashna":{"schoolYear":"7","terms":[["2026-02-01",["7:31","1.41","","","","","2.8","","",""]]]},"Sharp, Chanel":{"schoolYear":"7","terms":[["2026-05-01",["","1.67","","35","","","3.41","","",""]]]},"Tagaloa, Rhiarnah":{"schoolYear":"7","terms":[["2026-02-01",["5:42","1.8","","","","","3.5","","",""]],["2026-05-01",["","1.64","","24","","","4.25","","",""]]]},"Tautari, Kredence":{"schoolYear":"7","terms":[["2026-02-01",["8:11","1.35","","","","","3.1","","",""]],["2026-05-01",["","1.77","","40","","","3.66","","",""]]]},"Teles, Kauane":{"schoolYear":"7","terms":[["2026-02-01",["6:25","1.47","","","","","3.1","","",""]],["2026-05-01",["","1.28","","13","","","3.1","","",""]]]},"Tito, Manaia":{"schoolYear":"7","terms":[["2026-02-01",["7:45","1.53","","","","","","","",""]],["2026-05-01",["","1.35","","36","","","3.4","","",""]]]},"Tuake, Cleo":{"schoolYear":"7","terms":[["2026-02-01",["6:45","1.65","","","","","3","","",""]]]},"Tupou-Witchman, Maureen":{"schoolYear":"7","terms":[["2026-05-01",["","1.68","","1","","","2.8","","",""]]]},"Waerea, Milan":{"schoolYear":"7","terms":[["2026-05-01",["","1.62","","30","","","3.6","","",""]]]},"Ashe, Kendyll":{"schoolYear":"8","terms":[["2025-08-01",["6:25","1.77","38","21","8","3.53","3.86","","",""]],["2025-11-01",["5:56","1.72","44","26","6","3.5","3.52","","",""]],["2026-02-01",["6:20","1.77","","","","","3.4","","",""]],["2026-05-01",["","1.75","","41","","","3.54","","",""]]]},"Asi, Milan":{"schoolYear":"8","terms":[["2025-08-01",["","1.84","36","25","14","3.34","3.4","","",""]],["2025-11-01",["6:30","0.65","35","15","3","","3.65","","",""]],["2026-02-01",["","1.72","39","","","","3.8","","",""]],["2026-05-01",["","2.31","","32","","","4.39","","",""]]]},"Christensen, Nevaeh":{"schoolYear":"8","terms":[["2025-08-01",["6:17","1.76","32","60","3","3.77","3.33","","",""]],["2025-11-01",["6:26","1.7","27","64","11","","3.65","","",""]],["2026-05-01",["","1.63","","54","","","3.91","","",""]]]},"Costar, Willow":{"schoolYear":"8","terms":[["2026-02-01",["5:22","1.71","27","","","","3.6","","",""]],["2026-05-01",["","1.76","","42","","","3.6","","",""]]]},"Currie, Liarah":{"schoolYear":"8","terms":[["2025-08-01",["5:52","1.7","40","40","20","3.76","3.46","","",""]]]},"Davies-Andy, Madika":{"schoolYear":"8","terms":[["2025-08-01",["","1.85","38","16","22","3.62","3.8","","",""]],["2026-02-01",["7:45","1.75","","","","","3.8","","",""]]]},"Fepuleai, Lesina":{"schoolYear":"8","terms":[["2025-11-01",["6:25","2.03","40","30","23","","4.2","","",""]],["2026-02-01",["6:07","1.83","35","","","","3.4","","",""]]]},"Hala, Nylah":{"schoolYear":"8","terms":[["2025-08-01",["","1.81","33","33","13","3.53","3.5","","",""]],["2025-11-01",["5:40","1.92","37","71","21","3.44","3.3","","",""]],["2026-02-01",["4:59","1.85","44","","","","3.8","","",""]],["2026-05-01",["","1.63","","1","","","3.52","","",""]]]},"Kirman, Kelise":{"schoolYear":"8","terms":[["2025-08-01",["6:35","1.64","34","35","7","3.43","4","","",""]],["2025-11-01",["7:11","1.79","39","20","4","3.52","4.15","","",""]],["2026-02-01",["8:25","1.37","22","","","","3.8","","",""]],["2026-05-01",["","1.57","","18","","","4.65","","",""]]]},"Kumbamong, Keesha":{"schoolYear":"8","terms":[["2025-08-01",["","1.48","36","24","16","3.89","1.6","","",""]],["2025-11-01",["7:20","1.36","29","8","5","3.64","3.77","","",""]],["2026-02-01",["6:20","2.07","50","","","","4.8","","",""]],["2026-05-01",["","1.2","","18","","","4.1","","",""]]]},"Lang-Siu, Jordyn":{"schoolYear":"8","terms":[["2025-11-01",["6:28","1.95","39","31","12","3.47","4.75","","",""]],["2026-02-01",["7:03","1.85","","","","","4.2","","",""]],["2026-05-01",["","1.7","","34","","","4.93","","",""]]]},"Lee, Halle":{"schoolYear":"8","terms":[["2025-08-01",["6:40","0.89","35","9","10","3.32","3.52","","",""]],["2025-11-01",["7:20","1.86","38","21","2","3.44","4.23","","",""]],["2026-02-01",["8:55","1.49","38","","","","4.9","","",""]],["2026-05-01",["","1.5","","24","","","3.9","","",""]]]},"Lilomaiava, Azariah":{"schoolYear":"8","terms":[["2026-02-01",["6:21","1.93","","","","","3.7","","",""]],["2026-05-01",["","1.75","","13","","","5.19","","",""]]]},"Ma'afu-Edwards, Maia":{"schoolYear":"8","terms":[["2026-02-01",["7:13","1.54","31","","","","3.8","","",""]]]},"Maara Hunter-Simeona, Maiya":{"schoolYear":"8","terms":[["2026-02-01",["7:20","1.87","","","","","","","",""]],["2026-05-01",["","1.94","","1","","","3.05","","",""]]]},"Matthewman, Tayaa":{"schoolYear":"8","terms":[["2026-02-01",["8:37","1.76","37","","","","4.4","","",""]],["2026-05-01",["","1.62","","34","","","3.95","","",""]]]},"Mazzitelli, Sienna":{"schoolYear":"8","terms":[["2025-11-01",["7:51","1.85","40","20","6","3.59","3.97","","",""]],["2026-02-01",["6:03","1.69","37","","","","3.8","","",""]],["2026-05-01",["","1.77","","33","","","4.35","","",""]]]},"Pere, Heavenly":{"schoolYear":"8","terms":[["2025-08-01",["","1.67","33","24","35","3.48","3.73","","",""]],["2025-11-01",["7:15","1.76","33","26","1","3.66","4.18","","",""]],["2026-02-01",["6:13","1.71","31","","","","2.9","","",""]],["2026-05-01",["","1.6","","26","","","4.05","","",""]]]},"Poa-Maoate, Akaina":{"schoolYear":"8","terms":[["2025-08-01",["5:53","1.88","41","70","15","3.92","3.91","","",""]],["2025-11-01",["5:39","1.67","","21","2","3.54","3.66","","",""]],["2026-02-01",["5:46","1.76","41","","","","3.2","","",""]],["2026-05-01",["","1.36","","1","","","3.55","","",""]]]},"Ratu-Taute, Kassidy":{"schoolYear":"8","terms":[["2025-11-01",["6:06","","","62","3","","3.2","","",""]],["2026-02-01",["6:57","1.86","42","","","","4.1","","",""]],["2026-05-01",["","1.62","","1","","","3.2","","",""]]]},"Roger, Zara":{"schoolYear":"8","terms":[["2025-08-01",["5:48","1.74","30","60","16","3.32","3.8","","",""]],["2025-11-01",["5:32","1.69","32","49","3","3.32","3.87","","",""]],["2026-02-01",["6:18","1.67","33","","","","3.3","","",""]],["2026-05-01",["","1.7","","30","","","3.8","","",""]]]},"Sadlier, Enaj":{"schoolYear":"8","terms":[["2025-08-01",["","0.87","34","34","10","3.71","3.83","","",""]],["2025-11-01",["6:33","1.86","41","61","7","","4.55","","",""]],["2026-02-01",["5:59","2.09","42","","","","4.4","","",""]],["2026-05-01",["","1.71","","58","","","4.65","","",""]]]},"Schofield, Taya":{"schoolYear":"8","terms":[["2026-02-01",["5:53","1.82","40","","","","3.7","","",""]],["2026-05-01",["","1.67","","46","","","3.55","","",""]]]},"Seumanutafa, Annison":{"schoolYear":"8","terms":[["2025-08-01",["6:13","1.77","35","34","31","3.29","4","","",""]],["2025-11-01",["5:47","1.97","36","26","21","3.43","4.32","","",""]],["2026-02-01",["6:01","1.92","39","","","","4.1","","",""]],["2026-05-01",["","1.81","","30","","","4.5","","",""]]]},"Skeen, Estelle":{"schoolYear":"8","terms":[["2025-08-01",["5:44","1.87","38","30","11","3.79","3.4","","",""]],["2025-11-01",["5:37","1.82","39","30","5","3.61","3.5","","",""]],["2026-02-01",["6:55","1.89","27","","","","3.4","","",""]],["2026-05-01",["","1.69","","50","","","3.71","","",""]]]},"Skipworth, Aaliyah":{"schoolYear":"8","terms":[["2026-02-01",["7:09","1.58","28","","","","2.8","","",""]],["2026-05-01",["","1.86","","1","","","3.77","","",""]]]},"Sorensen, Dakota":{"schoolYear":"8","terms":[["2025-08-01",["6:43","1.88","30","24","15","3.51","2.33","","",""]],["2025-11-01",["6:37","1.77","34","15","2","3.78","3.33","","",""]]]},"Taele, Faith":{"schoolYear":"8","terms":[["2025-08-01",["6:45","","","","","","","","",""]],["2025-11-01",["6:46","1.59","29","26","4","3.83","3.4","","",""]],["2026-02-01",["7:17","2.18","","","","","4","","",""]]]},"Tauri, Mahalia":{"schoolYear":"8","terms":[["2025-08-01",["6:39","2.1","43","14","10","3.52","4","","",""]],["2026-05-01",["","2","","33","","","4.08","","",""]]]},"Vungamoeahi, Anaseini":{"schoolYear":"8","terms":[["2026-05-01",["","1.86","","1","","","4.65","","",""]]]}},"9-10":{"Alesana, Amora":{"schoolYear":"9","terms":[["2025-08-01",["6:18","1.9","41","23","20","3.36","3.6","","",""]],["2025-11-01",["6:31","1.89","49","10","4","3.55","4.06","","",""]],["2026-02-01",["","1.9","","","","3.75","4.5","","",""]],["2026-05-01",["","1.8","","","","","4.13","","",""]]]},"Brown, Marlee":{"schoolYear":"9","terms":[["2025-08-01",["7:36","1.35","37","6","16","3.95","4","","",""]]]},"Chami, Liyana":{"schoolYear":"9","terms":[["2025-08-01",["6:13","2","41","17","20","3.55","4.13","","",""]],["2026-02-01",["","1.88","","","","3.33","4.13","","",""]]]},"Edmonds, Mykah":{"schoolYear":"9","terms":[]},"Faleafaga, Nhakita-Rose":{"schoolYear":"9","terms":[["2025-08-01",["6:29","","","","","","","","",""]],["2026-02-01",["","1.67","","","","","3.94","","",""]]]},"Flynn, Harlee":{"schoolYear":"9","terms":[["2025-11-01",["6:17","1.95","34","24","13","3.58","3.4","","",""]],["2026-02-01",["","0.98","","","","4","3.3","","",""]]]},"Guthrie, Tatum-Lee":{"schoolYear":"9","terms":[["2025-08-01",["","","","6","","4.46","4.1","","",""]],["2026-02-01",["","1.67","","","","","3.8","","",""]],["2026-05-01",["","1.6","","25","","","3.9","","",""]]]},"Hepi-Te Huia, Parekaawa":{"schoolYear":"9","terms":[["2025-11-01",["7:24","1.67","","","","3.83","5.28","","",""]],["2026-05-01",["","1.74","","39","","","3.74","","",""]]]},"Kavana, Cahpri":{"schoolYear":"9","terms":[["2025-08-01",["","1.77","37","20","17","3.42","3.8","","",""]],["2025-11-01",["5:39","1.94","42","","","3.4","3.72","","",""]],["2026-02-01",["","1.82","","","","3.4","3.87","","",""]]]},"Keays, Halo":{"schoolYear":"9","terms":[["2026-05-01",["","1.9","","38","","","3.6","","",""]]]},"Kiria-Ratu, Eva-Grace":{"schoolYear":"9","terms":[["2025-08-01",["6:22","1.8","45","40","20","3.98","4.43","","",""]],["2025-11-01",["6:14","1.88","57","45","3","3.61","4.65","","",""]],["2026-02-01",["","1.82","","","","3.76","4.71","","",""]],["2026-05-01",["","1.72","","28","","","3.66","","",""]]]},"Knap, Marley":{"schoolYear":"9","terms":[["2026-02-01",["","1.96","","","","3.67","4.32","","",""]],["2026-05-01",["","1.76","","27","","","3.08","","",""]]]},"Kopae, Kadence":{"schoolYear":"9","terms":[["2026-05-01",["","1.97","","40","","","5.6","","",""]]]},"Kumbamong, Daneeka":{"schoolYear":"9","terms":[["2025-08-01",["6:27","1.8","40","40","14","3.31","3.84","","",""]],["2025-11-01",["6:30","1.86","42","50","15","3.21","4.34","","",""]],["2026-02-01",["","1.79","","","","3.49","4.23","","",""]],["2026-05-01",["","2.08","","1","","","4.49","","",""]]]},"Mako-Kelly, Kahzalea":{"schoolYear":"9","terms":[["2026-02-01",["","1.71","","","","4.06","3.16","","",""]],["2026-05-01",["","1.73","","54","","","4.1","","",""]]]},"Mataiti, Laylah":{"schoolYear":"9","terms":[["2025-08-01",["","1.51","35","32","12","3.89","3.6","","",""]],["2025-11-01",["6:58","1.56","","","","3.85","3.89","","",""]]]},"Monika-Taramai, Kayelyn":{"schoolYear":"9","terms":[["2025-08-01",["8:56","1.61","29","21","14","4.01","2.8","","",""]],["2025-11-01",["7:06","","","20","6","","3.65","","",""]]]},"Moore, Kahurangi":{"schoolYear":"9","terms":[["2026-02-01",["","1.67","","","","3.08","4.3","","",""]]]},"Nia, Ava":{"schoolYear":"9","terms":[["2025-08-01",["5:29","1.58","39","32","34","3.32","3.74","","",""]],["2025-11-01",["5:30","0.9","31","10","29","","4.1","","",""]],["2026-02-01",["","1.44","","","","3.26","4.1","","",""]],["2026-05-01",["","1.68","","15","","","4.27","","",""]]]},"O'Leary, Alanieta":{"schoolYear":"9","terms":[]},"Opai, Nitara":{"schoolYear":"9","terms":[["2025-08-01",["5:56","1.92","38","30","20","3.41","3.32","","",""]],["2025-11-01",["5:51","1.77","40","60","27","3.57","3.8","","",""]]]},"Paeu, Psyesha":{"schoolYear":"9","terms":[["2025-08-01",["","1.84","49","13","","3.59","4","","",""]]]},"Parry, Caysha":{"schoolYear":"9","terms":[["2025-08-01",["","1.6","41","31","15","3.63","4.9","","",""]],["2026-02-01",["","","","","","","4.6","","",""]]]},"Pulemagafa, Havana":{"schoolYear":"9","terms":[["2025-08-01",["7:00","1.44","45","17","31","3.67","4.2","","",""]],["2025-11-01",["7:22","1.85","49","10","1","","4.2","","",""]],["2026-02-01",["","1.84","","","","4.03","4.26","","",""]],["2026-05-01",["","2","","38","","","4.13","","",""]]]},"Pulepule, Bailey":{"schoolYear":"9","terms":[["2025-11-01",["6:45","2.05","48","43","13","","4.88","","",""]],["2026-02-01",["","1.3","","","","2.06","1.67","","",""]]]},"Roa, Te Awamarino":{"schoolYear":"9","terms":[["2026-02-01",["","1.84","","","","","","","",""]],["2026-05-01",["","1.63","","19","","","4.23","","",""]]]},"Sauvao, Alofa":{"schoolYear":"9","terms":[["2025-08-01",["","2.4","35","31","33","3.24","4.37","","",""]],["2025-11-01",["6:43","2.01","44","20","12","3.32","4.62","","",""]],["2026-02-01",["","2.03","","","","3.64","4.42","","",""]],["2026-05-01",["","1","","","","","5.72","","",""]]]},"Selwyn, Aaliah":{"schoolYear":"9","terms":[["2025-08-01",["","1.76","39","61","30","3.23","4.7","","",""]],["2025-11-01",["6:20","1.94","43","17","15","3.29","4.1","","",""]],["2026-02-01",["","1.83","","","","","4.06","","",""]],["2026-05-01",["","2.05","","22","","","4.7","","",""]]]},"Simpson, Leila":{"schoolYear":"9","terms":[["2025-11-01",["6:05","1.9","49","42","13","","4.84","","",""]],["2026-05-01",["","1.84","","17","","","4.11","","",""]]]},"Smith, Kaea":{"schoolYear":"9","terms":[["2025-08-01",["6:12","1.67","31","20","15","3.37","4.1","","",""]],["2025-11-01",["6:14","1.75","","","","3.93","4.3","","",""]],["2026-02-01",["","1.62","","","","3.83","4.41","","",""]],["2026-05-01",["","0.99","","","","","4.64","","",""]]]},"Tagaloa, Zaria":{"schoolYear":"9","terms":[["2025-08-01",["8:10","1.78","37","30","21","3.64","4.3","","",""]],["2025-11-01",["8:03","1.73","37","34","4","","4.92","","",""]],["2026-02-01",["","1.6","","","","4.28","4.74","","",""]]]},"Teles, Aurora":{"schoolYear":"9","terms":[["2025-08-01",["7:06","1.56","36","25","","4.07","4.37","","",""]],["2026-02-01",["","1.6","","","","4.14","4.38","","",""]]]},"Tihema, MJ":{"schoolYear":"9","terms":[["2025-08-01",["","1.45","31","22","00:00:20","3.59","3.4","","",""]],["2025-11-01",["6:38","1.33","32","49","8","","4.07","","",""]],["2026-02-01",["","1.6","","","","3.81","3.07","","",""]],["2026-05-01",["","1.72","","28","","","4.63","","",""]]]},"Tonga, Sisilia":{"schoolYear":"9","terms":[["2025-08-01",["6:20","2.04","41","30","00:00:20","3.65","3.13","","",""]],["2026-02-01",["","2.05","","","","3.5","4.45","","",""]],["2026-05-01",["","1.72","","20","","","4.44","","",""]]]},"Tuaoi, Alysiah":{"schoolYear":"9","terms":[["2026-05-01",["","1.55","","30","","","43.5","","",""]]]},"Valk, Ewaraina":{"schoolYear":"9","terms":[["2026-02-01",["","","","","","3.7","3.86","","",""]],["2026-05-01",["","1.98","","14","","","4.34","","",""]]]},"Wharerau-Smith, Tiana":{"schoolYear":"9","terms":[["2025-08-01",["6:29","1.61","33","48","00:00:12","4.14","","","",""]],["2026-02-01",["","1.6","","","","3.48","4.14","","",""]],["2026-05-01",["","1.61","","23","","","3.76","","",""]]]},"William, Cenniah":{"schoolYear":"9","terms":[["2025-08-01",["","2","49","37","00:00:32","3.41","4.1","","",""]],["2026-02-01",["","1.88","","","","3.7","4.03","","",""]]]},"Akauola, Allegra":{"schoolYear":"10","terms":[["2025-08-01",["6:40","1.68","27","18","","4.53","3.91","","",""]],["2025-11-01",["6:45","1.67","33","28","13","","4.5","","",""]],["2026-02-01",["","1.67","","","","4.01","4.52","","",""]]]},"Atarau, Kobie":{"schoolYear":"10","terms":[["2025-08-01",["5:50","1.9","47","30","","3.26","4.23","","",""]],["2025-11-01",["5:40","1.76","53","33","14","3.29","4.3","","",""]],["2026-02-01",["","1.76","","","","3.55","4.24","","",""]],["2026-05-01",["","1.78","","1","","","4.44","","40","10"]]]},"Barnes, Sade":{"schoolYear":"10","terms":[["2025-08-01",["8:35","1.1","23","2","","4.62","2.68","","",""]],["2025-11-01",["7:47","1.3","23","11","3","","2.96","","",""]]]},"Betham, Rosa":{"schoolYear":"10","terms":[["2025-08-01",["6:30","1.56","32","34","","3.78","4.04","","",""]],["2025-11-01",["6:15","","","","","","","","",""]],["2026-02-01",["","0.7","","","","3.97","4.26","","",""]]]},"Bush, Aaliyah":{"schoolYear":"10","terms":[["2025-08-01",["6:27","1.7","32","15","","3.79","4.92","","",""]],["2026-05-01",["","1.67","","15","","","5.01","","50","100"]]]},"Byrne-Hunia, Tiarni":{"schoolYear":"10","terms":[["2025-08-01",["6:41","1.78","47","21","","3.65","3.18","","",""]],["2025-11-01",["6:51","1.9","11","13","9","","3.8","","",""]],["2026-05-01",["","1.72","","25","","","3.92","","20","90"]]]},"Cable-Reid, Aaliyah":{"schoolYear":"10","terms":[["2025-08-01",["7:08","1.43","34","20","","3.69","4","","",""]],["2025-11-01",["7:10","1.45","36","24","5","","4.33","","",""]],["2026-02-01",["","1.59","","","","3.96","4.76","","",""]],["2026-05-01",["","1.72","","36","","","4.41","","40","95"]]]},"Campbell, Jayla":{"schoolYear":"10","terms":[["2025-08-01",["5:44","2.05","45","38","","3.45","4.57","","",""]],["2025-11-01",["6:02","1.98","40","39","15","","4.89","","",""]],["2026-02-01",["","90.3","","","","3.04","4.25","","",""]],["2026-05-01",["","1.92","","56","","","5.78","","45","85"]]]},"Chambers, Shariyah":{"schoolYear":"10","terms":[["2025-08-01",["6:31","","","","","","","","",""]],["2025-11-01",["6:41","1.73","40","64","10","","4.65","","",""]]]},"Edmonds, Lyvana":{"schoolYear":"10","terms":[["2026-02-01",["","2.23","","","","3.17","4.95","","",""]],["2026-05-01",["","2.43","","42","","","5.13","","50","115"]]]},"Fangupo, Alisi":{"schoolYear":"10","terms":[["2025-11-01",["7:32","1.5","45","12","4","","4.7","","",""]]]},"Freeman, Addison":{"schoolYear":"10","terms":[["2025-08-01",["","1.83","","51","","","3.5","","",""]],["2025-11-01",["6:58","1.7","33","81","9","","3.65","","",""]]]},"French, Tanaya":{"schoolYear":"10","terms":[["2025-08-01",["5:21","1.8","42","25","","3.42","3.7","","",""]],["2025-11-01",["5:21","1.68","37","25","12","","3.3","","",""]]]},"Geldard, Leilani":{"schoolYear":"10","terms":[["2025-08-01",["7:05","1.93","43","64","","3.38","3.79","","",""]]]},"Goodall, Marley":{"schoolYear":"10","terms":[["2025-08-01",["6:38","1.64","31","13","","3.62","3.29","","",""]],["2025-11-01",["6:22","1.58","34","26","2","3.91","3.24","","",""]],["2026-02-01",["","0.7","","","","3.49","3.33","","",""]]]},"Hala, Meleane":{"schoolYear":"10","terms":[["2025-08-01",["5:33","2.24","54","15","","3.02","3.9","","",""]],["2025-11-01",["5:13","","","","","","","","",""]]]},"Hepi, Shyla":{"schoolYear":"10","terms":[["2025-08-01",["6:35","1.94","41","46","","3.5","3.9","","",""]],["2025-11-01",["6:47","2","41","34","10","","4.28","","",""]],["2026-02-01",["","2.1","","","","3","4.5","","",""]]]},"Hunter-Simeona, Leilani":{"schoolYear":"10","terms":[["2026-02-01",["","0.89","","","","3.43","4.64","","",""]],["2026-05-01",["","1.88","","50","","","4.72","","30","50"]]]},"Johnson, Marlee":{"schoolYear":"10","terms":[["2025-08-01",["7:23","1.8","39","10","","3.49","","","",""]],["2025-11-01",["7:21","1.73","34","20","4","4.43","","","",""]],["2026-02-01",["","0.71","","","","3.56","4.16","","",""]],["2026-05-01",["","1.78","","19","","","4.32","","40","80"]]]},"Jones, Jasmin":{"schoolYear":"10","terms":[["2025-08-01",["","1.55","","11","","","3.4","","",""]],["2025-11-01",["7:47","","30","12","3","","3.6","","",""]]]},"Karaka, Hamini":{"schoolYear":"10","terms":[["2026-05-01",["","1.55","","40","","","4.58","","40","100"]]]},"Katipa, Sahvahniya":{"schoolYear":"10","terms":[["2025-08-01",["6:38","1.55","31","30","","3.36","3.6","","",""]],["2025-11-01",["7:50","1.62","33","25","4","","3.9","","",""]],["2026-02-01",["","0.75","","","","","4.2","","",""]]]},"Kemp, Maia":{"schoolYear":"10","terms":[["2025-08-01",["7:20","1.88","36","11","","4.22","4.38","","",""]],["2025-11-01",["7:19","1.43","37","8","2","","4.26","","",""]],["2026-02-01",["","0.67","","","","3.04","4.32","","",""]],["2026-05-01",["","1.61","","16","","","4.43","","35","70"]]]},"Latu, Ava":{"schoolYear":"10","terms":[["2026-02-01",["","1.55","","","","","4.3","","",""]],["2026-05-01",["","1.64","","33","","","4.19","","30","70"]]]},"Latu, Bailey":{"schoolYear":"10","terms":[["2025-08-01",["7:38","2.16","38","7","","3.39","3.77","","",""]],["2025-11-01",["7:18","2","36","14","10","3.98","4","","",""]]]},"Lavender, Brooklyn":{"schoolYear":"10","terms":[["2025-08-01",["7:26","1.71","28","21","","","3.88","","",""]],["2025-11-01",["7:42","1.79","36","19","11","","4.3","","",""]],["2026-02-01",["","","","","","3.72","4.23","","",""]]]},"Leiataua, Priscilla":{"schoolYear":"10","terms":[["2025-11-01",["","1.1","","10","2","","4.25","","",""]]]},"Lepou, Summer":{"schoolYear":"10","terms":[["2025-08-01",["6:25","1.09","31","23","","","4","","",""]],["2025-11-01",["7:11","","27","","","","","","",""]],["2026-02-01",["","1.45","","","","3.78","8.9","","",""]],["2026-05-01",["","1.63","","1","","","4.97","","40","85"]]]},"Matchitt, Kyzlah":{"schoolYear":"10","terms":[["2025-08-01",["6:50","1.81","40","30","","3.36","4.67","","",""]],["2025-11-01",["","","","45","15","","4.3","","",""]],["2026-02-01",["","1.74","","","","3.7","4.23","","",""]],["2026-05-01",["","1.67","","38","","","4.48","","40","80"]]]},"Paku, Shanita":{"schoolYear":"10","terms":[["2025-08-01",["6:15","1.76","32","21","","3.73","3.6","","",""]],["2025-11-01",["6:20","1.63","26","13","4","3.97","4","","",""]],["2026-02-01",["","1.9","","","","3.9","4.3","","",""]],["2026-05-01",["","1.9","","16","","","4.26","","36","70"]]]},"Rangihika, Elin":{"schoolYear":"10","terms":[["2026-02-01",["","2.26","","","","3.15","4.27","","",""]]]},"Ratu-Taute, Sierra":{"schoolYear":"10","terms":[["2025-08-01",["6:05","1.93","","40","","","","","",""]],["2025-11-01",["5:41","1.87","39","31","9","","4.62","","",""]],["2026-02-01",["","","","","","","4.45","","",""]],["2026-05-01",["","1.9","","1","","","4.66","","20","70"]]]},"Robinson, Manaia":{"schoolYear":"10","terms":[["2025-11-01",["5:37","1.83","36","37","20","3.39","3.26","","",""]],["2026-02-01",["","1.67","","","","3.57","3.7","","",""]],["2026-05-01",["","1.86","","1","","","3.53","","30","50"]]]},"Rose, Lacey":{"schoolYear":"10","terms":[["2025-08-01",["7:45","1.71","27","18","","3.68","4.02","","",""]],["2025-11-01",["7:38","1.64","30","18","10","","3.95","","",""]],["2026-05-01",["","1.53","","20","","","4.12","","30","70"]]]},"Scott, Britney":{"schoolYear":"10","terms":[["2025-08-01",["6:55","","","","","","","","",""]],["2025-11-01",["6:45","1.86","43","54","20","","4.3","","",""]]]},"Simon, Angeleka":{"schoolYear":"10","terms":[]},"Spehr, Charlee":{"schoolYear":"10","terms":[["2025-08-01",["8:20","1.3","","","","","3.3","","",""]],["2025-11-01",["7:32","1.15","28","24","10","","3.5","","",""]]]},"Spehr, Meegan":{"schoolYear":"10","terms":[["2025-08-01",["7:59","1.39","","40","","","3.6","","",""]],["2025-11-01",["7:28","1.49","33","44","11","","3.55","","",""]]]},"Steedman, Kuru":{"schoolYear":"10","terms":[["2025-08-01",["6:50","1.8","38","30","","3.27","3.96","","",""]],["2025-11-01",["","1.75","41","71","10","3.61","4","","",""]],["2026-02-01",["","2.3","","","","3.68","4.36","","",""]]]},"Su'a, Orietta":{"schoolYear":"10","terms":[["2025-08-01",["7:31","1.06","29","9","","3.83","4.5","","",""]],["2025-11-01",["7:06","1.52","33","22","3","","4.48","","",""]]]},"Taione, Natalya":{"schoolYear":"10","terms":[["2026-02-01",["","1.39","","","","4.21","4.9","","",""]],["2026-05-01",["","1.56","","9","","","4.6","","36","90"]]]},"Tairea-Katipa, Meremaraea":{"schoolYear":"10","terms":[["2025-08-01",["6:39","1.61","32","17","","3.76","3.66","","",""]]]},"Tangitutu, Talia":{"schoolYear":"10","terms":[["2025-08-01",["7:44","1.25","20","5","","3.4","3.4","","",""]],["2025-11-01",["7:36","","","","","","","","",""]]]},"Taulepa, Kanani":{"schoolYear":"10","terms":[["2025-08-01",["7:44","1.34","39","14","","3.71","3.76","","",""]],["2025-11-01",["7:48","1.32","38","12","3","","4.6","","",""]]]},"Tongi, Siahi":{"schoolYear":"10","terms":[["2025-11-01",["6:27","1.7","47","12","17","","4.9","","",""]],["2026-02-01",["","1.51","","","","4","4.82","","",""]]]},"Tuake, Maharleya":{"schoolYear":"10","terms":[["2025-08-01",["6:05","1.78","38","17","","","3.79","","",""]],["2026-02-01",["","0.73","","","","4.07","4.3","","",""]]]},"Tufuga, Imani":{"schoolYear":"10","terms":[["2025-08-01",["6:05","1.68","32","11","","3.77","4.45","","",""]],["2025-11-01",["6:12","1.65","31","15","4","4.01","4.73","","",""]],["2026-02-01",["","","","","","3.55","","","",""]],["2026-05-01",["","1.56","","15","","","4.88","","40","80"]]]},"Tuuina, Tahirih":{"schoolYear":"10","terms":[["2026-02-01",["","0.7","","","","3.84","","","",""]]]},"Viliamu, Nevaeh":{"schoolYear":"10","terms":[["2025-08-01",["7:22","1.81","37","17","","3.45","3.94","","",""]]]},"Vuidreketi, Asenaca":{"schoolYear":"10","terms":[["2025-08-01",["7:35","1.62","33","5","","3.86","4.7","","",""]],["2025-11-01",["7:30","1.47","32","10","3","","4.75","","",""]],["2026-02-01",["","1.53","","","","4.22","4.45","","",""]],["2026-05-01",["","1.67","","10","","","5.62","","40","100"]]]},"Whaiapu, Jayda":{"schoolYear":"10","terms":[["2025-08-01",["7:10","1.75","","26","","3.83","4.83","","",""]],["2026-05-01",["","1.51","","24","","","5","","60",""]]]}},"11-12":{}}};
+const TEST_IMPORT_DATA = {"tests":["Bronco","Broad Jump","Vertical Jump","Max Hang","Push Up","20m Sprint","Med Ball Push","Beep Test","Bench (kg)","Squat (kg)"],"data":{"7-8":{"Ahipene, Aeris":{"schoolYear":"7","terms":[["2026-02-01",["7:07","1.64","","","","","2.9","","",""]],["2026-05-01",["","1.5","","2","","","2.8","","",""]]]},"Bateup, Heidy":{"schoolYear":"7","terms":[["2026-02-01",["DNF","1.32","","","","","2.7","","",""]],["2026-05-01",["","1.18","","18","","","3","","",""]]]},"Berryman, Amaia":{"schoolYear":"7","terms":[["2026-02-01",["6:36","1.9","","","","","4.04","","",""]],["2026-05-01",["","2.06","","1","","","4.35","","",""]]]},"Berryman, Ashlyn":{"schoolYear":"7","terms":[["2026-02-01",["7:24","1.73","","","","","4.4","","",""]],["2026-05-01",["","1.81","","46","","","3.8","","",""]]]},"Chan Boon, Penina":{"schoolYear":"7","terms":[["2026-02-01",["6:39","1.8","","","","","3.4","","",""]],["2026-05-01",["","1.72","","31","","","3.3","","",""]]]},"Clarke-Teika, Phoenix":{"schoolYear":"7","terms":[["2026-02-01",["7:21","1.58","","","","","3.2","","",""]],["2026-05-01",["","1.49","","23","","","3.3","","",""]]]},"Fangupo, Carolinah":{"schoolYear":"7","terms":[["2026-02-01",["8:18","1.38","","","","","3.7","","",""]],["2026-05-01",["","1.14","","8","","","3.4","","",""]]]},"Gaitau, Wynter":{"schoolYear":"7","terms":[["2026-05-01",["","1.4","","30","","","3","","",""]]]},"Guthrie, Rema-Rae":{"schoolYear":"7","terms":[["2026-02-01",["5:43","1.55","","","","","3","","",""]],["2026-05-01",["","1.56","","43","","","3.3","","",""]]]},"Haimona, Amania":{"schoolYear":"7","terms":[["2026-02-01",["7:42","1.47","","","","","3.2","","",""]],["2026-05-01",["","1.48","","26","","","3.6","","",""]]]},"Hanson, Ellie":{"schoolYear":"7","terms":[["2026-02-01",["8:40","1.53","","","","","2.9","","",""]],["2026-05-01",["","3.7","","41","","","1.39","","",""]]]},"Harnden, Ella":{"schoolYear":"7","terms":[["2026-02-01",["5:50","1.68","","","","","2.6","","",""]],["2026-05-01",["","1.38","","36","","","3.15","","",""]]]},"Hippi, Kyrah":{"schoolYear":"7","terms":[["2026-02-01",["7:39","1.44","","","","","2.8","","",""]],["2026-05-01",["","1.67","","25","","","2.91","","",""]]]},"Kawana, Torah-Lea":{"schoolYear":"7","terms":[["2026-02-01",["9:00","1.64","","","","","2.6","","",""]],["2026-05-01",["","1.67","","23","","","2.78","","",""]]]},"Kirikiri, Aleeyah":{"schoolYear":"7","terms":[["2026-02-01",["6:56","1.66","","","","","2.72","","",""]],["2026-05-01",["","1.69","","2","","","2.9","","",""]]]},"Kopae, Karly Kopae":{"schoolYear":"7","terms":[["2026-02-01",["6:02","1.72","","","","","3.6","","",""]]]},"Leifi, Irie":{"schoolYear":"7","terms":[["2026-02-01",["","1.64","","","","","3.8","","",""]],["2026-05-01",["","1.48","","28","","","3.9","","",""]]]},"Mataoa, Khodie":{"schoolYear":"7","terms":[["2026-02-01",["7:27","1.49","","","","","2.87","","",""]],["2026-05-01",["","1.68","","37","","","3.74","","",""]]]},"Noa, Taya":{"schoolYear":"7","terms":[["2026-02-01",["6:08","1.53","","","","","3.2","","",""]],["2026-05-01",["","1.78","","1","","","3.45","","",""]]]},"O'Brien Magele, Brooklyn":{"schoolYear":"7","terms":[["2026-02-01",["6:12","1.92","","","","","3.2","","",""]],["2026-05-01",["","1.68","","50","","","3.35","","",""]]]},"Pauline Kemile Mataiti, Irie":{"schoolYear":"7","terms":[["2026-02-01",["5:29","1.72","","","","","3.65","","",""]]]},"Pepe, Lexis":{"schoolYear":"7","terms":[["2026-02-01",["6:01","1.63","","","","","3.4","","",""]],["2026-05-01",["","1.58","","1","","","3.95","","",""]]]},"Ropati, Harper":{"schoolYear":"7","terms":[["2026-02-01",["6:58","1.97","","","","","3.25","","",""]],["2026-05-01",["","1.69","","27","","","3.7","","",""]]]},"Sa'u, Zuri":{"schoolYear":"7","terms":[["2026-02-01",["6:12","1.67","","","","","3.73","","",""]],["2026-05-01",["","1.63","","41","","","3.93","","",""]]]},"Schultz, Abby":{"schoolYear":"7","terms":[["2026-02-01",["8:20","1.6","","","","","3.6","","",""]],["2026-05-01",["","1.55","","25","","","3.17","","",""]]]},"Sharma, Ashna":{"schoolYear":"7","terms":[["2026-02-01",["7:31","1.41","","","","","2.8","","",""]]]},"Sharp, Chanel":{"schoolYear":"7","terms":[["2026-05-01",["","1.67","","35","","","3.41","","",""]]]},"Tagaloa, Rhiarnah":{"schoolYear":"7","terms":[["2026-02-01",["5:42","1.8","","","","","3.5","","",""]],["2026-05-01",["","1.64","","24","","","4.25","","",""]]]},"Tautari, Kredence":{"schoolYear":"7","terms":[["2026-02-01",["8:11","1.35","","","","","3.1","","",""]],["2026-05-01",["","1.77","","40","","","3.66","","",""]]]},"Teles, Kauane":{"schoolYear":"7","terms":[["2026-02-01",["6:25","1.47","","","","","3.1","","",""]],["2026-05-01",["","1.28","","13","","","3.1","","",""]]]},"Tito, Manaia":{"schoolYear":"7","terms":[["2026-02-01",["7:45","1.53","","","","","","","",""]],["2026-05-01",["","1.35","","36","","","3.4","","",""]]]},"Tuake, Cleo":{"schoolYear":"7","terms":[["2026-02-01",["6:45","1.65","","","","","3","","",""]]]},"Tupou-Witchman, Maureen":{"schoolYear":"7","terms":[["2026-05-01",["","1.68","","1","","","2.8","","",""]]]},"Waerea, Milan":{"schoolYear":"7","terms":[["2026-05-01",["","1.62","","30","","","3.6","","",""]]]},"Ashe, Kendyll":{"schoolYear":"8","terms":[["2025-08-01",["6:25","1.77","38","21","8","3.53","3.86","","",""]],["2025-11-01",["5:56","1.72","44","26","6","3.5","3.52","","",""]],["2026-02-01",["6:20","1.77","","","","","3.4","","",""]],["2026-05-01",["","1.75","","41","","","3.54","","",""]]]},"Asi, Milan":{"schoolYear":"8","terms":[["2025-08-01",["","1.84","36","25","14","3.34","3.4","","",""]],["2025-11-01",["6:30","0.65","35","15","3","","3.65","","",""]],["2026-02-01",["","1.72","39","","","","3.8","","",""]],["2026-05-01",["","2.31","","32","","","4.39","","",""]]]},"Christensen, Nevaeh":{"schoolYear":"8","terms":[["2025-08-01",["6:17","1.76","32","60","3","3.77","3.33","","",""]],["2025-11-01",["6:26","1.7","27","64","11","","3.65","","",""]],["2026-05-01",["","1.63","","54","","","3.91","","",""]]]},"Costar, Willow":{"schoolYear":"8","terms":[["2026-02-01",["5:22","1.71","27","","","","3.6","","",""]],["2026-05-01",["","1.76","","42","","","3.6","","",""]]]},"Currie, Liarah":{"schoolYear":"8","terms":[["2025-08-01",["5:52","1.7","40","40","20","3.76","3.46","","",""]]]},"Davies-Andy, Madika":{"schoolYear":"8","terms":[["2025-08-01",["","1.85","38","16","22","3.62","3.8","","",""]],["2026-02-01",["7:45","1.75","","","","","3.8","","",""]]]},"Fepuleai, Lesina":{"schoolYear":"8","terms":[["2025-11-01",["6:25","2.03","40","30","23","","4.2","","",""]],["2026-02-01",["6:07","1.83","35","","","","3.4","","",""]]]},"Hala, Nylah":{"schoolYear":"8","terms":[["2025-08-01",["","1.81","33","33","13","3.53","3.5","","",""]],["2025-11-01",["5:40","1.92","37","71","21","3.44","3.3","","",""]],["2026-02-01",["4:59","1.85","44","","","","3.8","","",""]],["2026-05-01",["","1.63","","1","","","3.52","","",""]]]},"Kirman, Kelise":{"schoolYear":"8","terms":[["2025-08-01",["6:35","1.64","34","35","7","3.43","4","","",""]],["2025-11-01",["7:11","1.79","39","20","4","3.52","4.15","","",""]],["2026-02-01",["8:25","1.37","22","","","","3.8","","",""]],["2026-05-01",["","1.57","","18","","","4.65","","",""]]]},"Kumbamong, Keesha":{"schoolYear":"8","terms":[["2025-08-01",["","1.48","36","24","16","3.89","1.6","","",""]],["2025-11-01",["7:20","1.36","29","8","5","3.64","3.77","","",""]],["2026-02-01",["6:20","2.07","50","","","","4.8","","",""]],["2026-05-01",["","1.2","","18","","","4.1","","",""]]]},"Lang-Siu, Jordyn":{"schoolYear":"8","terms":[["2025-11-01",["6:28","1.95","39","31","12","3.47","4.75","","",""]],["2026-02-01",["7:03","1.85","","","","","4.2","","",""]],["2026-05-01",["","1.7","","34","","","4.93","","",""]]]},"Lee, Halle":{"schoolYear":"8","terms":[["2025-08-01",["6:40","0.89","35","9","10","3.32","3.52","","",""]],["2025-11-01",["7:20","1.86","38","21","2","3.44","4.23","","",""]],["2026-02-01",["8:55","1.49","38","","","","4.9","","",""]],["2026-05-01",["","1.5","","24","","","3.9","","",""]]]},"Lilomaiava, Azariah":{"schoolYear":"8","terms":[["2026-02-01",["6:21","1.93","","","","","3.7","","",""]],["2026-05-01",["","1.75","","13","","","5.19","","",""]]]},"Ma'afu-Edwards, Maia":{"schoolYear":"8","terms":[["2026-02-01",["7:13","1.54","31","","","","3.8","","",""]]]},"Maara Hunter-Simeona, Maiya":{"schoolYear":"8","terms":[["2026-02-01",["7:20","1.87","","","","","","","",""]],["2026-05-01",["","1.94","","1","","","3.05","","",""]]]},"Matthewman, Tayaa":{"schoolYear":"8","terms":[["2026-02-01",["8:37","1.76","37","","","","4.4","","",""]],["2026-05-01",["","1.62","","34","","","3.95","","",""]]]},"Mazzitelli, Sienna":{"schoolYear":"8","terms":[["2025-11-01",["7:51","1.85","40","20","6","3.59","3.97","","",""]],["2026-02-01",["6:03","1.69","37","","","","3.8","","",""]],["2026-05-01",["","1.77","","33","","","4.35","","",""]]]},"Pere, Heavenly":{"schoolYear":"8","terms":[["2025-08-01",["","1.67","33","24","35","3.48","3.73","","",""]],["2025-11-01",["7:15","1.76","33","26","1","3.66","4.18","","",""]],["2026-02-01",["6:13","1.71","31","","","","2.9","","",""]],["2026-05-01",["","1.6","","26","","","4.05","","",""]]]},"Poa-Maoate, Akaina":{"schoolYear":"8","terms":[["2025-08-01",["5:53","1.88","41","70","15","3.92","3.91","","",""]],["2025-11-01",["5:39","1.67","","21","2","3.54","3.66","","",""]],["2026-02-01",["5:46","1.76","41","","","","3.2","","",""]],["2026-05-01",["","1.36","","1","","","3.55","","",""]]]},"Ratu-Taute, Kassidy":{"schoolYear":"8","terms":[["2025-11-01",["6:06","","","62","3","","3.2","","",""]],["2026-02-01",["6:57","1.86","42","","","","4.1","","",""]],["2026-05-01",["","1.62","","1","","","3.2","","",""]]]},"Roger, Zara":{"schoolYear":"8","terms":[["2025-08-01",["5:48","1.74","30","60","16","3.32","3.8","","",""]],["2025-11-01",["5:32","1.69","32","49","3","3.32","3.87","","",""]],["2026-02-01",["6:18","1.67","33","","","","3.3","","",""]],["2026-05-01",["","1.7","","30","","","3.8","","",""]]]},"Sadlier, Enaj":{"schoolYear":"8","terms":[["2025-08-01",["","0.87","34","34","10","3.71","3.83","","",""]],["2025-11-01",["6:33","1.86","41","61","7","","4.55","","",""]],["2026-02-01",["5:59","2.09","42","","","","4.4","","",""]],["2026-05-01",["","1.71","","58","","","4.65","","",""]]]},"Schofield, Taya":{"schoolYear":"8","terms":[["2026-02-01",["5:53","1.82","40","","","","3.7","","",""]],["2026-05-01",["","1.67","","46","","","3.55","","",""]]]},"Seumanutafa, Annison":{"schoolYear":"8","terms":[["2025-08-01",["6:13","1.77","35","34","31","3.29","4","","",""]],["2025-11-01",["5:47","1.97","36","26","21","3.43","4.32","","",""]],["2026-02-01",["6:01","1.92","39","","","","4.1","","",""]],["2026-05-01",["","1.81","","30","","","4.5","","",""]]]},"Skeen, Estelle":{"schoolYear":"8","terms":[["2025-08-01",["5:44","1.87","38","30","11","3.79","3.4","","",""]],["2025-11-01",["5:37","1.82","39","30","5","3.61","3.5","","",""]],["2026-02-01",["6:55","1.89","27","","","","3.4","","",""]],["2026-05-01",["","1.69","","50","","","3.71","","",""]]]},"Skipworth, Aaliyah":{"schoolYear":"8","terms":[["2026-02-01",["7:09","1.58","28","","","","2.8","","",""]],["2026-05-01",["","1.86","","1","","","3.77","","",""]]]},"Sorensen, Dakota":{"schoolYear":"8","terms":[["2025-08-01",["6:43","1.88","30","24","15","3.51","2.33","","",""]],["2025-11-01",["6:37","1.77","34","15","2","3.78","3.33","","",""]]]},"Taele, Faith":{"schoolYear":"8","terms":[["2025-08-01",["6:45","","","","","","","","",""]],["2025-11-01",["6:46","1.59","29","26","4","3.83","3.4","","",""]],["2026-02-01",["7:17","2.18","","","","","4","","",""]]]},"Tauri, Mahalia":{"schoolYear":"8","terms":[["2025-08-01",["6:39","2.1","43","14","10","3.52","4","","",""]],["2026-05-01",["","2","","33","","","4.08","","",""]]]},"Vungamoeahi, Anaseini":{"schoolYear":"8","terms":[["2026-05-01",["","1.86","","1","","","4.65","","",""]]]}},"9-10":{"Alesana, Amora":{"schoolYear":"9","terms":[["2025-08-01",["6:18","1.9","41","23","20","3.36","3.6","","",""]],["2025-11-01",["6:31","1.89","49","10","4","3.55","4.06","","",""]],["2026-02-01",["","1.9","","","","3.75","4.5","","",""]],["2026-05-01",["","1.8","","","","","4.13","","",""]]]},"Brown, Marlee":{"schoolYear":"9","terms":[["2025-08-01",["7:36","1.35","37","6","16","3.95","4","","",""]]]},"Chami, Liyana":{"schoolYear":"9","terms":[["2025-08-01",["6:13","2","41","17","20","3.55","4.13","","",""]],["2026-02-01",["","1.88","","","","3.33","4.13","","",""]]]},"Edmonds, Mykah":{"schoolYear":"9","terms":[]},"Faleafaga, Nhakita-Rose":{"schoolYear":"9","terms":[["2025-08-01",["6:29","","","","","","","","",""]],["2026-02-01",["","1.67","","","","","3.94","","",""]]]},"Flynn, Harlee":{"schoolYear":"9","terms":[["2025-11-01",["6:17","1.95","34","24","13","3.58","3.4","","",""]],["2026-02-01",["","0.98","","","","4","3.3","","",""]]]},"Guthrie, Tatum-Lee":{"schoolYear":"9","terms":[["2025-08-01",["","","","6","","4.46","4.1","","",""]],["2026-02-01",["","1.67","","","","","3.8","","",""]],["2026-05-01",["","1.6","","25","","","3.9","","",""]]]},"Hepi-Te Huia, Parekaawa":{"schoolYear":"9","terms":[["2025-11-01",["7:24","1.67","","","","3.83","5.28","","",""]],["2026-05-01",["","1.74","","39","","","3.74","","",""]]]},"Kavana, Cahpri":{"schoolYear":"9","terms":[["2025-08-01",["","1.77","37","20","17","3.42","3.8","","",""]],["2025-11-01",["5:39","1.94","42","","","3.4","3.72","","",""]],["2026-02-01",["","1.82","","","","3.4","3.87","","",""]]]},"Keays, Halo":{"schoolYear":"9","terms":[["2026-05-01",["","1.9","","38","","","3.6","","",""]]]},"Kiria-Ratu, Eva-Grace":{"schoolYear":"9","terms":[["2025-08-01",["6:22","1.8","45","40","20","3.98","4.43","","",""]],["2025-11-01",["6:14","1.88","57","45","3","3.61","4.65","","",""]],["2026-02-01",["","1.82","","","","3.76","4.71","","",""]],["2026-05-01",["","1.72","","28","","","3.66","","",""]]]},"Knap, Marley":{"schoolYear":"9","terms":[["2026-02-01",["","1.96","","","","3.67","4.32","","",""]],["2026-05-01",["","1.76","","27","","","3.08","","",""]]]},"Kopae, Kadence":{"schoolYear":"9","terms":[["2026-05-01",["","1.97","","40","","","5.6","","",""]]]},"Kumbamong, Daneeka":{"schoolYear":"9","terms":[["2025-08-01",["6:27","1.8","40","40","14","3.31","3.84","","",""]],["2025-11-01",["6:30","1.86","42","50","15","3.21","4.34","","",""]],["2026-02-01",["","1.79","","","","3.49","4.23","","",""]],["2026-05-01",["","2.08","","1","","","4.49","","",""]]]},"Mako-Kelly, Kahzalea":{"schoolYear":"9","terms":[["2026-02-01",["","1.71","","","","4.06","3.16","","",""]],["2026-05-01",["","1.73","","54","","","4.1","","",""]]]},"Mataiti, Laylah":{"schoolYear":"9","terms":[["2025-08-01",["","1.51","35","32","12","3.89","3.6","","",""]],["2025-11-01",["6:58","1.56","","","","3.85","3.89","","",""]]]},"Monika-Taramai, Kayelyn":{"schoolYear":"9","terms":[["2025-08-01",["8:56","1.61","29","21","14","4.01","2.8","","",""]],["2025-11-01",["7:06","","","20","6","","3.65","","",""]]]},"Moore, Kahurangi":{"schoolYear":"9","terms":[["2026-02-01",["","1.67","","","","3.08","4.3","","",""]]]},"Nia, Ava":{"schoolYear":"9","terms":[["2025-08-01",["5:29","1.58","39","32","34","3.32","3.74","","",""]],["2025-11-01",["5:30","0.9","31","10","29","","4.1","","",""]],["2026-02-01",["","1.44","","","","3.26","4.1","","",""]],["2026-05-01",["","1.68","","15","","","4.27","","",""]]]},"O'Leary, Alanieta":{"schoolYear":"9","terms":[]},"Opai, Nitara":{"schoolYear":"9","terms":[["2025-08-01",["5:56","1.92","38","30","20","3.41","3.32","","",""]],["2025-11-01",["5:51","1.77","40","60","27","3.57","3.8","","",""]]]},"Paeu, Psyesha":{"schoolYear":"9","terms":[["2025-08-01",["","1.84","49","13","","3.59","4","","",""]]]},"Parry, Caysha":{"schoolYear":"9","terms":[["2025-08-01",["","1.6","41","31","15","3.63","4.9","","",""]],["2026-02-01",["","","","","","","4.6","","",""]]]},"Pulemagafa, Havana":{"schoolYear":"9","terms":[["2025-08-01",["7:00","1.44","45","17","31","3.67","4.2","","",""]],["2025-11-01",["7:22","1.85","49","10","1","","4.2","","",""]],["2026-02-01",["","1.84","","","","4.03","4.26","","",""]],["2026-05-01",["","2","","38","","","4.13","","",""]]]},"Pulepule, Bailey":{"schoolYear":"9","terms":[["2025-11-01",["6:45","2.05","48","43","13","","4.88","","",""]],["2026-02-01",["","1.3","","","","2.06","1.67","","",""]]]},"Roa, Te Awamarino":{"schoolYear":"9","terms":[["2026-02-01",["","1.84","","","","","","","",""]],["2026-05-01",["","1.63","","19","","","4.23","","",""]]]},"Sauvao, Alofa":{"schoolYear":"9","terms":[["2025-08-01",["","2.4","35","31","33","3.24","4.37","","",""]],["2025-11-01",["6:43","2.01","44","20","12","3.32","4.62","","",""]],["2026-02-01",["","2.03","","","","3.64","4.42","","",""]],["2026-05-01",["","1","","","","","5.72","","",""]]]},"Selwyn, Aaliah":{"schoolYear":"9","terms":[["2025-08-01",["","1.76","39","61","30","3.23","4.7","","",""]],["2025-11-01",["6:20","1.94","43","17","15","3.29","4.1","","",""]],["2026-02-01",["","1.83","","","","","4.06","","",""]],["2026-05-01",["","2.05","","22","","","4.7","","",""]]]},"Simpson, Leila":{"schoolYear":"9","terms":[["2025-11-01",["6:05","1.9","49","42","13","","4.84","","",""]],["2026-05-01",["","1.84","","17","","","4.11","","",""]]]},"Smith, Kaea":{"schoolYear":"9","terms":[["2025-08-01",["6:12","1.67","31","20","15","3.37","4.1","","",""]],["2025-11-01",["6:14","1.75","","","","3.93","4.3","","",""]],["2026-02-01",["","1.62","","","","3.83","4.41","","",""]],["2026-05-01",["","0.99","","","","","4.64","","",""]]]},"Tagaloa, Zaria":{"schoolYear":"9","terms":[["2025-08-01",["8:10","1.78","37","30","21","3.64","4.3","","",""]],["2025-11-01",["8:03","1.73","37","34","4","","4.92","","",""]],["2026-02-01",["","1.6","","","","4.28","4.74","","",""]]]},"Teles, Aurora":{"schoolYear":"9","terms":[["2025-08-01",["7:06","1.56","36","25","","4.07","4.37","","",""]],["2026-02-01",["","1.6","","","","4.14","4.38","","",""]]]},"Tihema, MJ":{"schoolYear":"9","terms":[["2025-08-01",["","1.45","31","22","20","3.59","3.4","","",""]],["2025-11-01",["6:38","1.33","32","49","8","","4.07","","",""]],["2026-02-01",["","1.6","","","","3.81","3.07","","",""]],["2026-05-01",["","1.72","","28","","","4.63","","",""]]]},"Tonga, Sisilia":{"schoolYear":"9","terms":[["2025-08-01",["6:20","2.04","41","30","20","3.65","3.13","","",""]],["2026-02-01",["","2.05","","","","3.5","4.45","","",""]],["2026-05-01",["","1.72","","20","","","4.44","","",""]]]},"Tuaoi, Alysiah":{"schoolYear":"9","terms":[["2026-05-01",["","1.55","","30","","","43.5","","",""]]]},"Valk, Ewaraina":{"schoolYear":"9","terms":[["2026-02-01",["","","","","","3.7","3.86","","",""]],["2026-05-01",["","1.98","","14","","","4.34","","",""]]]},"Wharerau-Smith, Tiana":{"schoolYear":"9","terms":[["2025-08-01",["6:29","1.61","33","48","12","4.14","","","",""]],["2026-02-01",["","1.6","","","","3.48","4.14","","",""]],["2026-05-01",["","1.61","","23","","","3.76","","",""]]]},"William, Cenniah":{"schoolYear":"9","terms":[["2025-08-01",["","2","49","37","32","3.41","4.1","","",""]],["2026-02-01",["","1.88","","","","3.7","4.03","","",""]]]},"Akauola, Allegra":{"schoolYear":"10","terms":[["2025-08-01",["6:40","1.68","27","18","","4.53","3.91","","",""]],["2025-11-01",["6:45","1.67","33","28","13","","4.5","","",""]],["2026-02-01",["","1.67","","","","4.01","4.52","","",""]]]},"Atarau, Kobie":{"schoolYear":"10","terms":[["2025-08-01",["5:50","1.9","47","30","","3.26","4.23","","",""]],["2025-11-01",["5:40","1.76","53","33","14","3.29","4.3","","",""]],["2026-02-01",["","1.76","","","","3.55","4.24","","",""]],["2026-05-01",["","1.78","","1","","","4.44","","40","100"]]]},"Betham, Rosa":{"schoolYear":"10","terms":[["2025-08-01",["6:30","1.56","32","34","","3.78","4.04","","",""]],["2025-11-01",["6:15","","","","","","","","",""]],["2026-02-01",["","0.7","","","","3.97","4.26","","",""]]]},"Bush, Aaliyah":{"schoolYear":"10","terms":[["2025-08-01",["6:27","1.7","32","15","","3.79","4.92","","",""]],["2026-05-01",["","1.67","","15","","","5.01","","50","100"]]]},"Byrne-Hunia, Tiarni":{"schoolYear":"10","terms":[["2025-08-01",["6:41","1.78","47","21","","3.65","3.18","","",""]],["2025-11-01",["6:51","1.9","11","13","9","","3.8","","",""]],["2026-05-01",["","1.72","","25","","","3.92","","20","90"]]]},"Cable-Reid, Aaliyah":{"schoolYear":"10","terms":[["2025-08-01",["7:08","1.43","34","20","","3.69","4","","",""]],["2025-11-01",["7:10","1.45","36","24","5","","4.33","","",""]],["2026-02-01",["","1.59","","","","3.96","4.76","","",""]],["2026-05-01",["","1.72","","36","","","4.41","","40","95"]]]},"Campbell, Jayla":{"schoolYear":"10","terms":[["2025-08-01",["5:44","2.05","45","38","","3.45","4.57","","",""]],["2025-11-01",["6:02","1.98","40","39","15","","4.89","","",""]],["2026-02-01",["","","","","","3.04","4.25","","",""]],["2026-05-01",["","1.92","","56","","","5.78","","45","85"]]]},"Chambers, Shariyah":{"schoolYear":"10","terms":[["2025-08-01",["6:31","","","","","","","","",""]],["2025-11-01",["6:41","1.73","40","64","10","","4.65","","",""]]]},"Edmonds, Lyvana":{"schoolYear":"10","terms":[["2026-02-01",["","2.23","","","","3.17","4.95","","",""]],["2026-05-01",["","2.43","","42","","","5.13","","50","115"]]]},"French, Tanaya":{"schoolYear":"10","terms":[["2025-08-01",["5:21","1.8","42","25","","3.42","3.7","","",""]],["2025-11-01",["5:21","1.68","37","25","12","","3.3","","",""]]]},"Goodall, Marley":{"schoolYear":"10","terms":[["2025-08-01",["6:38","1.64","31","13","","3.62","3.29","","",""]],["2025-11-01",["6:22","1.58","34","26","2","3.91","3.24","","",""]],["2026-02-01",["","0.7","","","","3.49","3.33","","",""]]]},"Hala, Meleane":{"schoolYear":"10","terms":[["2025-08-01",["5:33","2.24","54","15","","3.02","3.9","","",""]],["2025-11-01",["5:13","","","","","","","","",""]]]},"Hepi, Shyla":{"schoolYear":"10","terms":[["2025-08-01",["6:35","1.94","41","46","","3.5","3.9","","",""]],["2025-11-01",["6:47","2","41","34","10","","4.28","","",""]],["2026-02-01",["","2.1","","","","3","4.5","","",""]]]},"Hunter-Simeona, Leilani":{"schoolYear":"10","terms":[["2026-02-01",["","0.89","","","","3.43","4.64","","",""]],["2026-05-01",["","1.88","","50","","","4.72","","30","50"]]]},"Johnson, Marlee":{"schoolYear":"10","terms":[["2025-08-01",["7:23","1.8","39","10","","3.49","","","",""]],["2025-11-01",["7:21","1.73","34","20","4","4.43","","","",""]],["2026-02-01",["","0.71","","","","3.56","4.16","","",""]],["2026-05-01",["","1.78","","19","","","4.32","","40","80"]]]},"Karaka, Hamini":{"schoolYear":"10","terms":[["2026-05-01",["","1.55","","40","","","4.58","","40","100"]]]},"Katipa, Sahvahniya":{"schoolYear":"10","terms":[["2025-08-01",["6:38","1.55","31","30","","3.36","3.6","","",""]],["2025-11-01",["7:50","1.62","33","25","4","","3.9","","",""]],["2026-02-01",["","0.75","","","","","4.2","","",""]]]},"Kemp, Maia":{"schoolYear":"10","terms":[["2025-08-01",["7:20","1.88","36","11","","4.22","4.38","","",""]],["2025-11-01",["7:19","1.43","37","8","2","","4.26","","",""]],["2026-02-01",["","0.67","","","","3.04","4.32","","",""]],["2026-05-01",["","1.61","","16","","","4.43","","35","70"]]]},"Latu, Ava":{"schoolYear":"10","terms":[["2026-02-01",["","1.55","","","","","4.3","","",""]],["2026-05-01",["","1.64","","33","","","4.19","","30","70"]]]},"Latu, Bailey":{"schoolYear":"10","terms":[["2025-08-01",["7:38","2.16","38","7","","3.39","3.77","","",""]],["2025-11-01",["7:18","2","36","14","10","3.98","4","","",""]]]},"Lavender, Brooklyn":{"schoolYear":"10","terms":[["2025-08-01",["7:26","1.71","28","21","","","3.88","","",""]],["2025-11-01",["7:42","1.79","36","19","11","","4.3","","",""]],["2026-02-01",["","","","","","3.72","4.23","","",""]]]},"Lepou, Summer":{"schoolYear":"10","terms":[["2025-08-01",["6:25","1.09","31","23","","","4","","",""]],["2025-11-01",["7:11","","27","","","","","","",""]],["2026-02-01",["","1.45","","","","3.78","8.9","","",""]],["2026-05-01",["","1.63","","1","","","4.97","","40","85"]]]},"Matchitt, Kyzlah":{"schoolYear":"10","terms":[["2025-08-01",["6:50","1.81","40","30","","3.36","4.67","","",""]],["2025-11-01",["","","","45","15","","4.3","","",""]],["2026-02-01",["","1.74","","","","3.7","4.23","","",""]],["2026-05-01",["","1.67","","38","","","4.48","","40","80"]]]},"Paku, Shanita":{"schoolYear":"10","terms":[["2025-08-01",["6:15","1.76","32","21","","3.73","3.6","","",""]],["2025-11-01",["6:20","1.63","26","13","4","3.97","4","","",""]],["2026-02-01",["","1.9","","","","3.9","4.3","","",""]],["2026-05-01",["","1.9","","16","","","4.26","","36","70"]]]},"Rangihika, Elin":{"schoolYear":"10","terms":[["2026-02-01",["","2.26","","","","3.15","4.27","","",""]]]},"Ratu-Taute, Sierra":{"schoolYear":"10","terms":[["2025-08-01",["6:05","1.93","","40","","","","","",""]],["2025-11-01",["5:41","1.87","39","31","9","","4.62","","",""]],["2026-02-01",["","","","","","","4.45","","",""]],["2026-05-01",["","1.9","","1","","","4.66","","20","70"]]]},"Robinson, Manaia":{"schoolYear":"10","terms":[["2025-11-01",["5:37","1.83","36","37","20","3.39","3.26","","",""]],["2026-02-01",["","1.67","","","","3.57","3.7","","",""]],["2026-05-01",["","1.86","","1","","","3.53","","30","50"]]]},"Rose, Lacey":{"schoolYear":"10","terms":[["2025-08-01",["7:45","1.71","27","18","","3.68","4.02","","",""]],["2025-11-01",["7:38","1.64","30","18","10","","3.95","","",""]],["2026-05-01",["","1.53","","20","","","4.12","","30","70"]]]},"Steedman, Kuru":{"schoolYear":"10","terms":[["2025-08-01",["6:50","1.8","38","30","","3.27","3.96","","",""]],["2025-11-01",["","1.75","41","71","10","3.61","4","","",""]],["2026-02-01",["","2.3","","","","3.68","4.36","","",""]]]},"Taione, Natalya":{"schoolYear":"10","terms":[["2026-02-01",["","1.39","","","","4.21","4.9","","",""]],["2026-05-01",["","1.56","","9","","","4.6","","36","90"]]]},"Tongi, Siahi":{"schoolYear":"10","terms":[["2025-11-01",["6:27","1.7","47","12","17","","4.9","","",""]],["2026-02-01",["","1.51","","","","4","4.82","","",""]],["2026-05-01",["","","","","","","","","","100"]]]},"Tuake, Maharleya":{"schoolYear":"10","terms":[["2025-08-01",["6:05","1.78","38","17","","","3.79","","",""]],["2026-02-01",["","0.73","","","","4.07","4.3","","",""]]]},"Tufuga, Imani":{"schoolYear":"10","terms":[["2025-08-01",["6:05","1.68","32","11","","3.77","4.45","","",""]],["2025-11-01",["6:12","1.65","31","15","4","4.01","4.73","","",""]],["2026-02-01",["","","","","","3.55","","","",""]],["2026-05-01",["","1.56","","15","","","4.88","","40","80"]]]},"Tuuina, Tahirih":{"schoolYear":"10","terms":[["2026-02-01",["","0.7","","","","3.84","","","",""]]]},"Viliamu, Nevaeh":{"schoolYear":"10","terms":[["2025-08-01",["7:22","1.81","37","17","","3.45","3.94","","",""]]]},"Vuidreketi, Asenaca":{"schoolYear":"10","terms":[["2025-08-01",["7:35","1.62","33","5","","3.86","4.7","","",""]],["2025-11-01",["7:30","1.47","32","10","3","","4.75","","",""]],["2026-02-01",["","1.53","","","","4.22","4.45","","",""]],["2026-05-01",["","1.67","","10","","","5.62","","40","100"]]]},"Whaiapu, Jayda":{"schoolYear":"10","terms":[["2025-08-01",["7:10","1.75","","26","","3.83","4.83","","",""]],["2026-05-01",["","1.51","","24","","","5","","60",""]]]}},"11-12":{}}};
 const ARCHIVE_TEST_DATA = {"7":{"Med Ball Push":["3.6","4.17","3.87","4.57","3.99","3.2","3.01","4.2","3.65","3.77","3.98","2.68","3.8","3.66","3.36","3.82","4.5","3.07","3.62","3.15","2.92","2.7","3.67","3.66","3.38","3.25","3.32","2.76","3.88","3.91","3.9","3.19","3.4","3.2","1.52","2.34","2","3.87","2.5","4.2","3.42","4.1","2.62","2.66","3.17","3","3.3","3.68","4.7","2.7","3.46","2.66","3.1","3.06","3.13","2.2","2.73","2.92","4.48","3.03","3.8","2.58","3.73","4.3","3","3.68","2.87","3.6","2.99","3.63","2.7","3","2.35","3","3.56","5","2.78","2.72","3.43","3.7","2.73","3.22","4.3","2.76","3.5","2.68","3.22","3.37","3.9","3.08","3.87","3.85","4.16","3.24","4.4","3.52","3.95","2.7","3.7"],"Broad Jump":["1.65","1.7","1.85","1.65","1.7","1.5","1.72","1.62","1.92","2.3","1.85","1.68","1.4","1.5","1.4","1.6","1.68","1.8","1.51","1.81","1.47","1.71","1.54","1.43","1.8","1.55","1.57","1.74","1.54","1.65","1.55","1.6","1.7","1.7","1.68","1.42","1.1","1.58","1.62","1.5","1.7","1.87","2","1.71","1.68","1.75","1.3","1.18","1.47","1.79","1.64","1.6","1.6","1.7","1.1","1.06","1.4","1.38","1.89","1.83","2.06","2.1","1.65","1.9","1.89","1.62","1.56","1.68","1.51","1.39","1.35","1.43","1.49","1.75","1.5","1.7","1.63","1.89","2.07","1.6","1.5","1.51","1.86","1.68","1.87","1.69","1.68","1.7","1.73","1.62","1.57","1.54","1.78","2.02","1.35","1.52","1.55","1.84"],"Bronco":["6:55","6:24","7:31","6:14","6:02","6:07","6:40","7:18","10:08","8:39","8:09","7:34","7:05","7:42","7:40","6:30","7:50","5:55","6:03","5:57","7:41","6:14","9:25","7:26","6:18","5:32","6:13","6:03","5:33","7:20","7:15","8:39","8:57","7:44","8:50","8:05","8:48","6:20","6:59","7:03","6:20","6:12","6:13","7:24","6:36","5:56","6:34","7:51","7:28","7:18","7:24","6:50","9:37","5:51","5:49","5:46","8:19","8:00","7:31","8:19","8:34","7:03","7:58","7:07","7:04","7:28","6:50","9:14","7:54","7:23","7:06","6:50","7:46","7:15","7:31","7:02","6:58","6:30","7:58","7:31","6:47","6:08","5:48","5:55","5:50","6:42","7:31","6:14","6:14","6:41","8:52","6:25","8:33","7:09","7:41","7:50","9:32","7:46","6:18","6:43","6:57","7:35","9:37","6:30","6:33","8:01","8:09","8:41","6:29","8:47","7:23","7:55","8:32"]},"8":{"Med Ball Push":["3.86","4.69","2.97","3.71","3.9","3.76","4.32","3.15","2.9","3.6","4.0","4.08","3.32","3.88","4.78","3.03","3.73","3.55","4.7","4.35","2.55","3.22","3.98","4.4","4.5","2.55","4.12","4.95","3.65","2.78","3.4","3.32","4.35","3.69","3.72","3.13","3.2","4.01","3.59","4.12","3.85","3.66","3.67","2.76","3.8","3.55","3.44","3.27","2.63","4.17","4.35","3.14","4.2","2.6","3.16","2.76","3.67","4","3.29","3.12","3.12","3.25","3.48","3.18","3.8","2.4","2.95","3.2","3.74","4.1","3.15","3.84","3.63","2.37","3.27","4.2","2.13","3.7","4.4","4.35","4.1","3.83","4.94","3.03","3.2","2.54","2.93","3.9","3.3","3.95","3.36","3.85","3.12","3.6","3.5","3.95","3.15","2.97","3.4","3.42","4.2","2.72","3.23","3.4","3.53","4.1","3.47","4.1","4.31","3.1","3.7","3.3","3.54","3.6","3.38","3.15","3.45","4.83","3.8","3.35","3.78","3.78"],"Broad Jump":["1.48","1.52","1.95","1.83","1.8","1.07","1.72","1.55","1.9","1.5","2.02","1.58","1.78","1.55","2.17","1.53","2","1.2","1.77","2.0","1.64","1.22","1.58","1.45","1.38","1.85","1.54","2.08","1.65","1.06","1.77","2.0","2.04","1.49","1.48","1.9","1.8","1.72","1.9","1.58","1.63","1.06","1.88","1.5","1.55","1.05","1.55","1.3","1.74","1.8","1.82","1.84","1.9","1.59","1.89","1.64","1.73","1.74","1.79","1.53","1.76","1.48","1.42","1.67","1.8","1.44","1.17","1.2","1.76","1.77","1.76","1.42","1.69","1.47","1.48","1.68","1.21","1.9","2.03","1.79","1.72","1.65","1.68","1.71","1.4","1.41","1.6","2.02","2.04","1.62","1.74","1.95","2.08","1.94","1.89","2","1.53","1.56","1.48","1.42","1.52","1.58","1.47","1.97","1.64","1.84","1.65","1.78","1.53","1.73","1.79","1.61","2.13","1.85","1.74","1.95","1.76","1.61","1.55","1.44"],"Bronco":["8:37","7:45","6:37","6:59","5:58","7:16","8:21","7:26","6:12","6:38","6:18","7:32","6:15","6:29","6:19","6:37","7:00","8:03","6:45","7:02","6:41","6:35","6:33","5:50","7:40","6:02","5:52","6:07","5:39","7:59","6:53","6:25","6:59","6:34","6:16","6:38","6:17","6:20","5:50","6:28","5:58","7:49","6:43","9:38","6:07","7:20","5:58","7:07","7:22","6:45","7:06","7:30","7:30","6:36","7:25","6:59","6:50","6:14","6:43","6:32","6:29","6:59","5:59","6:15","6:50","6:00","8:14","7:42","7:52","5:51","8:17","7:53","6:54","6:50","6:23","6:10","6:17","6:20","6:59","7:25","6:35","7:06","6:32","5:39","6:39","6:35","7:42","6:26","6:42","6:30","7:22","5:56","7:54","7:50","7:06","7:36","7:19","7:28","7:22","6:21","6:55","7:17","6:43","7:29","5:17","7:22","9:45","7:07","6:47","6:20","7:05","7:32","6:02","8:34","7:53","7:29","8:08","7:12","6:59","7:45","7:28","7:40","7:22","9:16","8:07","6:45","6:05","8:38","6:52","6:15","7:32","8:51","9:55","6:58","6:41","8:10","6:40","8:17","6:07","7:51","5:36"]},"9":{"Med Ball Push":["3.91","4.46","3.42","3.27","3.47","3.56","4.5","3.5","3.45","3.31","3.31","3.65","3.3","3.82","3.86","4.15","4.42","3.4","3.19","3.67","3.53","4.03","4.19","4.26","3.5","3.68","3.35","5.3","3.8","4.88","3.7","3.16","3.64","3.75","4.22","3.94","3.7","3.78","4.04","4.82","3.78","3.83","3.59","3.8","4.57","4.94","4.31","3.99","4.23","4.15","3.43","4.85","4.1","3.59","2.9","4.29","3.51","3.08","3.44","3.87","4.17","3.91","3.77","4.08","3.49","3.06","4.48","3.78","4.14","4.33","3.64","4.44","4.66","4.1","3.55","5.18","4.53","3.11","3.76","4.43","3.37","3.67","4.14","3.79","4.83","4.12","4.76"],"Broad Jump":["1.78","1.99","1.53","1.41","1.47","1.4","1.86","1.58","1.52","1.69","1.47","1.63","1.52","1.43","1.75","1.46","1.34","1.26","1.24","1.39","1.56","1.62","1.55","1.96","1.68","1.95","1.78","1.44","1.94","2.03","1.89","1.63","1.46","1.83","1.95","1.68","1.66","1.64","1.63","1.74","1.89","1.64","1.4","1.84","1.83","2.01","1.8","2","1.68","1.79","1.97","1.82","1.88","1.6","1.67","1.54","1.45","1.56","2.04","1.53","1.72","1.28","1.62","1.64","1.23","1.71","1.75","1.88","1.66","1.77","1.63","1.2","1.86","1.58","2.02","1.54","1.91","1.93","2.21","1.69","1.5","1.88","1.85","1.71","1.56","1.87"],"Squat (kg)":["80","120","20","45","20","40","40","20","45","62.5","40","30","55","20","20","60","55","40","40","30","50","45","70","20","80","62.5","65","60","60","60","80","50","50","40","60","70","50","45","60","50","80","70","75","105","70","40","115","60","60","70","80","65","110","80","75","50","105","100","70","60","60","60","55","75","50","85","75","40","75","65","50"],"Bench (kg)":["30","40","10","10","20","20","20","23","20","25","23","10","23","40","23","25","20","25","20","25","28","10","40","23","33","25","30","20","35","25","30","25","20","35","30","30","35","35","45","25","20","55","20","35","35","30","50","40","35","25","60","45","25","25","25","30","25","40","35","35"],"Bronco":["6:54","7:04","6:25","7:03","7:19","8:03","7:15","8:57","7:23","8:17","5:46","7:15","6:57","6:03","6:17","6:55","7:28","6:36","7:44","6:31","6:46","7:33","6:25","8:02","7:19","6:48","7:01","8:00","7:32","7:23","7:12","7:42","7:04","8:04","6:45","5:42","5:20","8:19","6:38","6:50","6:40","6:23","6:10","6:49","7:49","7:20","6:54","7:04","6:25","7:03","7:19","8:03","7:15","8:57","7:23","8:17","5:46","7:15","6:57","6:03","6:17","6:55","7:28","6:36","7:44","6:31","6:46","7:33","6:25","8:02","7:19","6:48","7:01","8:00","7:32","7:23","7:12","7:42","7:04","8:04","6:45","5:42","5:20","8:19","6:38","6:50","6:40","6:23","6:10","6:49","7:49","7:20","7:37","7:27","7:18","6:11","10:21","7:42","6:24","6:44","7:14","6:32","6:53","7:06","6:50","6:52","7:26","5:57","6:46","6:55","6:57","6:38","6:40","6:07","7:50","5:41","6:02","6:58","6:50","7:07","7:35","6:42","7:17"]},"10":{"Med Ball Push":["3.82","3.31","3.96","2.7","4.64","3.5","4.5","4.98","4.64","4.16","3.26","3.83","4.8","3.4","3.73","3.4","4.64","4.03","4.28","4.19","3.5","3.68","3.6","3.67","2.66","5","4.19","4.49","4.51","4.32","4.2","4.45","3.82","3.84","3.52","4.79","5.4","4.35","4.3","4.17","3.95","4.15","5.22","4.94","4.1","4.88","3.51","4.11","3.96","3.87","4.54","3.52","3.4","3.19","3.94","3.27","3.41","4.35","4.13","4.04","4.88","3.63","4.44","3.05","3.73","4.15","4.02","3.47","4.64","4.78","3.9","4.42","3.42","3.24"],"Broad Jump":["1.49","1.22","1.43","1.69","1.88","1.3","1.58","1.77","1.78","2","1.44","1.89","1.42","1.44","1.8","1.58","1.68","1.75","1.38","1.75","1.3","1.54","1.41","1.58","1.46","1.88","1.82","1.88","1.8","2.03","1.64","2.13","1.64","1.41","1.78","1.86","2.02","2.03","1.76","1.53","2.02","2.32","1.78","1.91","1.49","1.16","1.54","1.33","1.85","1.44","1.21","1.58","1.63","1.6","1.49","1.73","1.5","1.45","1.72","1.66","1.67","1.27","1.31","1.15","1.52","1.68","1.78","2.01","2.02","1.71","1.19","1.47"],"Squat (kg)":["50","50","100","65","70","70","65","110","40","60","80","65","55","50","60","55","90","65","75","60","65","85","90","90","90","55","75","80","50","50","65","50","40","60","45","70","50","60","60","75","95","65","90","85","80","55","50","75","50","90","75","90","65"],"Bench (kg)":["20","30","40","45","25","45","40","45","50","20","30","40","25","25","30","35","40","45","25","25","30","40","8","35","20","30","35","25","30","60","40","30","40","25","25","30","25","35","25","25","25","25","30","30","20","25","25","40","35","40","60","25","35","30","25","35","30","35","35","35","35","25"],"Bronco":["9:10","8:24","7:09","6:13","7:14","7:39","6:48","5:24","5:58","7:56","6:50","5:46","5:49","6:19","6:25","5:32","7:28","7:14","5:11","9:30","9:10","7:10","6:19","6:50","10:42","8:00","7:19","6:03","6:11","5:31","5:35","6:08","9:19","7:41","7:13","6:10","6:52","6:00","7:22","7:21","5:49","5:28","6:57","6:18","6:07","8:52","5:58","5:39","7:07","8:23","7:40","6:02","7:19","7:02","6:54","9:10","8:24","7:09","6:13","7:14","7:39","6:48","5:24","5:58","7:56","6:50","5:46","5:49","6:19","5:54","5:32","7:28","7:14","9:30","9:10","7:10","6:19","6:50","10:42","8:00","7:19","6:03","6:11","5:31","5:35","6:08","9:19","7:41","7:13","6:10","6:52","6:00","7:22","7:21","5:49","5:28","6:57","6:18","6:07","8:52","5:58","5:39","7:07","8:23","7:40","6:02","6:02","7:19","7:19","7:02","7:02","6:43","7:35","8:49","7:32","7:15","10:02","6:08","6:48","7:41","6:32","6:43","7:35","7:32","7:07","7:28","8:07","7:01","6:15","7:45","7:50","7:54","7:16","7:10","7:46","5:58","5:56","6:28","6:47"]},"11":{"Med Ball Push":["4.2","4.1","4.74","4.6","3.5","3.4","3.6","4.45","3.5","3.3","4.1","4.66","4.5","4.56","4.1","4.75","4.2","3.6","3.6","4.06","4.58","3.28","4.4","4.5","3.88","4.05","4.62","4.55","4.4","4.2","4.5","3.8","3.84","3.95","4.06","2.82","4.08","4.38","4.15","5.08","4.16","4.16","4.03","4.08","4.46","4.46","4.47","4.25","4.02","3.71","4.8","4.73","3.38","4.22"],"Broad Jump":["1.4","1.55","1.93","1.49","1.9","1.5","1.8","1.7","1.69","1.7","1.8","2.09","1.72","1.92","1.45","1.55","1.77","1.57","1.63","1.85","1.88","1.83","1.77","1.68","1.69","1.96","1.5","1.86","1.9","2.04","1.99","1.41","2","1.97","1.48","1.67","2.14","1.43","1.79","1.83","2.27"],"Squat (kg)":["50","60","65","85","100","75","50","105","25","50","60","50","50","60","30","50","40","95","70","75","60","60","70","70","85","70","70","65","120","70","55","95","110","80","85","65","70","60","80","40","95","65","70","85","100","135","90","70","65","35","70","100","70","100","70","80","87.5","90","90","85","70","70","95","90","90","60","90"],"Bench (kg)":["35","40","30","40","50","40","70","45","60","20","25","25","40","45","25","35","25","45","30","35","25","40","30","45","37.5","35","35","30","60","60","30","30","50","50","35","45","30","45","45","30","35","45","45","45","45","50","50","45","35","35","40","35","40","50","35","40","45","35","35","45","30","50","45","30","40"],"Bronco":["6:39","6:40","8:04","6:34","7:00","6:35","6:45","8:05","6:57","7:01","7:00","7:11","6:55","6:30","6:58","6:28","7:27","7:03","6:59","6:57","6:40","10:27","7:28","7:23","8:05","6:35","6:15","6:13","7:26","6:50","6:31","7:40","9:40","6:38","5:53","6:16","5:53","5:54","9:15","7:00","5:41","6:50","9:35","9:29","7:07","5:50","6:35","5:54","7:25"]},"12":{"Med Ball Push":["3.7","4.04","4.1","4.77","4.8","4.4","5.06","5.3","5.2","4.84","4.83","4.81","4.58","4.87","5.3","5.26","4.04","5.4","5.3","5.45","3.65","4.24","5.09","4.5","4.42","3.56","5.08","4.87","3.4","3.52","4.43","4.17","4.2","4.81","3.58","3.64","6.17","3.76","3.2","4.62","4.89","4.3","3.7","4.12","4.02","3.83"],"Broad Jump":["1.43","1.56","1.64","2.06","1.17","1.71","2.02","2","2.13","1.68","1.83","1.8","1.7","1.86","1.93","1.85","1.54","1.69","1.66","1.4","1.83","2.04","1.6","1.8","1.84","2.1","1.84","1.77","1.94","1.52","1.5","1.5","1.73"],"Squat (kg)":["60","90","70","80","80","85","100","100","75","100","105","80","80","110","50","85","100","100","90","70","80","100","110","90","95","110","80","90","50","65","70","80","50","55","65","125","70","65","50","135","50","60","100","110","80","85","65","80","85","40","85"],"Bench (kg)":["30","35","35","40","40","47.5","50","55","50","50","55","60","55","50","20","40","45","50","55","38.5","50","55","55","55","40","40","45","40","40","25","30","40","50","40","40","40","55","40","30","30","40","75","30","30","50","55","40","45","30","40","30","35"],"Bronco":["7:08","6:30","6:14","7:00","6:42","7:19","6:30","6:57","6:59","7:33","7:21","7:19","7:28","6:22","7:29","7:04","7:08","7:05","6:16","6:49","10:30","7:13","7:05","8:00","6:54","7:22","6:11"]}};
 // Testing standards by school year. higherBetter=false means lower value is better (sprints, Bronco).
 // "above" = target / passing threshold, "below" = warning threshold. Between = developing.
@@ -1254,6 +1569,8 @@ const PRE_SEASON_TARGETS = {};
 
 function SyncStatusBadge() {
   const [s, setS] = useState(cloudSync.getStatus());
+  const [showHistory, setShowHistory] = useState(false);
+  const [showActivity, setShowActivity] = useState(false);
   useEffect(() => cloudSync.subscribe(setS), []);
   const palette = {
     idle:     { bg: 'var(--bg-input)',  fg: 'var(--text-secondary)', dot: 'var(--text-muted)',  label: 'Idle' },
@@ -1266,35 +1583,266 @@ function SyncStatusBadge() {
   const p = palette[s.state] || palette.idle;
   const showRefresh = cloudSync.isConfigured();
   return (
-    <div style={{display:'inline-flex', alignItems:'center', gap:6, background:p.bg, color:p.fg,
-                 padding:'6px 10px', borderRadius:6, fontSize:11, fontWeight:600,
-                 border:'1px solid var(--border)'}}
-         title={s.message || p.label}>
-      <span style={{width:7, height:7, borderRadius:'50%', background:p.dot,
-                    animation: (s.state === 'syncing' || s.state === 'pending') ? 'fadeInOut 1.2s infinite' : 'none'}} />
-      <span>{p.label}</span>
-      {showRefresh && (
-        <button onClick={() => cloudSync.pull()} title="Pull latest from cloud (merges with local)"
-          style={{border:'none', background:'transparent', color:p.fg, cursor:'pointer', padding:0, marginLeft:2,
-                  display:'inline-flex', alignItems:'center', fontSize:11}}>
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/>
-          </svg>
-        </button>
-      )}
-      {showRefresh && (
+    <>
+      <div style={{display:'inline-flex', alignItems:'center', gap:6, background:p.bg, color:p.fg,
+                   padding:'6px 10px', borderRadius:6, fontSize:11, fontWeight:600,
+                   border:'1px solid var(--border)'}}
+           title={s.message || p.label}>
+        <span style={{width:7, height:7, borderRadius:'50%', background:p.dot,
+                      animation: (s.state === 'syncing' || s.state === 'pending') ? 'fadeInOut 1.2s infinite' : 'none'}} />
+        <span>{p.label}</span>
+        {showRefresh && (
+          <button onClick={() => cloudSync.pull()} title="Pull latest from cloud (merges with local)"
+            style={{border:'none', background:'transparent', color:p.fg, cursor:'pointer', padding:0, marginLeft:2,
+                    display:'inline-flex', alignItems:'center', fontSize:11}}>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/>
+            </svg>
+          </button>
+        )}
+        {showRefresh && (
+          <button
+            onClick={() => {
+              if (!window.confirm('Force-pull from cloud?\n\nThis adopts every value from the cloud bin and discards any local-only edits that have not yet synced. Use this if other coaches edits are not appearing for you.\n\nA snapshot of the current state is saved first — restore from Version History if needed.\n\nProceed?')) return;
+              try { versionHistory.snapshot('pre-forcepull', 'Before force-pull from cloud', true); } catch(e) {}
+              cloudSync.forcePull();
+            }}
+            title="Force pull from cloud — adopts every cloud value regardless of timestamps. Discards local-only edits."
+            style={{border:'none', background:'transparent', color:p.fg, cursor:'pointer', padding:'0 0 0 2px',
+                    display:'inline-flex', alignItems:'center', fontSize:11, opacity:0.7}}
+          >
+            ⇩
+          </button>
+        )}
         <button
-          onClick={() => {
-            if (!window.confirm('Force-pull from cloud?\n\nThis adopts every value from the cloud bin and discards any local-only edits that have not yet synced. Use this if other coaches edits are not appearing for you.\n\nProceed?')) return;
-            cloudSync.forcePull();
-          }}
-          title="Force pull from cloud — adopts every cloud value regardless of timestamps. Discards local-only edits."
-          style={{border:'none', background:'transparent', color:p.fg, cursor:'pointer', padding:'0 0 0 2px',
-                  display:'inline-flex', alignItems:'center', fontSize:11, opacity:0.7}}
+          onClick={() => setShowHistory(true)}
+          title="Version history — restore to a previous snapshot"
+          style={{border:'none', background:'transparent', color:p.fg, cursor:'pointer', padding:'0 0 0 4px',
+                  display:'inline-flex', alignItems:'center', fontSize:13, opacity:0.85}}
         >
-          ⇩
+          🕘
         </button>
-      )}
+        <button
+          onClick={() => setShowActivity(true)}
+          title="Live activity feed (op log)"
+          style={{border:'none', background:'transparent', color:p.fg, cursor:'pointer', padding:'0 0 0 4px',
+                  display:'inline-flex', alignItems:'center', fontSize:13, opacity:0.85}}
+        >
+          📋
+        </button>
+      </div>
+      {showHistory && <VersionHistoryModal onClose={() => setShowHistory(false)} />}
+      {showActivity && <ActivityFeedModal onClose={() => setShowActivity(false)} />}
+    </>
+  );
+}
+
+function ActivityFeedModal({ onClose }) {
+  const [feed, setFeed] = useState(opLog.getFeed());
+  const [coachName, setCoachName] = useState(() => localStorage.getItem('playiq_actor_name') || '');
+  useEffect(() => opLog.subscribe(setFeed), []);
+  const saveCoachName = () => {
+    if (coachName.trim()) localStorage.setItem('playiq_actor_name', coachName.trim());
+    else localStorage.removeItem('playiq_actor_name');
+  };
+  const fmtRelative = (ts) => {
+    const ms = Date.now() - ts;
+    const s = Math.floor(ms / 1000);
+    if (s < 60) return `${s}s ago`;
+    const m = Math.floor(s / 60);
+    if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m / 60);
+    return `${h}h ago`;
+  };
+  const describe = (op) => {
+    if (!op) return '';
+    if (op.type === 'squad.add') return `Added ${op.player?.name || 'player'} to ${op.yg} squad`;
+    if (op.type === 'squad.remove') return `Removed player from ${op.yg} squad`;
+    if (op.type === 'squad.update') {
+      const fields = Object.keys(op.patch || {}).join(', ');
+      return `Updated ${fields || 'player'} in ${op.yg} squad`;
+    }
+    if (op.type === 'squad.profile') return `Updated player profile in ${op.yg} squad`;
+    return op.type;
+  };
+  const colorFor = (op) => {
+    if (!op) return 'var(--text-muted)';
+    if (op.type === 'squad.add') return 'var(--green)';
+    if (op.type === 'squad.remove') return 'var(--red)';
+    return 'var(--brand-cyan)';
+  };
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{width:680, maxWidth:'95vw', maxHeight:'90vh', overflowY:'auto'}}>
+        <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, marginBottom:14, flexWrap:'wrap'}}>
+          <div>
+            <div style={{fontSize:11, fontWeight:700, color:'var(--brand-pink)', textTransform:'uppercase', letterSpacing:1.5}}>Layer 2 POC</div>
+            <div style={{fontSize:20, fontWeight:800, marginTop:2}}>Activity feed</div>
+            <div style={{fontSize:11, color:'var(--text-muted)', marginTop:4}}>
+              Live squad changes from every coach. Each row is an individual operation — no more "last writer wins". This view is mostly for verifying the new sync model is working; you can leave it closed once everything looks healthy.
+            </div>
+          </div>
+          <button onClick={onClose} style={{background:'none', border:'1px solid var(--border)', color:'var(--text-muted)', cursor:'pointer', fontSize:18, fontWeight:700, padding:'4px 12px', borderRadius:8, fontFamily:'inherit'}}>×</button>
+        </div>
+
+        <div style={{padding:'10px 12px', background:'var(--bg-input)', borderRadius:8, marginBottom:10, display:'flex', alignItems:'center', gap:8, flexWrap:'wrap'}}>
+          <span style={{fontSize:11, fontWeight:700, color:'var(--text-muted)'}}>Your coach name (shown in activity):</span>
+          <input
+            type="text"
+            value={coachName}
+            onChange={e => setCoachName(e.target.value)}
+            onBlur={saveCoachName}
+            placeholder={opLog.getActorName()}
+            style={{padding:'5px 10px', fontSize:11, fontWeight:700, border:'1px solid var(--border)', borderRadius:6, background:'var(--bg-card)', color:'var(--text-primary)', fontFamily:'inherit', flex:'1 1 200px'}}
+          />
+          <span style={{fontSize:10, color:'var(--text-muted)'}}>Saves on blur</span>
+        </div>
+
+        {feed.length === 0 ? (
+          <div style={{padding:24, textAlign:'center', color:'var(--text-muted)', fontSize:13}}>
+            No activity yet. Add, remove, or edit a player to see your op appear here.
+          </div>
+        ) : (
+          <div style={{display:'flex', flexDirection:'column', gap:4}}>
+            {feed.map(op => (
+              <div key={op.id} style={{display:'flex', alignItems:'center', gap:10, padding:'8px 12px', background:'var(--bg-card)', border:'1px solid var(--border)', borderRadius:6, borderLeft:`3px solid ${colorFor(op)}`}}>
+                <div style={{flex:1, minWidth:0}}>
+                  <div style={{fontSize:12, fontWeight:700, color:'var(--text-primary)'}}>{describe(op)}</div>
+                  <div style={{fontSize:10, color:'var(--text-muted)', marginTop:1}}>
+                    <span style={{fontWeight:700}}>{op.by}</span> · {fmtRelative(op.ts)} · <code style={{fontSize:9}}>{op.type}</code>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={{marginTop:14, padding:10, background:'var(--bg-input)', borderRadius:8, fontSize:10, color:'var(--text-muted)', lineHeight:1.5}}>
+          <strong>Phase 1 mode:</strong> ops are recorded and shared but the existing snapshot sync is still authoritative for now. We're verifying ops reach every browser correctly before switching squads over fully. Polls every 3 sec.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function VersionHistoryModal({ onClose }) {
+  const [snaps, setSnaps] = useState(() => versionHistory.list());
+  useEffect(() => versionHistory.subscribe(setSnaps), []);
+  const fmtRelative = (iso) => {
+    const ms = Date.now() - new Date(iso).getTime();
+    const m = Math.floor(ms / 60000);
+    if (m < 1) return 'just now';
+    if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h ago`;
+    const d = Math.floor(h / 24);
+    return `${d}d ago`;
+  };
+  const fmtBytes = (b) => {
+    if (b < 1024) return b + ' B';
+    if (b < 1024*1024) return (b/1024).toFixed(1) + ' KB';
+    return (b/1024/1024).toFixed(2) + ' MB';
+  };
+  const triggerMeta = {
+    'auto':              { label: 'Auto-saved',         color: 'var(--green)',     bg: 'var(--green-bg)' },
+    'manual':            { label: 'Manual snapshot',    color: 'var(--brand-pink)', bg: 'var(--accent-glow)' },
+    'pre-migration':     { label: 'Before test reimport', color: 'var(--orange)',  bg: 'var(--orange-bg)' },
+    'pre-resync':        { label: 'Before re-sync',       color: 'var(--orange)',  bg: 'var(--orange-bg)' },
+    'pre-restore':       { label: 'Pre-restore backup',   color: 'var(--blue)',    bg: 'var(--blue-bg)' },
+    'pre-forcepull':     { label: 'Before force-pull',    color: 'var(--orange)',  bg: 'var(--orange-bg)' },
+    'pre-removeleavers': { label: 'Before remove leavers',color: 'var(--orange)',  bg: 'var(--orange-bg)' },
+  };
+  const sorted = [...snaps].sort((a,b) => (b.at || '').localeCompare(a.at || ''));
+  const handleSnapshot = () => {
+    const reason = window.prompt('Optional label for this snapshot:', '');
+    if (reason === null) return; // cancelled
+    versionHistory.snapshot('manual', reason || 'Manual snapshot', true);
+  };
+  const handleRestore = (snap) => {
+    const niceTime = new Date(snap.at).toLocaleString();
+    if (!window.confirm(`Restore to ${niceTime}?\n\nThis will replace your current data with the snapshot. The current state is automatically backed up first as "Pre-restore backup" so you can undo this.\n\nThe page will reload, and other coaches will see the restored state on their next sync.`)) return;
+    const result = versionHistory.restore(snap.id);
+    if (!result.ok) { alert('Restore failed: ' + result.error); return; }
+    setTimeout(() => window.location.reload(), 300);
+  };
+  const handleDelete = (snap) => {
+    if (!window.confirm('Delete this snapshot? This cannot be undone.')) return;
+    versionHistory.deleteSnapshot(snap.id);
+  };
+  const totalSize = snaps.reduce((s, x) => s + (x.size || 0), 0);
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{width:780, maxWidth:'95vw', maxHeight:'92vh', overflowY:'auto'}}>
+        <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, marginBottom:14, flexWrap:'wrap'}}>
+          <div>
+            <div style={{fontSize:11, fontWeight:700, color:'var(--brand-pink)', textTransform:'uppercase', letterSpacing:1.5}}>Safety net</div>
+            <div style={{fontSize:20, fontWeight:800, marginTop:2}}>Version history</div>
+            <div style={{fontSize:11, color:'var(--text-muted)', marginTop:4}}>
+              Restore to a previous state if data is lost or overwritten. Auto-snapshots happen every 10 min of activity and before any destructive operation. The last {HISTORY_MAX_SNAPSHOTS} snapshots are kept.
+            </div>
+          </div>
+          <button onClick={onClose} style={{background:'none', border:'1px solid var(--border)', color:'var(--text-muted)', cursor:'pointer', fontSize:18, fontWeight:700, padding:'4px 12px', borderRadius:8, fontFamily:'inherit'}}>×</button>
+        </div>
+
+        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 12px', background:'var(--bg-input)', borderRadius:8, marginBottom:10, flexWrap:'wrap', gap:8}}>
+          <div style={{fontSize:11, color:'var(--text-muted)', fontWeight:600}}>
+            {snaps.length} snapshot{snaps.length === 1 ? '' : 's'} · {fmtBytes(totalSize)} total
+          </div>
+          <div style={{display:'flex', gap:6}}>
+            <button onClick={handleSnapshot} style={{padding:'5px 12px', fontSize:11, fontWeight:700, borderRadius:6, border:'1px solid var(--brand-pink)', background:'var(--brand-pink)', color:'white', cursor:'pointer', fontFamily:'inherit'}}>
+              + Save snapshot now
+            </button>
+          </div>
+        </div>
+
+        {sorted.length === 0 ? (
+          <div style={{padding:24, textAlign:'center', color:'var(--text-muted)', fontSize:13}}>
+            No snapshots yet. The first auto-save will happen after the next cloud sync, or click "Save snapshot now" to create one immediately.
+          </div>
+        ) : (
+          <div style={{display:'flex', flexDirection:'column', gap:6}}>
+            {sorted.map((snap, idx) => {
+              const meta = triggerMeta[snap.trigger] || { label: snap.trigger || 'Snapshot', color: 'var(--text-muted)', bg: 'var(--bg-input)' };
+              const isLatest = idx === 0;
+              const niceTime = new Date(snap.at).toLocaleString('en-AU', { day:'numeric', month:'short', hour:'numeric', minute:'2-digit' });
+              return (
+                <div key={snap.id} style={{display:'flex', alignItems:'center', gap:10, padding:'10px 14px', background:'var(--bg-card)', border:'1px solid var(--border)', borderRadius:8, borderLeft:`4px solid ${meta.color}`}}>
+                  <div style={{flex:1, minWidth:0}}>
+                    <div style={{display:'flex', alignItems:'baseline', gap:8, flexWrap:'wrap'}}>
+                      <span style={{fontSize:13, fontWeight:800, color:'var(--text-primary)'}}>{niceTime}</span>
+                      <span style={{fontSize:11, color:'var(--text-muted)'}}>{fmtRelative(snap.at)}</span>
+                      {isLatest && <span style={{fontSize:9, fontWeight:700, color:'var(--green)', background:'var(--green-bg)', padding:'2px 6px', borderRadius:10}}>LATEST</span>}
+                    </div>
+                    <div style={{display:'flex', alignItems:'center', gap:8, marginTop:3, fontSize:11, color:'var(--text-muted)', flexWrap:'wrap'}}>
+                      <span style={{fontWeight:700, color:meta.color, background:meta.bg, padding:'2px 8px', borderRadius:10, fontSize:10}}>{meta.label}</span>
+                      {snap.reason && <span style={{fontStyle:'italic'}}>{snap.reason}</span>}
+                      <span>· {snap.keys} keys · {fmtBytes(snap.size)}</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleRestore(snap)}
+                    style={{padding:'6px 12px', fontSize:11, fontWeight:700, borderRadius:6, border:'1px solid var(--brand-cyan)', background:'transparent', color:'var(--brand-cyan)', cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap'}}
+                  >
+                    Restore
+                  </button>
+                  <button
+                    onClick={() => handleDelete(snap)}
+                    title="Delete this snapshot"
+                    style={{padding:'6px 8px', fontSize:11, fontWeight:700, borderRadius:6, border:'1px solid var(--border)', background:'transparent', color:'var(--text-muted)', cursor:'pointer', fontFamily:'inherit'}}
+                  >
+                    ×
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <div style={{marginTop:14, padding:10, background:'var(--bg-input)', borderRadius:8, fontSize:10, color:'var(--text-muted)', lineHeight:1.5}}>
+          <strong>How this works:</strong> Snapshots are saved on this browser only (localStorage). Restoring overwrites all planner data on this device, then pushes to the cloud so other coaches will adopt the restored state on their next sync (within ~30 sec). The current state is always backed up before restore.
+        </div>
+      </div>
     </div>
   );
 }
@@ -1494,15 +2042,17 @@ function App() {
   }, []);
 
   // Historical test data import (2025-2026 testing, 4-term compiled v2) — cross-year matching.
-  // v9: WIPE-AND-REPLACE per user's explicit instruction to make the embedded v2 Excel the
-  // sole source of truth on the live site. Wipes testHistory and gymTests, auto-adds any
-  // missing athletes (Y7/Y8 → 7-8, Y9/Y10 → 9-10), then attaches the compiled test data
+  // v10: WIPE-AND-REPLACE — refreshed Excel (Year 10 cohort trimmed to active athletes).
+  // Bumped v9 → v10 to force every browser to re-run with the refreshed compiled data
+  // because some live browsers had lost athletes/results due to cross-coach sync races.
+  // Wipes testHistory and gymTests, auto-adds any missing athletes
+  // (Y7/Y8 → 7-8, Y9/Y10 → 9-10), then attaches the compiled test data
   // — applying normalizeTestValue on every entry.
-  // Runs once per browser (gated by playiq_test_import_v9). Self-healing fallback:
+  // Runs once per browser (gated by playiq_test_import_v10). Self-healing fallback:
   // if the flag is set but no history exists anywhere, re-run.
   useEffect(() => {
     if (typeof TEST_IMPORT_DATA === 'undefined' || !TEST_IMPORT_DATA.data) return;
-    const FLAG = 'playiq_test_import_v9';
+    const FLAG = 'playiq_test_import_v10';
     const ALL_YGS = ['7-8', '9-10', '11-12'];
     const flagSet = !!localStorage.getItem(FLAG);
     if (flagSet) {
@@ -1536,6 +2086,10 @@ function App() {
       try { squads[yg] = JSON.parse(localStorage.getItem(`playiq_${yg}_squad_v3`) || '[]'); }
       catch(e) { squads[yg] = []; }
     }
+
+    // Layer 1 safety net: snapshot the current state BEFORE we wipe so coaches
+    // can restore in-app imports or any data this migration is about to replace.
+    try { versionHistory.snapshot('pre-migration', 'Before v10 test data wipe + reimport', true); } catch(e) {}
 
     // STEP 1 (v9): WIPE existing testHistory AND legacy gymTests on every player.
     // Per user instruction, the embedded v2 Excel is the sole source of truth on the
@@ -1680,7 +2234,7 @@ function App() {
     }
     localStorage.setItem(FLAG, JSON.stringify({ when: new Date().toISOString(), summary }));
     try { setSquad(JSON.parse(localStorage.getItem(`playiq_${currentGroup.id}_squad_v3`) || '[]')); } catch(e) {}
-    console.log('[Keebra] 2025-2026 test data import (v9 wipe + replace from v2 Excel):', summary);
+    console.log('[Keebra] 2025-2026 test data import (v10 wipe + replace from refreshed v2 Excel):', summary);
   }, []);
 
   const [selectedDay, setSelectedDay] = useState("Tuesday");
@@ -7033,6 +7587,8 @@ function ProgramOverview({ setActiveTab, setCurrentTeam }) {
   const doRemoveLeavers = () => {
     const toRemove = new Set(leaversFlat.filter(l => !leaversKeep[l.player._id]).map(l => l.player._id).filter(Boolean));
     if (toRemove.size === 0) { setShowLeavers(false); return; }
+    // Layer 1: snapshot before destructive operation
+    try { versionHistory.snapshot('pre-removeleavers', `Before removing ${toRemove.size} leavers`, true); } catch(e) {}
     const teams = ['7-8-cup','7-8-challenge','9-10-cup','9-10-challenge','11-12-cup','11-12-challenge'];
     // Squads
     for (const yg of ['7-8','9-10','11-12']) {
@@ -7094,8 +7650,10 @@ function ProgramOverview({ setActiveTab, setCurrentTeam }) {
             ))}
             <button
               onClick={() => {
-                if (!window.confirm('Re-sync testing data?\n\nThis wipes all stored test history on this device and re-imports the compiled v2 Excel (Y7-Y10, 4 terms, 10 tests). Auto-adds missing athletes to the right year-group squad and normalizes all formats. Page will reload.\n\nProceed?')) return;
+                if (!window.confirm('Re-sync testing data?\n\nThis wipes all stored test history on this device and re-imports the compiled v2 Excel (Y7-Y10, 4 terms, 10 tests). Auto-adds missing athletes to the right year-group squad and normalizes all formats. Page will reload.\n\nA snapshot of the current state is saved first — restore from Version History if anything looks wrong.\n\nProceed?')) return;
+                try { versionHistory.snapshot('pre-resync', 'Before Re-sync testing data', true); } catch(e) {}
                 try {
+                  localStorage.removeItem('playiq_test_import_v10');
                   localStorage.removeItem('playiq_test_import_v9');
                   localStorage.removeItem('playiq_test_import_v8');
                   localStorage.removeItem('playiq_test_import_v7');
@@ -7869,15 +8427,47 @@ function SquadTracker({ squad, setSquad, roster, setRoster, matchday18, setMatch
     });
   }
 
-  function handleQuickAdd(e) { if (e.key === 'Enter' && newName.trim()) { setSquad(prev => [...prev, { _id: genId(), name: newName.trim(), number:'', position:'', available:true }]); setNewName(''); } }
-  function handleAddClick() { if (newName.trim()) { setSquad(prev => [...prev, { _id: genId(), name: newName.trim(), number:'', position:'', available:true }]); setNewName(''); } }
-  function updatePlayer(i, f, v) { setSquad(prev => prev.map((p, idx) => idx === i ? { ...p, [f]: v } : p)); }
+  // Layer 2 POC: every squad mutation also emits an op so cross-coach changes don't clobber.
+  const yg = currentGroup?.id || '7-8';
+  function handleQuickAdd(e) {
+    if (e.key === 'Enter' && newName.trim()) {
+      const player = { _id: genId(), name: newName.trim(), number:'', position:'', available:true };
+      setSquad(prev => [...prev, player]);
+      try { opLog.emit('squad.add', { yg, player }); } catch(e){}
+      setNewName('');
+    }
+  }
+  function handleAddClick() {
+    if (newName.trim()) {
+      const player = { _id: genId(), name: newName.trim(), number:'', position:'', available:true };
+      setSquad(prev => [...prev, player]);
+      try { opLog.emit('squad.add', { yg, player }); } catch(e){}
+      setNewName('');
+    }
+  }
+  function updatePlayer(i, f, v) {
+    const playerId = squad[i] && squad[i]._id;
+    setSquad(prev => prev.map((p, idx) => idx === i ? { ...p, [f]: v } : p));
+    if (playerId) {
+      // 'profile' patches go through squad.profile so the merge keeps existing profile fields
+      if (f === 'profile') try { opLog.emit('squad.profile', { yg, playerId, profilePatch: v }); } catch(e){}
+      else try { opLog.emit('squad.update', { yg, playerId, patch: { [f]: v } }); } catch(e){}
+    }
+  }
   function deletePlayer(i) {
     const removedId = squad[i] && squad[i]._id;
     setSquad(prev => prev.filter((_, idx) => idx !== i));
-    if (removedId) setRoster(prev => (Array.isArray(prev) ? prev.filter(x => x !== removedId) : []));
+    if (removedId) {
+      setRoster(prev => (Array.isArray(prev) ? prev.filter(x => x !== removedId) : []));
+      try { opLog.emit('squad.remove', { yg, playerId: removedId }); } catch(e){}
+    }
   }
-  function toggleAvailability(i) { setSquad(prev => prev.map((p, idx) => idx === i ? { ...p, available: p.available === false } : p)); }
+  function toggleAvailability(i) {
+    const playerId = squad[i] && squad[i]._id;
+    const newAvail = squad[i]?.available === false;
+    setSquad(prev => prev.map((p, idx) => idx === i ? { ...p, available: newAvail } : p));
+    if (playerId) try { opLog.emit('squad.update', { yg, playerId, patch: { available: newAvail } }); } catch(e){}
+  }
 
   function parseBulkText(text) {
     if (!text.trim()) return [];
@@ -7901,12 +8491,25 @@ function SquadTracker({ squad, setSquad, roster, setRoster, matchday18, setMatch
     }).filter(p => p.name);
   }
   useEffect(() => { setBulkPreview(parseBulkText(bulkText)); }, [bulkText]);
-  function handleBulkImport() { if (bulkPreview.length === 0) return; setSquad(prev => [...prev, ...bulkPreview]); setBulkText(''); setShowBulkAdd(false); }
+  function handleBulkImport() {
+    if (bulkPreview.length === 0) return;
+    setSquad(prev => [...prev, ...bulkPreview]);
+    // Emit one op per new player so the bulk add survives cross-coach merges
+    bulkPreview.forEach(p => { try { opLog.emit('squad.add', { yg, player: p }); } catch(e){} });
+    setBulkText(''); setShowBulkAdd(false);
+  }
 
   function handleDragStart(e, i) { setDragIdx(i); e.dataTransfer.effectAllowed = 'move'; setTimeout(() => { if (e.target) e.target.style.opacity = '0.4'; }, 0); }
   function handleDragEnd(e) { e.target.style.opacity = '1'; setDragIdx(null); setDragOverPos(null); }
   function handleGroupDragOver(e, pos) { e.preventDefault(); setDragOverPos(pos); }
-  function handleGroupDrop(e, target) { e.preventDefault(); setDragOverPos(null); if (dragIdx === null) return; setSquad(prev => prev.map((p, i) => i === dragIdx ? { ...p, position: target } : p)); setDragIdx(null); }
+  function handleGroupDrop(e, target) {
+    e.preventDefault(); setDragOverPos(null);
+    if (dragIdx === null) return;
+    const playerId = squad[dragIdx] && squad[dragIdx]._id;
+    setSquad(prev => prev.map((p, i) => i === dragIdx ? { ...p, position: target } : p));
+    if (playerId) try { opLog.emit('squad.update', { yg, playerId, patch: { position: target === 'Unassigned' ? '' : target } }); } catch(e){}
+    setDragIdx(null);
+  }
 
   // Year-level filter — derived from the current age group (e.g. '7-8' → years 7 and 8).
   const groupYears = (currentGroup?.id || '').split('-').filter(Boolean);
@@ -8145,6 +8748,9 @@ function SquadTracker({ squad, setSquad, roster, setRoster, matchday18, setMatch
 // Bootstrap: pull from cloud first (if configured) so React reads cloud data on first render
 (async () => {
   await cloudSync.bootstrap();
+  // Layer 2 POC: also pull the op log on boot. Squad ops emitted by other coaches get
+  // replayed into localStorage. Phase 1 — runs alongside snapshot sync (not authoritative yet).
+  try { await opLog.bootstrap(); } catch(e) { console.warn('[opLog] bootstrap failed:', e); }
   ReactDOM.render(<App />, document.getElementById('root'));
 })();
 </script>
