@@ -6466,11 +6466,19 @@ function PlayerProfileModal({ player, playerIdx, updatePlayer, deletePlayer, onC
     const cur = (testHistory[testName] || []).filter((_, i) => i !== idx);
     updateTestHistory(testName, cur);
   }
-  function addHistoryTest() {
-    const name = window.prompt('Test name to track:');
-    if (!name || !name.trim()) return;
-    if (testHistory[name.trim()]) return;
-    updateTestHistory(name.trim(), [[today(), '']]);
+  // Dropdown-based "add a test entry" modal — replaces the previous window.prompt
+  // so coaches pick from the canonical test list (avoids "Bench" vs "Bench (kg)" splits).
+  const [showAddTest, setShowAddTest] = useState(false);
+  function addHistoryTest() { setShowAddTest(true); }
+  function addTestEntry(testName, date, value) {
+    if (!testName) return;
+    const cur = (testHistory[testName] || []).slice();
+    // Replace if same date, else append
+    const idx = cur.findIndex(([d]) => d === date);
+    if (idx >= 0) cur[idx] = [date, value];
+    else cur.push([date, value]);
+    cur.sort((a, b) => (a[0]||'').localeCompare(b[0]||''));
+    updateTestHistory(testName, cur);
   }
 
   // === GOALS ===
@@ -7168,6 +7176,162 @@ function PlayerProfileModal({ player, playerIdx, updatePlayer, deletePlayer, onC
 
         <div className="btn-row" style={{marginTop:16}}>
           <button className="btn btn-primary" onClick={onClose}>Done</button>
+        </div>
+      </div>
+
+      {/* ADD TEST ENTRY MODAL — dropdown of canonical tests so coaches don't accidentally
+          create "Bench" alongside "Bench (kg)" */}
+      {showAddTest && (() => {
+        const CANONICAL = (typeof TEST_IMPORT_DATA !== 'undefined' && TEST_IMPORT_DATA.tests)
+          ? TEST_IMPORT_DATA.tests
+          : ['Bronco','Broad Jump','Vertical Jump','Max Hang','Push Up','20m Sprint','Med Ball Push','Beep Test','Bench (kg)','Squat (kg)'];
+        // Hint per test so the value input shows the right format
+        const HINT = {
+          'Bronco': 'mm:ss (e.g. 6:24)',
+          '1.2km Time Trial': 'mm:ss',
+          'Broad Jump': 'metres (e.g. 1.85)',
+          'Vertical Jump': 'cm (e.g. 38)',
+          'Max Hang': 'seconds (e.g. 32)',
+          'Push Up': 'reps (e.g. 18)',
+          '20m Sprint': 'seconds (e.g. 3.52)',
+          '40m Sprint': 'seconds (e.g. 6.05)',
+          '10m Sprint': 'seconds (e.g. 1.92)',
+          'Med Ball Push': 'metres (e.g. 4.32)',
+          'Beep Test': 'level (e.g. 8.5)',
+          'Bench (kg)': 'kg (e.g. 45)',
+          'Squat (kg)': 'kg (e.g. 70)',
+        };
+        return <AddTestEntryModal
+          canonical={CANONICAL}
+          hints={HINT}
+          existingTests={Object.keys(testHistory)}
+          playerName={player.name}
+          onSave={(testName, date, value) => { addTestEntry(testName, date, value); setShowAddTest(false); }}
+          onClose={() => setShowAddTest(false)}
+        />;
+      })()}
+    </div>
+  );
+}
+
+// Modal for adding a test entry — used from inside PlayerProfileModal.
+// Coaches pick a canonical test from a dropdown (instead of typing free-form),
+// optionally add a custom test, set a date and value in one go.
+function AddTestEntryModal({ canonical, hints, existingTests, playerName, onSave, onClose }) {
+  const today = () => new Date().toISOString().slice(0, 10);
+  const existingSet = new Set(existingTests);
+  // Show canonical tests first, then any custom tests already on this athlete that aren't canonical
+  const customExisting = existingTests.filter(t => !canonical.includes(t)).sort();
+  const allOptions = [...canonical, ...customExisting];
+  const [mode, setMode] = useState('preset'); // 'preset' or 'custom'
+  const [testName, setTestName] = useState(canonical[0] || '');
+  const [customName, setCustomName] = useState('');
+  const [date, setDate] = useState(today());
+  const [value, setValue] = useState('');
+  const finalName = mode === 'preset' ? testName : customName.trim();
+  const hint = (mode === 'preset' && hints[testName]) || 'value';
+  const canSave = !!finalName && !!date && !!value.trim();
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{width:540, maxWidth:'95vw'}}>
+        <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:14}}>
+          <div>
+            <div style={{fontSize:11, fontWeight:700, color:'var(--brand-pink)', textTransform:'uppercase', letterSpacing:1.2}}>Add test result</div>
+            <div style={{fontSize:18, fontWeight:800, marginTop:2}}>{playerName}</div>
+            <div style={{fontSize:11, color:'var(--text-muted)', marginTop:4}}>Pick a test from the list so the result shows up everywhere (Performance Profile, spider chart, dashboard).</div>
+          </div>
+          <button onClick={onClose} style={{background:'none', border:'1px solid var(--border)', color:'var(--text-muted)', cursor:'pointer', fontSize:18, fontWeight:700, padding:'4px 12px', borderRadius:8, fontFamily:'inherit'}}>×</button>
+        </div>
+
+        {/* mode toggle */}
+        <div style={{display:'flex', gap:6, marginBottom:12}}>
+          <button
+            onClick={() => setMode('preset')}
+            style={{flex:1, padding:'8px 12px', fontSize:11, fontWeight:700, cursor:'pointer', borderRadius:6,
+              border:'1px solid ' + (mode === 'preset' ? 'var(--brand-pink)' : 'var(--border)'),
+              background: mode === 'preset' ? 'var(--brand-pink)' : 'transparent',
+              color: mode === 'preset' ? 'white' : 'var(--text-muted)', fontFamily:'inherit'}}>
+            Pick from list
+          </button>
+          <button
+            onClick={() => setMode('custom')}
+            style={{flex:1, padding:'8px 12px', fontSize:11, fontWeight:700, cursor:'pointer', borderRadius:6,
+              border:'1px solid ' + (mode === 'custom' ? 'var(--brand-pink)' : 'var(--border)'),
+              background: mode === 'custom' ? 'var(--brand-pink)' : 'transparent',
+              color: mode === 'custom' ? 'white' : 'var(--text-muted)', fontFamily:'inherit'}}>
+            Custom test
+          </button>
+        </div>
+
+        {/* Test selector */}
+        <div className="form-group">
+          <label className="form-label">Test</label>
+          {mode === 'preset' ? (
+            <select className="form-select" value={testName} onChange={e => setTestName(e.target.value)}>
+              <optgroup label="Standard tests">
+                {canonical.map(t => (
+                  <option key={t} value={t}>
+                    {t}{existingSet.has(t) ? ' · already tracked' : ''}
+                  </option>
+                ))}
+              </optgroup>
+              {customExisting.length > 0 && (
+                <optgroup label="Custom tests on this athlete">
+                  {customExisting.map(t => (
+                    <option key={t} value={t}>{t} · already tracked</option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
+          ) : (
+            <input
+              className="form-input"
+              placeholder="e.g. Yo-Yo Test"
+              value={customName}
+              onChange={e => setCustomName(e.target.value)}
+              autoFocus
+            />
+          )}
+          {mode === 'preset' && existingSet.has(testName) && (
+            <div style={{fontSize:11, color:'var(--orange)', marginTop:4}}>
+              This athlete already has results for {testName}. New result for the same date will replace; new dates will add a new entry.
+            </div>
+          )}
+          {mode === 'custom' && (
+            <div style={{fontSize:11, color:'var(--text-muted)', marginTop:4}}>
+              For one-off tests that aren't in the standard list. Won't appear on the spider chart but will show in the Performance Profile.
+            </div>
+          )}
+        </div>
+
+        {/* Date + value */}
+        <div style={{display:'grid', gridTemplateColumns:'1fr 2fr', gap:10}}>
+          <div className="form-group" style={{margin:0}}>
+            <label className="form-label">Date</label>
+            <input type="date" className="form-input" value={date} onChange={e => setDate(e.target.value)} />
+          </div>
+          <div className="form-group" style={{margin:0}}>
+            <label className="form-label">Result</label>
+            <input
+              className="form-input"
+              placeholder={hint}
+              value={value}
+              onChange={e => setValue(e.target.value)}
+              autoFocus={mode === 'preset'}
+            />
+            <div style={{fontSize:10, color:'var(--text-muted)', marginTop:4}}>Format: {hint}</div>
+          </div>
+        </div>
+
+        <div className="btn-row" style={{marginTop:18, display:'flex', justifyContent:'flex-end', gap:8}}>
+          <button onClick={onClose} className="btn-outline" style={{padding:'8px 14px', fontSize:12, fontWeight:700, borderRadius:6, fontFamily:'inherit'}}>Cancel</button>
+          <button
+            onClick={() => canSave && onSave(finalName, date, value.trim())}
+            disabled={!canSave}
+            className="btn btn-primary"
+            style={{padding:'8px 16px', fontSize:12, fontWeight:700, borderRadius:6, fontFamily:'inherit', opacity: canSave ? 1 : 0.5, cursor: canSave ? 'pointer' : 'not-allowed'}}>
+            Save result
+          </button>
         </div>
       </div>
     </div>
