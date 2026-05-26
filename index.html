@@ -463,6 +463,14 @@ const cloudSync = (() => {
     for (const [k, v] of Object.entries(cloudSnap)) {
       if (typeof v !== 'string') continue;
       if (isTsKey(k)) continue; // timestamps ride along with their values
+      // Path A: op-log-managed keys are authoritative via the op log, not the snapshot.
+      // Apply from snapshot ONLY if local has nothing for the key (fresh-browser bootstrap).
+      // Once local has any value, op log takes over and snapshot can't overwrite it.
+      if (typeof opLog !== 'undefined' && opLog.isManagedKey && opLog.isManagedKey(k)) {
+        const localExistsForManaged = localStorage.getItem(k) !== null;
+        if (localExistsForManaged) { kept++; continue; }
+        // Fall through to normal apply for the fresh-browser case
+      }
       const cloudTs = parseInt(cloudSnap[k + TS_SUFFIX] || '0', 10);
       const localExists = localStorage.getItem(k) !== null;
       const localTsRaw = localStorage.getItem(k + TS_SUFFIX);
@@ -659,6 +667,16 @@ const cloudSync = (() => {
             console.log(`[cloudSync] suppressing empty-init push for ${k}`);
             return;
           }
+          // Path A: op-log-managed keys propagate via the op log, not the snapshot.
+          // Emit a kv.set op for any user-driven change to a managed key, then
+          // skip the snapshot push. The op log will push this within 1.2s and
+          // every other coach pulls it within 3 sec.
+          if (typeof opLog !== 'undefined' && opLog.isManagedKey && opLog.isManagedKey(k)) {
+            // Stamp __ts locally so we still know "this is our latest version"
+            try { origSet.call(localStorage, k + TS_SUFFIX, String(Date.now())); } catch(e){}
+            try { opLog.emit('kv.set', { key: k, value: v }); } catch(e){}
+            return;
+          }
           try { origSet.call(localStorage, k + TS_SUFFIX, String(Date.now())); } catch(e){}
           schedulePush();
         }
@@ -672,6 +690,11 @@ const cloudSync = (() => {
         origRemove.call(this, k);
         if (had) {
           try { origRemove.call(localStorage, k + TS_SUFFIX); } catch(e){}
+          // Op-log-managed keys: emit a kv.set with null to delete on other coaches
+          if (typeof opLog !== 'undefined' && opLog.isManagedKey && opLog.isManagedKey(k)) {
+            try { opLog.emit('kv.set', { key: k, value: null }); } catch(e){}
+            return;
+          }
           schedulePush();
         }
       } else {
@@ -857,6 +880,11 @@ const OPLOG_FIELD = '_oplog_v1';                    // cloud bin field
 const OPLOG_MAX_LOCAL = 2000;
 const OPLOG_POLL_MS = 3000;                         // 3 sec poll
 const opLog = (() => {
+  // Capture the unpatched setItem / removeItem BEFORE cloudSync patches them.
+  // Used by applyOp to write incoming ops to localStorage without triggering
+  // the watcher (which would emit another op → infinite loop).
+  const origSet = Storage.prototype.setItem.bind(localStorage);
+  const origRemove = Storage.prototype.removeItem.bind(localStorage);
   const listeners = new Set();
   let pendingPush = [];      // ops created locally but not yet flushed to cloud
   let pushTimer = null;
@@ -894,10 +922,54 @@ const opLog = (() => {
     return localStorage.getItem('playiq_actor_name') || getActorId();
   }
 
-  // Apply a single op to localStorage squad state. Idempotent — ops are
-  // dedupe'd by id before reaching apply().
-  function applyToSquad(op) {
-    if (!op || !op.type || !op.yg) return false;
+  // Keys that are managed by the op log (Path A). The cloudSync snapshot model
+  // skips these on push so the two systems don't fight over the same key.
+  // Squad keys are managed via granular squad.* ops; everything else via kv.set.
+  const OPLOG_MANAGED_KEY_SUFFIXES = [
+    '_squad_v3',
+    '_customActivities',
+    '_weekOverrides',
+    '_coverageData',
+    '_matchday18',
+    '_roster',
+    '_sessionReviews',
+    '_seasonConfig',
+    '_weekDays',
+    '_plannerNotes',
+    '_weeklyGoals',
+    '_sessionStartTimes',
+    '_sessionStartTime',
+    '_blueprintLoaded',
+  ];
+  const OPLOG_MANAGED_EXACT = new Set([
+    'playiq_customDrills',
+  ]);
+  function isOpLogManagedKey(k) {
+    if (!k || typeof k !== 'string') return false;
+    if (!k.startsWith(PLANNER_KEY_PREFIX)) return false;
+    if (OPLOG_MANAGED_EXACT.has(k)) return true;
+    return OPLOG_MANAGED_KEY_SUFFIXES.some(s => k.endsWith(s));
+  }
+
+  // Apply a single op to localStorage. Idempotent — ops are dedupe'd by id
+  // before reaching apply(). Handles squad.* granular ops and the generic
+  // kv.set for everything else.
+  function applyOp(op) {
+    if (!op || !op.type) return false;
+    if (op.type === 'kv.set') {
+      if (!op.key || !op.key.startsWith(PLANNER_KEY_PREFIX)) return false;
+      const cur = localStorage.getItem(op.key);
+      if (cur === op.value) return false;
+      try {
+        // Use origSet/origRemove to BYPASS the watcher — otherwise the watcher
+        // would emit another kv.set op for the same change → infinite loop.
+        if (op.value == null) origRemove(op.key);
+        else origSet(op.key, op.value);
+        return true;
+      } catch(e) { return false; }
+    }
+    // squad.* ops
+    if (!op.yg) return false;
     const key = `playiq_${op.yg}_squad_v3`;
     let squad;
     try { squad = JSON.parse(localStorage.getItem(key) || '[]'); } catch(e) { squad = []; }
@@ -905,7 +977,7 @@ const opLog = (() => {
     let changed = false;
     if (op.type === 'squad.add') {
       if (!op.player || !op.player._id) return false;
-      if (squad.some(p => p && p._id === op.player._id)) return false; // already present
+      if (squad.some(p => p && p._id === op.player._id)) return false;
       squad.push(op.player); changed = true;
     } else if (op.type === 'squad.remove') {
       const before = squad.length;
@@ -928,9 +1000,21 @@ const opLog = (() => {
       return false;
     }
     if (changed) {
-      try { localStorage.setItem(key, JSON.stringify(squad)); } catch(e){}
+      // Bypass watcher so we don't emit another op for this very change
+      try { origSet(key, JSON.stringify(squad)); } catch(e){}
     }
     return changed;
+  }
+  // Backwards-compat alias for the old callsite
+  const applyToSquad = applyOp;
+
+  // Helper: emit a kv.set op for the current localStorage value of a key.
+  // Used by useEffects that already write to localStorage — they call this
+  // right after the write so the change propagates to other coaches via ops.
+  function emitKvSet(key) {
+    if (!isOpLogManagedKey(key)) return null;
+    const value = localStorage.getItem(key);
+    return emit('kv.set', { key, value });
   }
 
   // Compose an op and add it to the local pending queue.
@@ -947,7 +1031,43 @@ const opLog = (() => {
     lastFeed = [op, ...lastFeed].slice(0, FEED_MAX);
     notify();
     schedulePush();
+    // Path B: if Cloudflare sync is connected, send the op immediately
+    // for sub-second propagation. JSONBin push still happens (1.2s debounced)
+    // so the op also persists to the backup.
+    try {
+      if (typeof cloudflareSync !== 'undefined' && cloudflareSync.isConnected && cloudflareSync.isConnected()) {
+        cloudflareSync.sendOps([op]);
+      }
+    } catch(e) {}
     return op;
+  }
+
+  // Apply ops that arrived from an external source (Cloudflare WebSocket push)
+  // without re-emitting them. Dedupes by id so duplicate deliveries are safe.
+  function ingestOps(ops) {
+    if (!Array.isArray(ops) || ops.length === 0) return 0;
+    let applied = 0;
+    for (const op of ops) {
+      if (!op || !op.id) continue;
+      if (seenIds.has(op.id)) continue;
+      const ok = applyOp(op);
+      seenIds.add(op.id);
+      if (ok) applied++;
+      lastFeed = [op, ...lastFeed].slice(0, FEED_MAX);
+    }
+    if (applied > 0) {
+      saveSeen();
+      try { window.dispatchEvent(new CustomEvent('cloudSyncMerged', { detail: { applied, source:'cloudflare' } })); } catch(e){}
+      notify();
+    }
+    return applied;
+  }
+
+  // For Cloudflare sync to know where to resume from after reconnect.
+  function getLastSeenId() {
+    // Return the most recent op id we've seen, ordered by ts in the feed.
+    // (We keep seenIds as a Set; feed has ordering. lastFeed[0] is newest.)
+    return lastFeed.length > 0 ? lastFeed[0].id : null;
   }
 
   function schedulePush() {
@@ -1003,7 +1123,7 @@ const opLog = (() => {
         if (!op || !op.id) continue;
         if (seenIds.has(op.id)) continue;
         // Apply to localStorage
-        const ok = applyToSquad(op);
+        const ok = applyOp(op);
         seenIds.add(op.id);
         if (ok) applied++;
         lastFeed = [op, ...lastFeed].slice(0, FEED_MAX);
@@ -1032,7 +1152,140 @@ const opLog = (() => {
     setInterval(() => pullOnce(true), OPLOG_POLL_MS);
   }
 
-  return { bootstrap, emit, pullOnce, flushPush, subscribe, getFeed, getActorName };
+  return { bootstrap, emit, emitKvSet, ingestOps, getLastSeenId, pullOnce, flushPush, subscribe, getFeed, getActorName, isManagedKey: isOpLogManagedKey };
+})();
+
+// ═══════════════════════════════════════════════════════════
+// CLOUDFLARE SYNC — Path B real-time backend.
+// Connects to the deployed Cloudflare Worker over WebSocket. When connected,
+// every emitted op goes there immediately (~200ms to other coaches).
+// JSONBin opLog continues running in parallel as a fallback (~3s polling).
+//
+// Configure below — see cloudflare-worker/README.md for deploy instructions.
+// ═══════════════════════════════════════════════════════════
+const CLOUDFLARE_CONFIG = {
+  enabled: true,
+  url:     'wss://keebra-planner-sync.jacksonkluke.workers.dev/connect',
+  secret:  'KpGrLa2026MzQxYvWnCsPqRtUv6DwGhJk',
+};
+const CF_RECONNECT_MIN_MS = 2000;
+const CF_RECONNECT_MAX_MS = 30000;
+const cloudflareSync = (() => {
+  let ws = null;
+  let connected = false;
+  let reconnectAttempt = 0;
+  let reconnectTimer = null;
+  let lastStatus = { state: 'disabled', detail: '' };
+  const listeners = new Set();
+
+  function notify(status) {
+    lastStatus = status;
+    listeners.forEach(fn => { try { fn(status); } catch(e){} });
+  }
+  function subscribe(fn) { listeners.add(fn); fn(lastStatus); return () => listeners.delete(fn); }
+  function getStatus() { return lastStatus; }
+  function isConfigured() { return !!(CLOUDFLARE_CONFIG.enabled && CLOUDFLARE_CONFIG.url); }
+  function isConnected() { return connected && ws && ws.readyState === 1; }
+
+  function connect() {
+    if (!isConfigured()) { notify({ state: 'disabled', detail: 'Not configured' }); return; }
+    if (ws) { try { ws.close(); } catch(e){} }
+    notify({ state: 'connecting', detail: 'Opening WebSocket…' });
+    let url = CLOUDFLARE_CONFIG.url;
+    if (CLOUDFLARE_CONFIG.secret) {
+      url += (url.includes('?') ? '&' : '?') + 'auth=' + encodeURIComponent(CLOUDFLARE_CONFIG.secret);
+    }
+    try { ws = new WebSocket(url); }
+    catch(e) { notify({ state: 'error', detail: 'WebSocket construct failed: ' + e.message }); scheduleReconnect(); return; }
+
+    ws.addEventListener('open', () => {
+      connected = true;
+      reconnectAttempt = 0;
+      notify({ state: 'connected', detail: 'Real-time sync active' });
+      // Resume from where we left off
+      const lastSeen = opLog.getLastSeenId();
+      try { ws.send(JSON.stringify({ type: 'hello', lastSeenId: lastSeen })); } catch(e){}
+    });
+
+    ws.addEventListener('message', (event) => {
+      let msg;
+      try { msg = JSON.parse(event.data); } catch(e) { return; }
+      if (msg.type === 'sync' || msg.type === 'ops') {
+        const ops = Array.isArray(msg.ops) ? msg.ops : [];
+        if (ops.length > 0) opLog.ingestOps(ops);
+      } else if (msg.type === 'reseed') {
+        // Server replaced ops bulk — pull a fresh state
+        console.log('[cloudflareSync] reseed event, resyncing from server');
+        try { ws.send(JSON.stringify({ type: 'hello', lastSeenId: null })); } catch(e){}
+      } else if (msg.type === 'error') {
+        console.warn('[cloudflareSync] server error:', msg.message);
+      }
+      // 'ack' and 'pong' are informational — nothing to do
+    });
+
+    ws.addEventListener('close', () => {
+      connected = false;
+      notify({ state: 'disconnected', detail: 'Reconnecting…' });
+      scheduleReconnect();
+    });
+    ws.addEventListener('error', () => {
+      connected = false;
+      notify({ state: 'error', detail: 'WebSocket error' });
+    });
+
+    // Heartbeat — keeps the connection warm + detects dead sockets
+    const heartbeat = setInterval(() => {
+      if (!ws || ws.readyState !== 1) { clearInterval(heartbeat); return; }
+      try { ws.send(JSON.stringify({ type: 'ping' })); } catch(e){}
+    }, 25000);
+  }
+
+  function scheduleReconnect() {
+    if (!isConfigured()) return;
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+    reconnectAttempt++;
+    const delay = Math.min(CF_RECONNECT_MAX_MS, CF_RECONNECT_MIN_MS * Math.pow(1.5, Math.min(reconnectAttempt, 8)));
+    reconnectTimer = setTimeout(connect, delay);
+  }
+
+  function sendOps(ops) {
+    if (!isConnected()) return false;
+    try { ws.send(JSON.stringify({ type: 'ops', ops })); return true; }
+    catch(e) { return false; }
+  }
+
+  // One-time migration helper: pulls the JSONBin op log and seeds the Cloudflare
+  // worker with it. Run from the browser console after first deploying the worker:
+  //   await cloudflareSync.seedFromJsonBin()
+  async function seedFromJsonBin() {
+    if (!isConfigured()) throw new Error('Cloudflare not configured');
+    if (!CLOUD_CONFIG.enabled || !CLOUD_CONFIG.binId) throw new Error('JSONBin not configured');
+    console.log('[seedFromJsonBin] pulling JSONBin op log…');
+    const res = await fetch(`https://api.jsonbin.io/v3/b/${CLOUD_CONFIG.binId}/latest`, {
+      headers: { 'X-Master-Key': CLOUD_CONFIG.apiKey, 'X-Bin-Meta': 'false' },
+    });
+    if (!res.ok) throw new Error('JSONBin pull failed: ' + res.status);
+    const data = await res.json();
+    const ops = Array.isArray(data && data._oplog_v1) ? data._oplog_v1 : [];
+    console.log(`[seedFromJsonBin] found ${ops.length} ops, seeding Cloudflare…`);
+    const httpUrl = CLOUDFLARE_CONFIG.url.replace(/^wss?:\/\//, 'https://').replace(/\/connect$/, '/seed');
+    const r2 = await fetch(httpUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + CLOUDFLARE_CONFIG.secret },
+      body: JSON.stringify({ ops }),
+    });
+    if (!r2.ok) throw new Error('Cloudflare seed failed: ' + r2.status);
+    const result = await r2.json();
+    console.log('[seedFromJsonBin] done:', result);
+    return result;
+  }
+
+  function bootstrap() {
+    if (!isConfigured()) { notify({ state: 'disabled', detail: 'Cloudflare sync off (using JSONBin)' }); return; }
+    connect();
+  }
+
+  return { bootstrap, connect, sendOps, subscribe, getStatus, isConnected, isConfigured, seedFromJsonBin };
 })();
 
 // ═══════════════════════════════════════════════════════════
@@ -1632,9 +1885,11 @@ const PRE_SEASON_TARGETS = {};
 
 function SyncStatusBadge() {
   const [s, setS] = useState(cloudSync.getStatus());
+  const [cf, setCf] = useState(cloudflareSync.getStatus());
   const [showHistory, setShowHistory] = useState(false);
   const [showActivity, setShowActivity] = useState(false);
   useEffect(() => cloudSync.subscribe(setS), []);
+  useEffect(() => cloudflareSync.subscribe(setCf), []);
   const palette = {
     idle:     { bg: 'var(--bg-input)',  fg: 'var(--text-secondary)', dot: 'var(--text-muted)',  label: 'Idle' },
     disabled: { bg: 'var(--bg-input)',  fg: 'var(--text-muted)',     dot: 'var(--text-muted)',  label: 'Local only' },
@@ -1645,8 +1900,18 @@ function SyncStatusBadge() {
   };
   const p = palette[s.state] || palette.idle;
   const showRefresh = cloudSync.isConfigured();
+  const cfActive = cf && cf.state === 'connected';
   return (
     <>
+      {cloudflareSync.isConfigured() && (
+        <div title={cf.detail || cf.state}
+             style={{display:'inline-flex', alignItems:'center', gap:5, padding:'5px 9px', marginRight:6, borderRadius:6, fontSize:10, fontWeight:700,
+                     background: cfActive ? 'var(--green-bg)' : 'var(--bg-input)',
+                     color: cfActive ? 'var(--green)' : 'var(--text-muted)',
+                     border: '1px solid ' + (cfActive ? 'var(--green)' : 'var(--border)')}}>
+          <span>⚡</span><span>{cfActive ? 'LIVE' : cf.state.toUpperCase()}</span>
+        </div>
+      )}
       <div style={{display:'inline-flex', alignItems:'center', gap:6, background:p.bg, color:p.fg,
                    padding:'6px 10px', borderRadius:6, fontSize:11, fontWeight:600,
                    border:'1px solid var(--border)'}}
@@ -1816,6 +2081,31 @@ function VersionHistoryModal({ onClose }) {
     'pre-removeleavers': { label: 'Before remove leavers',color: 'var(--orange)',  bg: 'var(--orange-bg)' },
   };
   const sorted = [...snaps].sort((a,b) => (b.at || '').localeCompare(a.at || ''));
+  // Inspect a snapshot's payload and produce a human summary like
+  // "Y7-8: 28 · Y9-10: 35 · Y11-12: 0 · sessions: 14 · drills: 12"
+  // so coaches can spot which snapshots actually have squad/session data
+  // (vs. snapshots taken after a wipe that captured empty state).
+  const inspectSnap = (snap) => {
+    const data = (snap && snap.data) || {};
+    const tryParse = (s, def) => { try { const p = JSON.parse(s || 'null'); return p == null ? def : p; } catch(e) { return def; } };
+    const len = (s) => { const p = tryParse(s, []); return Array.isArray(p) ? p.length : 0; };
+    const objLen = (s) => { const p = tryParse(s, {}); return p && typeof p === 'object' ? Object.keys(p).length : 0; };
+    const parts = {
+      '7-8': len(data['playiq_7-8_squad_v3']),
+      '9-10': len(data['playiq_9-10_squad_v3']),
+      '11-12': len(data['playiq_11-12_squad_v3']),
+    };
+    const teams = ['7-8-cup','7-8-challenge','9-10-cup','9-10-challenge','11-12-cup','11-12-challenge'];
+    let totalSessions = 0; let totalCoverage = 0;
+    teams.forEach(t => {
+      totalSessions += objLen(data[`playiq_${t}_customActivities`]);
+      totalCoverage += objLen(data[`playiq_${t}_coverageData`]);
+    });
+    const drills = objLen(data['playiq_customDrills']);
+    const totalPlayers = parts['7-8'] + parts['9-10'] + parts['11-12'];
+    const isEmpty = totalPlayers === 0 && totalSessions === 0 && drills === 0;
+    return { parts, totalPlayers, totalSessions, totalCoverage, drills, isEmpty };
+  };
   const handleSnapshot = () => {
     const reason = window.prompt('Optional label for this snapshot:', '');
     if (reason === null) return; // cancelled
@@ -1823,10 +2113,15 @@ function VersionHistoryModal({ onClose }) {
   };
   const handleRestore = (snap) => {
     const niceTime = new Date(snap.at).toLocaleString();
-    if (!window.confirm(`Restore to ${niceTime}?\n\nThis will replace your current data with the snapshot. The current state is automatically backed up first as "Pre-restore backup" so you can undo this.\n\nThe page will reload, and other coaches will see the restored state on their next sync.`)) return;
+    const info = inspectSnap(snap);
+    if (info.isEmpty) {
+      if (!window.confirm(`⚠️ This snapshot looks EMPTY (no players, no sessions, no drills).\n\nRestoring it would wipe your current data with empty data. This is probably not what you want — pick a snapshot from earlier with actual content.\n\nDo you still want to restore?`)) return;
+    } else if (!window.confirm(`Restore to ${niceTime}?\n\nThis snapshot contains:\n• Year 7-8 squad: ${info.parts['7-8']} players\n• Year 9-10 squad: ${info.parts['9-10']} players\n• Year 11-12 squad: ${info.parts['11-12']} players\n• Custom sessions: ${info.totalSessions}\n• Custom drills: ${info.drills}\n\nIt will replace your current data. The current state is auto-backed up first.\n\nPage will reload. Other coaches will see the restored state on their next sync.`)) return;
     const result = versionHistory.restore(snap.id);
     if (!result.ok) { alert('Restore failed: ' + result.error); return; }
-    setTimeout(() => window.location.reload(), 300);
+    // Force a flush of any pending push BEFORE the reload, so the restored
+    // data definitely lands on the cloud bin and survives the reload's pull.
+    setTimeout(() => window.location.reload(), 1800);
   };
   const handleDelete = (snap) => {
     if (!window.confirm('Delete this snapshot? This cannot be undone.')) return;
@@ -1869,8 +2164,12 @@ function VersionHistoryModal({ onClose }) {
               const meta = triggerMeta[snap.trigger] || { label: snap.trigger || 'Snapshot', color: 'var(--text-muted)', bg: 'var(--bg-input)' };
               const isLatest = idx === 0;
               const niceTime = new Date(snap.at).toLocaleString('en-AU', { day:'numeric', month:'short', hour:'numeric', minute:'2-digit' });
+              const info = inspectSnap(snap);
+              const summary = info.isEmpty
+                ? '⚠ Empty — no players, sessions or drills'
+                : `${info.totalPlayers} players (Y7-8 ${info.parts['7-8']} · Y9-10 ${info.parts['9-10']} · Y11-12 ${info.parts['11-12']}) · ${info.totalSessions} sessions · ${info.drills} drills`;
               return (
-                <div key={snap.id} style={{display:'flex', alignItems:'center', gap:10, padding:'10px 14px', background:'var(--bg-card)', border:'1px solid var(--border)', borderRadius:8, borderLeft:`4px solid ${meta.color}`}}>
+                <div key={snap.id} style={{display:'flex', alignItems:'center', gap:10, padding:'10px 14px', background:info.isEmpty ? 'var(--red-bg)' : 'var(--bg-card)', border:'1px solid ' + (info.isEmpty ? 'var(--red)' : 'var(--border)'), borderRadius:8, borderLeft:`4px solid ${info.isEmpty ? 'var(--red)' : meta.color}`}}>
                   <div style={{flex:1, minWidth:0}}>
                     <div style={{display:'flex', alignItems:'baseline', gap:8, flexWrap:'wrap'}}>
                       <span style={{fontSize:13, fontWeight:800, color:'var(--text-primary)'}}>{niceTime}</span>
@@ -1880,12 +2179,15 @@ function VersionHistoryModal({ onClose }) {
                     <div style={{display:'flex', alignItems:'center', gap:8, marginTop:3, fontSize:11, color:'var(--text-muted)', flexWrap:'wrap'}}>
                       <span style={{fontWeight:700, color:meta.color, background:meta.bg, padding:'2px 8px', borderRadius:10, fontSize:10}}>{meta.label}</span>
                       {snap.reason && <span style={{fontStyle:'italic'}}>{snap.reason}</span>}
-                      <span>· {snap.keys} keys · {fmtBytes(snap.size)}</span>
                     </div>
+                    <div style={{marginTop:5, fontSize:11, color: info.isEmpty ? 'var(--red)' : 'var(--text-primary)', fontWeight: info.isEmpty ? 700 : 600}}>
+                      {summary}
+                    </div>
+                    <div style={{marginTop:2, fontSize:10, color:'var(--text-muted)'}}>{snap.keys} keys · {fmtBytes(snap.size)}</div>
                   </div>
                   <button
                     onClick={() => handleRestore(snap)}
-                    style={{padding:'6px 12px', fontSize:11, fontWeight:700, borderRadius:6, border:'1px solid var(--brand-cyan)', background:'transparent', color:'var(--brand-cyan)', cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap'}}
+                    style={{padding:'6px 12px', fontSize:11, fontWeight:700, borderRadius:6, border:'1px solid ' + (info.isEmpty ? 'var(--text-muted)' : 'var(--brand-cyan)'), background:'transparent', color: info.isEmpty ? 'var(--text-muted)' : 'var(--brand-cyan)', cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap'}}
                   >
                     Restore
                   </button>
@@ -9154,6 +9456,8 @@ function SquadTracker({ squad, setSquad, roster, setRoster, matchday18, setMatch
   // Layer 2 POC: also pull the op log on boot. Squad ops emitted by other coaches get
   // replayed into localStorage. Phase 1 — runs alongside snapshot sync (not authoritative yet).
   try { await opLog.bootstrap(); } catch(e) { console.warn('[opLog] bootstrap failed:', e); }
+  // Path B: connect to Cloudflare Worker (if configured) for real-time push.
+  try { cloudflareSync.bootstrap(); } catch(e) { console.warn('[cloudflareSync] bootstrap failed:', e); }
   ReactDOM.render(<App />, document.getElementById('root'));
 })();
 </script>
