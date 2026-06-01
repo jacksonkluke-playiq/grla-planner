@@ -1440,6 +1440,14 @@ const cloudflareSync = (() => {
     const SKIP_SUFFIXES = ['_oplog_seen_v1', 'history_v1', 'actor_id', 'onboarded'];
     const ops = [];
     const now = Date.now();
+    // Read actor identity once up-front — getActorName is scoped inside the
+    // opLog IIFE and not accessible here. Falls back gracefully if missing.
+    let byId = 'master-publisher';
+    try {
+      byId = localStorage.getItem('playiq_actor_name')
+          || localStorage.getItem('playiq_actor_id')
+          || 'master-publisher';
+    } catch(e) {}
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
       if (!k || !k.startsWith(PLANNER_KEY_PREFIX)) continue;
@@ -1450,7 +1458,7 @@ const cloudflareSync = (() => {
       ops.push({
         id: 'op_master_' + now.toString(36) + '_' + i.toString(36),
         ts: now,
-        by: (getActorName && getActorName()) || 'master-publisher',
+        by: byId,
         type: 'kv.set',
         key: k,
         value: value,
