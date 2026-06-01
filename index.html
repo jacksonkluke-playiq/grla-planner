@@ -1416,7 +1416,83 @@ const cloudflareSync = (() => {
     connect();
   }
 
-  return { bootstrap, connect, sendOps, subscribe, getStatus, isConnected, isConfigured, seedFromJsonBin };
+  // ─── MASTER COPY — manual full-state share over the Cloudflare worker ───
+  // Cloudflare WebSocket sync sometimes flaps on school networks. When auto-sync
+  // is unreliable, coaches can use these two buttons to share state explicitly:
+  //
+  //   publishAsMaster()  — snapshots EVERY playiq_* key, converts each into a
+  //                        kv.set op, then POSTs the whole batch to /seed which
+  //                        REPLACES the worker's op log atomically and broadcasts
+  //                        a 'reseed' to every connected coach. They re-pull on
+  //                        the next sync and adopt the new state.
+  //
+  //   pullFromMaster()  — fetches the entire current op log via /ops, applies
+  //                       every op locally, then reloads so React re-reads state.
+  //                       Auto-snapshots first via versionHistory so the pull is
+  //                       undoable.
+  //
+  // No worker redeploy needed — uses existing /seed + /ops endpoints.
+  async function publishAsMaster() {
+    if (!isConfigured()) throw new Error('Cloudflare worker not configured');
+    const base = CLOUDFLARE_CONFIG.url.replace(/^wss:/, 'https:').replace(/^ws:/, 'http:').replace(/\/connect\/?$/, '');
+    // Snapshot all planner keys (but skip per-browser-only stuff like history,
+    // actor_id, onboarded — those are local to each browser, not "master").
+    const SKIP_SUFFIXES = ['_oplog_seen_v1', 'history_v1', 'actor_id', 'onboarded'];
+    const ops = [];
+    const now = Date.now();
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k || !k.startsWith(PLANNER_KEY_PREFIX)) continue;
+      if (SKIP_SUFFIXES.some(s => k.endsWith(s))) continue;
+      if (k.endsWith('__ts')) continue; // timestamp siblings ride with their values
+      const value = localStorage.getItem(k);
+      if (value == null) continue;
+      ops.push({
+        id: 'op_master_' + now.toString(36) + '_' + i.toString(36),
+        ts: now,
+        by: (getActorName && getActorName()) || 'master-publisher',
+        type: 'kv.set',
+        key: k,
+        value: value,
+      });
+    }
+    const r = await fetch(base + '/seed', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + CLOUDFLARE_CONFIG.secret, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ops }),
+    });
+    if (!r.ok) throw new Error('Publish failed: HTTP ' + r.status);
+    const result = await r.json();
+    return { opCount: ops.length, ...result };
+  }
+
+  async function pullFromMaster() {
+    if (!isConfigured()) throw new Error('Cloudflare worker not configured');
+    const base = CLOUDFLARE_CONFIG.url.replace(/^wss:/, 'https:').replace(/^ws:/, 'http:').replace(/\/connect\/?$/, '');
+    const r = await fetch(base + '/ops', { headers: { 'Authorization': 'Bearer ' + CLOUDFLARE_CONFIG.secret } });
+    if (!r.ok) throw new Error('Pull failed: HTTP ' + r.status);
+    const { ops } = await r.json();
+    if (!Array.isArray(ops) || ops.length === 0) return { applied: 0 };
+    // Safety: snapshot current state first so the pull is undoable from Version History.
+    try { versionHistory.snapshot('pre-restore', 'Before pull-from-master (' + ops.length + ' ops)', true); } catch(e){}
+    // Apply every op. opLog.ingestOps deduplicates by id and uses applyOp internally
+    // which writes via origSet (no echo-loop).
+    let applied = 0;
+    if (typeof opLog !== 'undefined' && opLog.ingestOps) {
+      applied = opLog.ingestOps(ops);
+    } else {
+      // Fallback: apply directly
+      for (const op of ops) {
+        if (op && op.type === 'kv.set' && op.key && typeof op.value === 'string') {
+          try { localStorage.setItem(op.key, op.value); applied++; } catch(e) {}
+        }
+      }
+    }
+    return { applied, total: ops.length };
+  }
+
+  return { bootstrap, connect, sendOps, subscribe, getStatus, isConnected, isConfigured,
+            seedFromJsonBin, publishAsMaster, pullFromMaster };
 })();
 
 // ═══════════════════════════════════════════════════════════
@@ -2013,6 +2089,86 @@ const PRE_SEASON_TARGETS = {};
 // ═══════════════════════════════════════════════════════════
 // COMPONENTS
 // ═══════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════
+// MASTER COPY badge — manual publish/pull for when auto-sync is flaky.
+// Two big obvious buttons: "Share my changes" pushes everything to the
+// worker (overwriting the master copy); "Get latest" pulls the master
+// down. The pull is reversible via Version History.
+// ═══════════════════════════════════════════════════════════
+function MasterCopyBadge() {
+  const [busy, setBusy] = useState('');
+  const [lastResult, setLastResult] = useState('');
+
+  const handlePublish = async () => {
+    if (busy) return;
+    if (!window.confirm(
+      'PUBLISH AS MASTER\n\n' +
+      'This will REPLACE the shared master copy with everything currently on this browser. ' +
+      'Every other coach who hits "Get latest" or reloads while connected will adopt your state.\n\n' +
+      'Use this when YOUR copy is the most up-to-date — e.g. after editing squads, testing data, or the season plan.\n\n' +
+      'Continue?'
+    )) return;
+    setBusy('publish'); setLastResult('');
+    try {
+      const r = await cloudflareSync.publishAsMaster();
+      setLastResult('✓ Published ' + r.opCount + ' keys at ' + new Date().toLocaleTimeString());
+      window.alert('✓ Published ' + r.opCount + ' keys as the new Master Copy.\n\n' +
+                    'Other coaches: ask them to click "Get latest from Master" — or just reload if they\'re connected.');
+    } catch(e) {
+      setLastResult('✗ ' + e.message);
+      window.alert('Publish failed: ' + e.message);
+    }
+    setBusy('');
+  };
+
+  const handlePull = async () => {
+    if (busy) return;
+    if (!window.confirm(
+      'GET LATEST FROM MASTER\n\n' +
+      'This will REPLACE everything on this browser with the current master copy on the cloud. ' +
+      'Your current state is auto-backed up to Version History first, so this is reversible.\n\n' +
+      'Page will reload after pull.\n\n' +
+      'Continue?'
+    )) return;
+    setBusy('pull'); setLastResult('');
+    try {
+      const r = await cloudflareSync.pullFromMaster();
+      setLastResult('✓ Pulled ' + r.applied + '/' + r.total + ' ops');
+      window.alert('✓ Pulled ' + r.applied + ' keys from Master.\n\nPage will reload now.');
+      setTimeout(() => window.location.reload(), 600);
+    } catch(e) {
+      setLastResult('✗ ' + e.message);
+      window.alert('Pull failed: ' + e.message);
+    }
+    setBusy('');
+  };
+
+  return (
+    <div style={{display:'inline-flex', alignItems:'center', gap:6, marginRight:4}}>
+      <button onClick={handlePublish} disabled={busy !== ''}
+              title="Replace the shared Master Copy with your current state. Other coaches see your changes when they pull or reload."
+              style={{display:'inline-flex', alignItems:'center', gap:5, padding:'7px 12px',
+                       fontSize:11, fontWeight:800, borderRadius:14, cursor:busy ? 'wait' : 'pointer',
+                       background: busy === 'publish' ? '#fce7f3' : 'var(--brand-pink)',
+                       color: busy === 'publish' ? 'var(--brand-pink)' : 'white',
+                       border:'1px solid var(--brand-pink)', fontFamily:'inherit', whiteSpace:'nowrap',
+                       letterSpacing:0.3}}>
+        {busy === 'publish' ? '⏳ Publishing…' : '📤 Share my changes'}
+      </button>
+      <button onClick={handlePull} disabled={busy !== ''}
+              title="Pull the latest Master Copy from the cloud onto this browser. Your current state is auto-backed up first."
+              style={{display:'inline-flex', alignItems:'center', gap:5, padding:'7px 12px',
+                       fontSize:11, fontWeight:800, borderRadius:14, cursor:busy ? 'wait' : 'pointer',
+                       background: busy === 'pull' ? '#dbeafe' : 'transparent',
+                       color: 'var(--brand-cyan)',
+                       border:'1px solid var(--brand-cyan)', fontFamily:'inherit', whiteSpace:'nowrap',
+                       letterSpacing:0.3}}>
+        {busy === 'pull' ? '⏳ Pulling…' : '📥 Get latest'}
+      </button>
+    </div>
+  );
+}
 
 function SyncStatusBadge() {
   const [s, setS] = useState(cloudSync.getStatus());
@@ -3036,6 +3192,7 @@ function App() {
           </div>
         </div>
         <div style={{display:'flex', gap:8, alignItems:'center'}}>
+          <MasterCopyBadge />
           <SyncStatusBadge />
           <button className="btn-outline" onClick={() => setShowSeasonSetup(true)} style={{fontSize:12, display:'inline-flex', alignItems:'center', gap:6}}><Icon name="settings" size={13}/> Setup Season</button>
           <button className="btn-outline" onClick={handleExportData} style={{fontSize:12, display:'inline-flex', alignItems:'center', gap:6}}><Icon name="download" size={13}/> Export</button>
