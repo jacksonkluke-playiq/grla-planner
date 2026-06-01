@@ -1301,6 +1301,90 @@ const CLOUDFLARE_CONFIG = {
 };
 const CF_RECONNECT_MIN_MS = 2000;
 const CF_RECONNECT_MAX_MS = 30000;
+
+// ═══════════════════════════════════════════════════════════
+// MASTER PULL CATEGORIES — what coaches can selectively grab
+// ─────────────────────────────────────────────────────────
+// Each category groups related localStorage keys. The "Get latest"
+// modal lets coaches tick which categories to pull. Defaults pull
+// shared canonical data (squads/tests/season/drills/matchday) but
+// SKIP coach-authored work (session plans, weekly goals, notes) so
+// pulling master doesn't wipe out the coach's own planning.
+// ═══════════════════════════════════════════════════════════
+const PULL_CATEGORIES = [
+  {
+    id: 'squads',
+    label: 'Squads & Player Profiles',
+    description: 'Player lists across Y7-8 / Y9-10 / Y11-12 — names, positions, profile data, test history, goals, skills, feedback reports.',
+    defaultOn: true,
+    match: (k) => k.endsWith('_squad_v3'),
+  },
+  {
+    id: 'testing',
+    label: 'Testing Data',
+    description: 'Test imports (Bronco, sprints, broad jump, etc.) and gym strength benchmarks.',
+    defaultOn: true,
+    match: (k) =>
+      k.startsWith('playiq_test_import') ||
+      k === 'playiq_gymStrengthTestsByYear' ||
+      k === 'playiq_gymGroupOverrides',
+  },
+  {
+    id: 'season',
+    label: 'Season Configuration',
+    description: 'Season start dates, week counts, training day schedule, session start times.',
+    defaultOn: true,
+    match: (k) =>
+      k.endsWith('_seasonConfig') ||
+      k.endsWith('_sessionStartTimes') ||
+      k.endsWith('_sessionStartTime') ||
+      k.endsWith('_weekDays') ||
+      k.endsWith('_blueprintLoaded'),
+  },
+  {
+    id: 'drills',
+    label: 'Drill Library',
+    description: 'The shared custom drill collection used across all session planning.',
+    defaultOn: true,
+    match: (k) => k === 'playiq_customDrills',
+  },
+  {
+    id: 'matchday',
+    label: 'Matchday Selections',
+    description: 'Match-day rosters and 18-player team picks.',
+    defaultOn: true,
+    match: (k) => k.endsWith('_roster') || k.endsWith('_matchday18'),
+  },
+  {
+    id: 'sessions',
+    label: 'Session Plans',
+    description: 'The actual content of each training session — drills, times, focus areas, week-over-week overrides.',
+    defaultOn: false,  // ← coach\'s own work, default OFF so pulling master doesn\'t wipe it
+    match: (k) =>
+      k.endsWith('_customActivities') ||
+      k.endsWith('_weekOverrides') ||
+      k.endsWith('_coverageData'),
+  },
+  {
+    id: 'planning',
+    label: 'Weekly Goals & Notes',
+    description: 'Coach weekly goals, planner notes, post-session reviews.',
+    defaultOn: false,  // ← same reason — coach\'s own planning artifacts
+    match: (k) =>
+      k.endsWith('_weeklyGoals') ||
+      k.endsWith('_plannerNotes') ||
+      k.endsWith('_sessionReviews'),
+  },
+];
+
+function classifyKey(k) {
+  if (!k || typeof k !== 'string') return 'other';
+  for (const cat of PULL_CATEGORIES) {
+    if (cat.match(k)) return cat.id;
+  }
+  return 'other';
+}
+
 const cloudflareSync = (() => {
   let ws = null;
   let connected = false;
@@ -1474,33 +1558,53 @@ const cloudflareSync = (() => {
     return { opCount: ops.length, ...result };
   }
 
-  async function pullFromMaster() {
+  // Fetch all ops from the worker without applying them — used by the
+  // selective-pull modal so it can group them by category for the user.
+  async function fetchAllMasterOps() {
     if (!isConfigured()) throw new Error('Cloudflare worker not configured');
     const base = CLOUDFLARE_CONFIG.url.replace(/^wss:/, 'https:').replace(/^ws:/, 'http:').replace(/\/connect\/?$/, '');
     const r = await fetch(base + '/ops', { headers: { 'Authorization': 'Bearer ' + CLOUDFLARE_CONFIG.secret } });
-    if (!r.ok) throw new Error('Pull failed: HTTP ' + r.status);
-    const { ops } = await r.json();
-    if (!Array.isArray(ops) || ops.length === 0) return { applied: 0 };
-    // Safety: snapshot current state first so the pull is undoable from Version History.
-    try { versionHistory.snapshot('pre-restore', 'Before pull-from-master (' + ops.length + ' ops)', true); } catch(e){}
-    // Apply every op. opLog.ingestOps deduplicates by id and uses applyOp internally
-    // which writes via origSet (no echo-loop).
+    if (!r.ok) throw new Error('Fetch failed: HTTP ' + r.status);
+    const body = await r.json();
+    return Array.isArray(body.ops) ? body.ops : [];
+  }
+
+  // Pull master ops and apply only those whose key falls in the selected
+  // categories. `selectedCategoryIds` is a Set or array of category ids
+  // from PULL_CATEGORIES; omit it to apply everything (legacy behaviour).
+  async function pullFromMaster(selectedCategoryIds) {
+    const ops = await fetchAllMasterOps();
+    if (ops.length === 0) return { applied: 0, total: 0 };
+    // Filter by category if a selection was provided
+    let filtered = ops;
+    if (selectedCategoryIds && (selectedCategoryIds instanceof Set || Array.isArray(selectedCategoryIds))) {
+      const selected = new Set(selectedCategoryIds);
+      filtered = ops.filter(op => {
+        if (!op) return false;
+        if (op.type === 'kv.set' && op.key) return selected.has(classifyKey(op.key));
+        // Squad granular ops always classify as squads
+        if (typeof op.type === 'string' && op.type.startsWith('squad.')) return selected.has('squads');
+        return false;
+      });
+    }
+    if (filtered.length === 0) return { applied: 0, total: ops.length, filtered: 0 };
+    // Safety: snapshot current state first so the pull is undoable.
+    try { versionHistory.snapshot('pre-restore', 'Before pull-from-master (' + filtered.length + '/' + ops.length + ' ops)', true); } catch(e){}
     let applied = 0;
     if (typeof opLog !== 'undefined' && opLog.ingestOps) {
-      applied = opLog.ingestOps(ops);
+      applied = opLog.ingestOps(filtered);
     } else {
-      // Fallback: apply directly
-      for (const op of ops) {
+      for (const op of filtered) {
         if (op && op.type === 'kv.set' && op.key && typeof op.value === 'string') {
           try { localStorage.setItem(op.key, op.value); applied++; } catch(e) {}
         }
       }
     }
-    return { applied, total: ops.length };
+    return { applied, total: ops.length, filtered: filtered.length };
   }
 
   return { bootstrap, connect, sendOps, subscribe, getStatus, isConnected, isConfigured,
-            seedFromJsonBin, publishAsMaster, pullFromMaster };
+            seedFromJsonBin, publishAsMaster, pullFromMaster, fetchAllMasterOps };
 })();
 
 // ═══════════════════════════════════════════════════════════
@@ -2106,7 +2210,7 @@ const PRE_SEASON_TARGETS = {};
 // ═══════════════════════════════════════════════════════════
 function MasterCopyBadge() {
   const [busy, setBusy] = useState('');
-  const [lastResult, setLastResult] = useState('');
+  const [showPullModal, setShowPullModal] = useState(false);
 
   const handlePublish = async () => {
     if (busy) return;
@@ -2117,37 +2221,13 @@ function MasterCopyBadge() {
       'Use this when YOUR copy is the most up-to-date — e.g. after editing squads, testing data, or the season plan.\n\n' +
       'Continue?'
     )) return;
-    setBusy('publish'); setLastResult('');
+    setBusy('publish');
     try {
       const r = await cloudflareSync.publishAsMaster();
-      setLastResult('✓ Published ' + r.opCount + ' keys at ' + new Date().toLocaleTimeString());
       window.alert('✓ Published ' + r.opCount + ' keys as the new Master Copy.\n\n' +
                     'Other coaches: ask them to click "Get latest from Master" — or just reload if they\'re connected.');
     } catch(e) {
-      setLastResult('✗ ' + e.message);
       window.alert('Publish failed: ' + e.message);
-    }
-    setBusy('');
-  };
-
-  const handlePull = async () => {
-    if (busy) return;
-    if (!window.confirm(
-      'GET LATEST FROM MASTER\n\n' +
-      'This will REPLACE everything on this browser with the current master copy on the cloud. ' +
-      'Your current state is auto-backed up to Version History first, so this is reversible.\n\n' +
-      'Page will reload after pull.\n\n' +
-      'Continue?'
-    )) return;
-    setBusy('pull'); setLastResult('');
-    try {
-      const r = await cloudflareSync.pullFromMaster();
-      setLastResult('✓ Pulled ' + r.applied + '/' + r.total + ' ops');
-      window.alert('✓ Pulled ' + r.applied + ' keys from Master.\n\nPage will reload now.');
-      setTimeout(() => window.location.reload(), 600);
-    } catch(e) {
-      setLastResult('✗ ' + e.message);
-      window.alert('Pull failed: ' + e.message);
     }
     setBusy('');
   };
@@ -2164,16 +2244,170 @@ function MasterCopyBadge() {
                        letterSpacing:0.3}}>
         {busy === 'publish' ? '⏳ Publishing…' : '📤 Share my changes'}
       </button>
-      <button onClick={handlePull} disabled={busy !== ''}
-              title="Pull the latest Master Copy from the cloud onto this browser. Your current state is auto-backed up first."
+      <button onClick={() => setShowPullModal(true)} disabled={busy !== ''}
+              title="Pull the latest Master Copy from the cloud — pick which categories. Your current state is auto-backed up first."
               style={{display:'inline-flex', alignItems:'center', gap:5, padding:'7px 12px',
                        fontSize:11, fontWeight:800, borderRadius:14, cursor:busy ? 'wait' : 'pointer',
-                       background: busy === 'pull' ? '#dbeafe' : 'transparent',
-                       color: 'var(--brand-cyan)',
+                       background: 'transparent', color: 'var(--brand-cyan)',
                        border:'1px solid var(--brand-cyan)', fontFamily:'inherit', whiteSpace:'nowrap',
                        letterSpacing:0.3}}>
-        {busy === 'pull' ? '⏳ Pulling…' : '📥 Get latest'}
+        📥 Get latest…
       </button>
+      {showPullModal && <PullFromMasterModal onClose={() => setShowPullModal(false)} />}
+    </div>
+  );
+}
+
+// PullFromMasterModal — lets the coach tick which categories to pull from
+// the cloud master. Defaults pull shared data (squads/tests/season/drills/
+// matchday) but skip session plans, weekly goals, and notes — those are
+// coach-authored and shouldn't be overwritten by a master pull.
+function PullFromMasterModal({ onClose }) {
+  const [loading, setLoading] = useState(true);
+  const [ops, setOps] = useState([]);
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [selected, setSelected] = useState(() => {
+    const s = new Set();
+    PULL_CATEGORIES.forEach(c => { if (c.defaultOn) s.add(c.id); });
+    return s;
+  });
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const allOps = await cloudflareSync.fetchAllMasterOps();
+        if (alive) { setOps(allOps); setLoading(false); }
+      } catch(e) {
+        if (alive) { setError(e.message); setLoading(false); }
+      }
+    })();
+    return () => { alive = false; };
+  }, []);
+
+  // Group ops by category for counts + previews
+  const byCategory = React.useMemo(() => {
+    const groups = {};
+    PULL_CATEGORIES.forEach(c => { groups[c.id] = { ops: [], keys: new Set(), bytes: 0 }; });
+    groups.other = { ops: [], keys: new Set(), bytes: 0 };
+    for (const op of ops) {
+      if (!op) continue;
+      let catId;
+      if (op.type === 'kv.set' && op.key) catId = classifyKey(op.key);
+      else if (typeof op.type === 'string' && op.type.startsWith('squad.')) catId = 'squads';
+      else catId = 'other';
+      const g = groups[catId];
+      g.ops.push(op);
+      if (op.key) g.keys.add(op.key);
+      if (op.value) g.bytes += op.value.length;
+    }
+    return groups;
+  }, [ops]);
+
+  const toggle = (id) => {
+    setSelected(s => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
+  };
+
+  const handlePull = async () => {
+    if (busy) return;
+    if (selected.size === 0) { alert('Tick at least one category to pull.'); return; }
+    const picked = PULL_CATEGORIES.filter(c => selected.has(c.id)).map(c => c.label).join(', ');
+    if (!window.confirm(
+      'PULL FROM MASTER\n\n' +
+      'About to overwrite the following categories on this browser:\n  • ' +
+      picked.split(', ').join('\n  • ') +
+      '\n\nOther categories on this browser stay as-is.\n\n' +
+      'Your current state is auto-backed up to Version History first, so this is reversible.\n\n' +
+      'Page reloads after pull. Continue?'
+    )) return;
+    setBusy(true);
+    try {
+      const r = await cloudflareSync.pullFromMaster(selected);
+      window.alert('✓ Pulled ' + r.applied + ' keys (' + r.filtered + ' of ' + r.total + ' ops matched your selection).\n\nReloading.');
+      setTimeout(() => window.location.reload(), 500);
+    } catch(e) {
+      window.alert('Pull failed: ' + e.message);
+      setBusy(false);
+    }
+  };
+
+  const fmtBytes = (b) => b < 1024 ? b + 'B' : b < 1048576 ? (b/1024).toFixed(1) + 'KB' : (b/1048576).toFixed(2) + 'MB';
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{width:680, maxWidth:'95vw', maxHeight:'92vh', overflowY:'auto'}}>
+        <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, marginBottom:14, flexWrap:'wrap'}}>
+          <div>
+            <div style={{fontSize:11, fontWeight:700, color:'var(--brand-cyan)', textTransform:'uppercase', letterSpacing:1.5}}>Master copy</div>
+            <div style={{fontSize:20, fontWeight:800, marginTop:2}}>Get latest from Master</div>
+            <div style={{fontSize:11, color:'var(--text-muted)', marginTop:4, lineHeight:1.5}}>
+              Tick the categories you want to pull. Unticked categories stay exactly as they are on this browser — useful if you've been working on session plans you don't want overwritten.
+            </div>
+          </div>
+          <button onClick={onClose} style={{background:'none', border:'1px solid var(--border)', color:'var(--text-muted)', cursor:'pointer', fontSize:18, fontWeight:700, padding:'4px 12px', borderRadius:8, fontFamily:'inherit'}}>×</button>
+        </div>
+
+        {loading && <div style={{padding:24, textAlign:'center', color:'var(--text-muted)', fontSize:13}}>Loading cloud state…</div>}
+        {error && <div style={{padding:14, background:'var(--red-bg)', border:'1px solid var(--red)', borderRadius:8, color:'var(--red)', fontSize:12, fontWeight:700}}>Could not reach cloud: {error}</div>}
+
+        {!loading && !error && (
+          <>
+            <div style={{display:'flex', flexDirection:'column', gap:6, marginBottom:14}}>
+              {PULL_CATEGORIES.map(cat => {
+                const g = byCategory[cat.id] || { ops: [], keys: new Set(), bytes: 0 };
+                const isOn = selected.has(cat.id);
+                const isEmpty = g.ops.length === 0;
+                return (
+                  <label key={cat.id}
+                         onClick={(e) => { if (e.target.tagName !== 'INPUT') toggle(cat.id); }}
+                         style={{display:'flex', alignItems:'flex-start', gap:10, padding:'10px 14px',
+                                  background: isOn ? 'var(--bg-card)' : 'var(--bg-input)',
+                                  border:'1px solid ' + (isOn ? 'var(--brand-cyan)' : 'var(--border)'),
+                                  borderLeft:`4px solid ${isOn ? 'var(--brand-cyan)' : 'var(--border)'}`,
+                                  borderRadius:8, cursor: isEmpty ? 'not-allowed' : 'pointer',
+                                  opacity: isEmpty ? 0.5 : 1}}>
+                    <input type="checkbox" checked={isOn} disabled={isEmpty}
+                           onChange={() => toggle(cat.id)}
+                           style={{marginTop:3, cursor: isEmpty ? 'not-allowed' : 'pointer'}} />
+                    <div style={{flex:1, minWidth:0}}>
+                      <div style={{display:'flex', alignItems:'baseline', gap:8, flexWrap:'wrap'}}>
+                        <span style={{fontSize:13, fontWeight:800, color:'var(--text-primary)'}}>{cat.label}</span>
+                        <span style={{fontSize:10, color:'var(--text-muted)', fontWeight:700}}>
+                          {isEmpty ? 'nothing in master' : `${g.keys.size} key${g.keys.size === 1 ? '' : 's'} · ${fmtBytes(g.bytes)}`}
+                        </span>
+                        {!cat.defaultOn && <span style={{fontSize:9, fontWeight:800, color:'var(--orange)', background:'var(--orange-bg)', padding:'1px 6px', borderRadius:8, letterSpacing:0.5}}>YOUR WORK</span>}
+                      </div>
+                      <div style={{fontSize:11, color:'var(--text-secondary)', marginTop:3, lineHeight:1.45}}>
+                        {cat.description}
+                      </div>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+
+            <div style={{display:'flex', justifyContent:'space-between', gap:8, padding:'10px 0', borderTop:'1px solid var(--border)'}}>
+              <button onClick={onClose} disabled={busy}
+                      style={{padding:'8px 16px', fontSize:12, fontWeight:700, borderRadius:8, border:'1px solid var(--border)', background:'transparent', color:'var(--text-primary)', cursor:'pointer', fontFamily:'inherit'}}>
+                Cancel
+              </button>
+              <button onClick={handlePull} disabled={busy || selected.size === 0}
+                      style={{padding:'8px 18px', fontSize:12, fontWeight:800, borderRadius:8,
+                               border:'1px solid var(--brand-cyan)',
+                               background: busy || selected.size === 0 ? '#d1d5db' : 'var(--brand-cyan)',
+                               color: 'white', cursor: busy || selected.size === 0 ? 'wait' : 'pointer',
+                               fontFamily:'inherit', letterSpacing:0.3}}>
+                {busy ? '⏳ Pulling…' : `📥 Pull ${selected.size} categor${selected.size === 1 ? 'y' : 'ies'}`}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
