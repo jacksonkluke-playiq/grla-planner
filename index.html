@@ -1311,13 +1311,45 @@ const CF_RECONNECT_MAX_MS = 30000;
 // SKIP coach-authored work (session plans, weekly goals, notes) so
 // pulling master doesn't wipe out the coach's own planning.
 // ═══════════════════════════════════════════════════════════
+// All the teams the planner tracks. Sub-team selection inside the pull modal
+// uses these. Year groups roll up year-group-only data (squads).
+const PULL_TEAMS = [
+  { id: '7-8-cup',         label: 'Y7-8 Cup'          },
+  { id: '7-8-challenge',   label: 'Y7-8 Challenge'    },
+  { id: '9-10-cup',        label: 'Y9-10 Cup'         },
+  { id: '9-10-challenge',  label: 'Y9-10 Challenge'   },
+  { id: '11-12-cup',       label: 'Y11-12 Cup'        },
+  { id: '11-12-challenge', label: 'Y11-12 Challenge'  },
+];
+const PULL_YEAR_GROUPS = [
+  { id: '7-8',   label: 'Y7-8'   },
+  { id: '9-10',  label: 'Y9-10'  },
+  { id: '11-12', label: 'Y11-12' },
+];
+
+// Extract the team ID (e.g. '9-10-cup') from a localStorage key. Returns
+// null if the key isn\'t team-scoped.
+function keyToTeam(k) {
+  if (!k || typeof k !== 'string') return null;
+  const m = k.match(/^playiq_((?:7-8|9-10|11-12)-(?:cup|challenge))_/);
+  return m ? m[1] : null;
+}
+// Extract the year group from a year-group-scoped key (e.g. playiq_9-10_squad_v3).
+function keyToYearGroup(k) {
+  if (!k || typeof k !== 'string') return null;
+  const m = k.match(/^playiq_(7-8|9-10|11-12)_/);
+  return m ? m[1] : null;
+}
+
 const PULL_CATEGORIES = [
   {
     id: 'squads',
     label: 'Squads & Player Profiles',
-    description: 'Player lists across Y7-8 / Y9-10 / Y11-12 — names, positions, profile data, test history, goals, skills, feedback reports.',
+    description: 'Player lists across year groups — names, positions, profile data, test history, goals, skills, feedback reports.',
     defaultOn: true,
+    perYearGroup: true,
     match: (k) => k.endsWith('_squad_v3'),
+    subIdFor: keyToYearGroup,
   },
   {
     id: 'testing',
@@ -1334,12 +1366,14 @@ const PULL_CATEGORIES = [
     label: 'Season Configuration',
     description: 'Season start dates, week counts, training day schedule, session start times.',
     defaultOn: true,
+    perTeam: true,
     match: (k) =>
       k.endsWith('_seasonConfig') ||
       k.endsWith('_sessionStartTimes') ||
       k.endsWith('_sessionStartTime') ||
       k.endsWith('_weekDays') ||
       k.endsWith('_blueprintLoaded'),
+    subIdFor: keyToTeam,
   },
   {
     id: 'drills',
@@ -1353,27 +1387,33 @@ const PULL_CATEGORIES = [
     label: 'Matchday Selections',
     description: 'Match-day rosters and 18-player team picks.',
     defaultOn: true,
+    perTeam: true,
     match: (k) => k.endsWith('_roster') || k.endsWith('_matchday18'),
+    subIdFor: keyToTeam,
   },
   {
     id: 'sessions',
     label: 'Session Plans',
     description: 'The actual content of each training session — drills, times, focus areas, week-over-week overrides.',
     defaultOn: false,  // ← coach\'s own work, default OFF so pulling master doesn\'t wipe it
+    perTeam: true,
     match: (k) =>
       k.endsWith('_customActivities') ||
       k.endsWith('_weekOverrides') ||
       k.endsWith('_coverageData'),
+    subIdFor: keyToTeam,
   },
   {
     id: 'planning',
     label: 'Weekly Goals & Notes',
     description: 'Coach weekly goals, planner notes, post-session reviews.',
-    defaultOn: false,  // ← same reason — coach\'s own planning artifacts
+    defaultOn: false,
+    perTeam: true,
     match: (k) =>
       k.endsWith('_weeklyGoals') ||
       k.endsWith('_plannerNotes') ||
       k.endsWith('_sessionReviews'),
+    subIdFor: keyToTeam,
   },
 ];
 
@@ -1383,6 +1423,39 @@ function classifyKey(k) {
     if (cat.match(k)) return cat.id;
   }
   return 'other';
+}
+
+// Categorise an op (with optional sub-group) for filtering.
+//   { catId: 'sessions', subId: '9-10-cup' }  — for kv.set ops on team keys
+//   { catId: 'squads',   subId: '9-10'     }  — for kv.set ops on year-group keys
+//   { catId: 'drills',   subId: null       }  — for global categories
+//   { catId: 'squads',   subId: <op.yg>    }  — for granular squad.* ops
+function classifyOp(op) {
+  if (!op) return null;
+  if (op.type === 'kv.set' && op.key) {
+    const cat = PULL_CATEGORIES.find(c => c.match(op.key));
+    if (!cat) return null;
+    const subId = cat.subIdFor ? cat.subIdFor(op.key) : null;
+    return { catId: cat.id, subId };
+  }
+  if (typeof op.type === 'string' && op.type.startsWith('squad.')) {
+    return { catId: 'squads', subId: op.yg || null };
+  }
+  return null;
+}
+
+// Given a selection Set with entries like:
+//   'drills'                     — entire (non-perX) category
+//   'squads:9-10', 'squads:7-8'  — specific year groups for squads
+//   'sessions:9-10-cup'          — specific team for sessions
+// decide whether a single op should be pulled.
+function isOpSelected(op, selected) {
+  const c = classifyOp(op);
+  if (!c) return false;
+  // Whole-category match (kept for backward compat / non-perX cats)
+  if (selected.has(c.catId)) return true;
+  if (c.subId && selected.has(c.catId + ':' + c.subId)) return true;
+  return false;
 }
 
 const cloudflareSync = (() => {
@@ -1575,17 +1648,12 @@ const cloudflareSync = (() => {
   async function pullFromMaster(selectedCategoryIds) {
     const ops = await fetchAllMasterOps();
     if (ops.length === 0) return { applied: 0, total: 0 };
-    // Filter by category if a selection was provided
+    // Filter by selection set. Each entry is either a bare category id
+    // (e.g. 'drills') or '<catId>:<subId>' (e.g. 'sessions:9-10-cup').
     let filtered = ops;
     if (selectedCategoryIds && (selectedCategoryIds instanceof Set || Array.isArray(selectedCategoryIds))) {
       const selected = new Set(selectedCategoryIds);
-      filtered = ops.filter(op => {
-        if (!op) return false;
-        if (op.type === 'kv.set' && op.key) return selected.has(classifyKey(op.key));
-        // Squad granular ops always classify as squads
-        if (typeof op.type === 'string' && op.type.startsWith('squad.')) return selected.has('squads');
-        return false;
-      });
+      filtered = ops.filter(op => isOpSelected(op, selected));
     }
     if (filtered.length === 0) return { applied: 0, total: ops.length, filtered: 0 };
     // Safety: snapshot current state first so the pull is undoable.
@@ -2267,18 +2335,42 @@ function PullFromMasterModal({ onClose }) {
   const [ops, setOps] = useState([]);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [selected, setSelected] = useState(() => {
+  const [expanded, setExpanded] = useState(() => new Set());
+  // Default selection: for default-on categories, include EVERY sub-group
+  // (preserving the old "all of this" behaviour). For default-off, nothing.
+  const buildDefaultSelection = (allOps) => {
     const s = new Set();
-    PULL_CATEGORIES.forEach(c => { if (c.defaultOn) s.add(c.id); });
+    // For each category, find which sub-groups actually exist in master
+    const subsByCat = new Map();
+    PULL_CATEGORIES.forEach(c => subsByCat.set(c.id, new Set()));
+    for (const op of allOps || []) {
+      const c = classifyOp(op);
+      if (!c) continue;
+      if (c.subId) subsByCat.get(c.catId).add(c.subId);
+    }
+    for (const cat of PULL_CATEGORIES) {
+      if (!cat.defaultOn) continue;
+      if (cat.perTeam || cat.perYearGroup) {
+        const subs = subsByCat.get(cat.id) || new Set();
+        if (subs.size === 0) {
+          s.add(cat.id); // category w/ no team data — select the whole thing as a marker
+        } else {
+          subs.forEach(sub => s.add(cat.id + ':' + sub));
+        }
+      } else {
+        s.add(cat.id);
+      }
+    }
     return s;
-  });
+  };
+  const [selected, setSelected] = useState(() => new Set());
 
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
         const allOps = await cloudflareSync.fetchAllMasterOps();
-        if (alive) { setOps(allOps); setLoading(false); }
+        if (alive) { setOps(allOps); setSelected(buildDefaultSelection(allOps)); setLoading(false); }
       } catch(e) {
         if (alive) { setError(e.message); setLoading(false); }
       }
@@ -2286,43 +2378,115 @@ function PullFromMasterModal({ onClose }) {
     return () => { alive = false; };
   }, []);
 
-  // Group ops by category for counts + previews
+  // Group ops by category AND by sub-id so the UI can show per-team counts.
   const byCategory = React.useMemo(() => {
     const groups = {};
-    PULL_CATEGORIES.forEach(c => { groups[c.id] = { ops: [], keys: new Set(), bytes: 0 }; });
-    groups.other = { ops: [], keys: new Set(), bytes: 0 };
+    PULL_CATEGORIES.forEach(c => {
+      groups[c.id] = { ops: [], keys: new Set(), bytes: 0, bySub: new Map() };
+    });
     for (const op of ops) {
-      if (!op) continue;
-      let catId;
-      if (op.type === 'kv.set' && op.key) catId = classifyKey(op.key);
-      else if (typeof op.type === 'string' && op.type.startsWith('squad.')) catId = 'squads';
-      else catId = 'other';
-      const g = groups[catId];
+      const c = classifyOp(op);
+      if (!c) continue;
+      const g = groups[c.catId];
+      if (!g) continue;
       g.ops.push(op);
       if (op.key) g.keys.add(op.key);
       if (op.value) g.bytes += op.value.length;
+      if (c.subId) {
+        if (!g.bySub.has(c.subId)) g.bySub.set(c.subId, { ops: [], keys: new Set(), bytes: 0 });
+        const sg = g.bySub.get(c.subId);
+        sg.ops.push(op);
+        if (op.key) sg.keys.add(op.key);
+        if (op.value) sg.bytes += op.value.length;
+      }
     }
     return groups;
   }, [ops]);
 
-  const toggle = (id) => {
-    setSelected(s => {
-      const n = new Set(s);
-      if (n.has(id)) n.delete(id); else n.add(id);
+  // ── selection helpers ──
+  function isWholeSelected(cat, g) {
+    // Whole category considered selected if every sub-group present in master
+    // is in `selected`, OR if the bare category id is present.
+    if (selected.has(cat.id)) return true;
+    if (!(cat.perTeam || cat.perYearGroup)) return false;
+    if (g.bySub.size === 0) return false;
+    for (const sub of g.bySub.keys()) {
+      if (!selected.has(cat.id + ':' + sub)) return false;
+    }
+    return true;
+  }
+  function isAnySubSelected(cat, g) {
+    if (selected.has(cat.id)) return true;
+    if (!(cat.perTeam || cat.perYearGroup)) return false;
+    for (const sub of g.bySub.keys()) {
+      if (selected.has(cat.id + ':' + sub)) return true;
+    }
+    return false;
+  }
+  function toggleCategoryWhole(cat, g) {
+    setSelected(prev => {
+      const n = new Set(prev);
+      const turningOff = isWholeSelected(cat, g);
+      // Drop both bare id and any sub-ids
+      n.delete(cat.id);
+      for (const sub of g.bySub.keys()) n.delete(cat.id + ':' + sub);
+      if (!turningOff) {
+        if (cat.perTeam || cat.perYearGroup) {
+          if (g.bySub.size === 0) n.add(cat.id);
+          else for (const sub of g.bySub.keys()) n.add(cat.id + ':' + sub);
+        } else {
+          n.add(cat.id);
+        }
+      }
       return n;
     });
-  };
+  }
+  function toggleSub(cat, subId) {
+    setSelected(prev => {
+      const n = new Set(prev);
+      const key = cat.id + ':' + subId;
+      if (n.has(key)) n.delete(key);
+      else n.add(key);
+      // Drop bare id if present (we're now in sub-id mode)
+      n.delete(cat.id);
+      return n;
+    });
+  }
+  function toggleExpand(catId) {
+    setExpanded(prev => {
+      const n = new Set(prev);
+      if (n.has(catId)) n.delete(catId); else n.add(catId);
+      return n;
+    });
+  }
 
   const handlePull = async () => {
     if (busy) return;
-    if (selected.size === 0) { alert('Tick at least one category to pull.'); return; }
-    const picked = PULL_CATEGORIES.filter(c => selected.has(c.id)).map(c => c.label).join(', ');
+    if (selected.size === 0) { alert('Tick at least one category or team to pull.'); return; }
+    // Build a human-readable summary of what's about to be pulled
+    const summary = [];
+    for (const cat of PULL_CATEGORIES) {
+      const g = byCategory[cat.id];
+      if (!g || g.ops.length === 0) continue;
+      if (selected.has(cat.id)) {
+        summary.push(cat.label);
+      } else if (cat.perTeam || cat.perYearGroup) {
+        const lookups = cat.perTeam ? PULL_TEAMS : PULL_YEAR_GROUPS;
+        const pickedSubs = lookups.filter(t => selected.has(cat.id + ':' + t.id));
+        if (pickedSubs.length === lookups.length || pickedSubs.length === g.bySub.size) {
+          summary.push(cat.label + ' (all teams)');
+        } else if (pickedSubs.length > 0) {
+          summary.push(cat.label + ': ' + pickedSubs.map(t => t.label).join(', '));
+        }
+      }
+    }
+    if (summary.length === 0) { alert('Tick at least one category or team to pull.'); return; }
     if (!window.confirm(
       'PULL FROM MASTER\n\n' +
-      'About to overwrite the following categories on this browser:\n  • ' +
-      picked.split(', ').join('\n  • ') +
-      '\n\nOther categories on this browser stay as-is.\n\n' +
-      'Your current state is auto-backed up to Version History first, so this is reversible.\n\n' +
+      'About to overwrite the following on this browser:\n  • ' +
+      summary.join('\n  • ') +
+      '\n\nEverything else stays as-is on this browser.\n\n' +
+      'Current state is auto-backed up to Version History first, so this is reversible.\n\n' +
       'Page reloads after pull. Continue?'
     )) return;
     setBusy(true);
@@ -2340,13 +2504,13 @@ function PullFromMasterModal({ onClose }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()} style={{width:680, maxWidth:'95vw', maxHeight:'92vh', overflowY:'auto'}}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{width:760, maxWidth:'95vw', maxHeight:'92vh', overflowY:'auto'}}>
         <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, marginBottom:14, flexWrap:'wrap'}}>
           <div>
             <div style={{fontSize:11, fontWeight:700, color:'var(--brand-cyan)', textTransform:'uppercase', letterSpacing:1.5}}>Master copy</div>
             <div style={{fontSize:20, fontWeight:800, marginTop:2}}>Get latest from Master</div>
             <div style={{fontSize:11, color:'var(--text-muted)', marginTop:4, lineHeight:1.5}}>
-              Tick the categories you want to pull. Unticked categories stay exactly as they are on this browser — useful if you've been working on session plans you don't want overwritten.
+              Tick what you want to pull. Categories like Session Plans and Matchday can be expanded to pick specific teams — useful when you coach one age group and don't want another's session plans copied over. Unticked items stay exactly as they are on this browser.
             </div>
           </div>
           <button onClick={onClose} style={{background:'none', border:'1px solid var(--border)', color:'var(--text-muted)', cursor:'pointer', fontSize:18, fontWeight:700, padding:'4px 12px', borderRadius:8, fontFamily:'inherit'}}>×</button>
@@ -2359,34 +2523,80 @@ function PullFromMasterModal({ onClose }) {
           <>
             <div style={{display:'flex', flexDirection:'column', gap:6, marginBottom:14}}>
               {PULL_CATEGORIES.map(cat => {
-                const g = byCategory[cat.id] || { ops: [], keys: new Set(), bytes: 0 };
-                const isOn = selected.has(cat.id);
+                const g = byCategory[cat.id] || { ops: [], keys: new Set(), bytes: 0, bySub: new Map() };
+                const whole = isWholeSelected(cat, g);
+                const partial = !whole && isAnySubSelected(cat, g);
                 const isEmpty = g.ops.length === 0;
+                const isPerX = !!(cat.perTeam || cat.perYearGroup);
+                const lookups = cat.perTeam ? PULL_TEAMS : cat.perYearGroup ? PULL_YEAR_GROUPS : [];
+                const isExpanded = expanded.has(cat.id);
+                const headerColor = whole ? 'var(--brand-cyan)' : partial ? 'var(--orange)' : 'var(--border)';
                 return (
-                  <label key={cat.id}
-                         onClick={(e) => { if (e.target.tagName !== 'INPUT') toggle(cat.id); }}
-                         style={{display:'flex', alignItems:'flex-start', gap:10, padding:'10px 14px',
-                                  background: isOn ? 'var(--bg-card)' : 'var(--bg-input)',
-                                  border:'1px solid ' + (isOn ? 'var(--brand-cyan)' : 'var(--border)'),
-                                  borderLeft:`4px solid ${isOn ? 'var(--brand-cyan)' : 'var(--border)'}`,
-                                  borderRadius:8, cursor: isEmpty ? 'not-allowed' : 'pointer',
-                                  opacity: isEmpty ? 0.5 : 1}}>
-                    <input type="checkbox" checked={isOn} disabled={isEmpty}
-                           onChange={() => toggle(cat.id)}
-                           style={{marginTop:3, cursor: isEmpty ? 'not-allowed' : 'pointer'}} />
-                    <div style={{flex:1, minWidth:0}}>
-                      <div style={{display:'flex', alignItems:'baseline', gap:8, flexWrap:'wrap'}}>
-                        <span style={{fontSize:13, fontWeight:800, color:'var(--text-primary)'}}>{cat.label}</span>
-                        <span style={{fontSize:10, color:'var(--text-muted)', fontWeight:700}}>
-                          {isEmpty ? 'nothing in master' : `${g.keys.size} key${g.keys.size === 1 ? '' : 's'} · ${fmtBytes(g.bytes)}`}
-                        </span>
-                        {!cat.defaultOn && <span style={{fontSize:9, fontWeight:800, color:'var(--orange)', background:'var(--orange-bg)', padding:'1px 6px', borderRadius:8, letterSpacing:0.5}}>YOUR WORK</span>}
-                      </div>
-                      <div style={{fontSize:11, color:'var(--text-secondary)', marginTop:3, lineHeight:1.45}}>
-                        {cat.description}
+                  <div key={cat.id} style={{background: (whole || partial) ? 'var(--bg-card)' : 'var(--bg-input)',
+                                              border:'1px solid ' + headerColor,
+                                              borderLeft:`4px solid ${headerColor}`,
+                                              borderRadius:8, overflow:'hidden',
+                                              opacity: isEmpty ? 0.5 : 1}}>
+                    <div style={{display:'flex', alignItems:'flex-start', gap:10, padding:'10px 14px',
+                                  cursor: isEmpty ? 'not-allowed' : 'pointer'}}
+                         onClick={(e) => {
+                           if (e.target.tagName === 'INPUT') return;
+                           if (isEmpty) return;
+                           if (isPerX) toggleExpand(cat.id);
+                           else toggleCategoryWhole(cat, g);
+                         }}>
+                      <input type="checkbox"
+                             ref={el => { if (el) el.indeterminate = partial; }}
+                             checked={whole}
+                             disabled={isEmpty}
+                             onChange={() => toggleCategoryWhole(cat, g)}
+                             onClick={(e) => e.stopPropagation()}
+                             style={{marginTop:3, cursor: isEmpty ? 'not-allowed' : 'pointer'}} />
+                      <div style={{flex:1, minWidth:0}}>
+                        <div style={{display:'flex', alignItems:'baseline', gap:8, flexWrap:'wrap'}}>
+                          <span style={{fontSize:13, fontWeight:800, color:'var(--text-primary)'}}>{cat.label}</span>
+                          <span style={{fontSize:10, color:'var(--text-muted)', fontWeight:700}}>
+                            {isEmpty ? 'nothing in master' : `${g.keys.size} key${g.keys.size === 1 ? '' : 's'} · ${fmtBytes(g.bytes)}`}
+                          </span>
+                          {!cat.defaultOn && <span style={{fontSize:9, fontWeight:800, color:'var(--orange)', background:'var(--orange-bg)', padding:'1px 6px', borderRadius:8, letterSpacing:0.5}}>YOUR WORK</span>}
+                          {isPerX && !isEmpty && (
+                            <span style={{fontSize:10, color:'var(--brand-cyan)', fontWeight:700, marginLeft:'auto'}}>
+                              {isExpanded ? '▾ collapse' : `▸ pick by ${cat.perTeam ? 'team' : 'year group'}`}
+                            </span>
+                          )}
+                        </div>
+                        <div style={{fontSize:11, color:'var(--text-secondary)', marginTop:3, lineHeight:1.45}}>
+                          {cat.description}
+                        </div>
                       </div>
                     </div>
-                  </label>
+                    {isPerX && isExpanded && !isEmpty && (
+                      <div style={{padding:'4px 14px 12px 38px', display:'flex', flexDirection:'column', gap:4,
+                                    background:'var(--bg-input)', borderTop:'1px solid var(--border)'}}>
+                        {lookups.map(sub => {
+                          const sg = g.bySub.get(sub.id);
+                          const subEmpty = !sg || sg.ops.length === 0;
+                          const subOn = selected.has(cat.id) || selected.has(cat.id + ':' + sub.id);
+                          return (
+                            <label key={sub.id}
+                                   onClick={(e) => { if (e.target.tagName !== 'INPUT' && !subEmpty) toggleSub(cat, sub.id); }}
+                                   style={{display:'flex', alignItems:'center', gap:10, padding:'6px 10px',
+                                            background: subOn ? 'rgba(41,186,229,0.06)' : 'transparent',
+                                            borderRadius:6, cursor: subEmpty ? 'not-allowed' : 'pointer',
+                                            opacity: subEmpty ? 0.45 : 1}}>
+                              <input type="checkbox" checked={subOn} disabled={subEmpty}
+                                     onChange={() => toggleSub(cat, sub.id)}
+                                     style={{cursor: subEmpty ? 'not-allowed' : 'pointer'}} />
+                              <span style={{fontSize:12, fontWeight:700, color:'var(--text-primary)'}}>{sub.label}</span>
+                              <span style={{fontSize:10, color:'var(--text-muted)', fontWeight:600, marginLeft:'auto'}}>
+                                {subEmpty ? 'nothing in master' : `${sg.keys.size} key${sg.keys.size === 1 ? '' : 's'} · ${fmtBytes(sg.bytes)}`}
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                 );
               })}
             </div>
@@ -2402,7 +2612,7 @@ function PullFromMasterModal({ onClose }) {
                                background: busy || selected.size === 0 ? '#d1d5db' : 'var(--brand-cyan)',
                                color: 'white', cursor: busy || selected.size === 0 ? 'wait' : 'pointer',
                                fontFamily:'inherit', letterSpacing:0.3}}>
-                {busy ? '⏳ Pulling…' : `📥 Pull ${selected.size} categor${selected.size === 1 ? 'y' : 'ies'}`}
+                {busy ? '⏳ Pulling…' : `📥 Pull ${selected.size} selection${selected.size === 1 ? '' : 's'}`}
               </button>
             </div>
           </>
