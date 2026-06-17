@@ -379,6 +379,83 @@
     .nav-tab { padding: 9px 10px; font-size: 11px; gap: 4px; }
   }
 
+  /* ═══════════════════════════════════════════════════════════
+     MOBILE QUICK FIT — Phase 1 of mobile support.
+     Targets the inline-styled grids and the new Phase 4 header pills
+     that the older media queries didn't catch.
+     ═══════════════════════════════════════════════════════════ */
+  @media (max-width: 600px) {
+    /* Stop horizontal overflow at the root */
+    html, body { overflow-x: hidden; max-width: 100vw; }
+
+    /* The whole header column gets tighter padding */
+    .app-container { padding: 0 10px !important; }
+
+    /* Inline-styled two-column dashboards collapse to single column.
+       This catches Today's Session / Weekly Focus, the day-summary cards,
+       the season block headers, and similar pairs that React renders with
+       camelCase inline style attributes. */
+    div[style*="grid-template-columns: 1fr 1fr"] {
+      grid-template-columns: 1fr !important;
+      gap: 12px !important;
+    }
+    /* Wide squad-row tables → horizontal scroll wrapper */
+    div[style*="grid-template-columns: 70px 130px 180px 1fr 140px"] {
+      overflow-x: auto;
+      min-width: 600px;
+    }
+
+    /* Header action row: tight gap, allow wrapping, justify left */
+    .header > div[style*="display:flex"][style*="alignItems:'center'"],
+    .header > div[style*="display: flex"][style*="align-items: center"] {
+      flex-wrap: wrap;
+      gap: 6px !important;
+      justify-content: flex-start !important;
+    }
+
+    /* Account / Live / History pills: shrink padding + font.
+       They're inline-styled, so target by their distinctive title text. */
+    [title="Live"], [title="Offline"], [title="Connecting"], [title*="Sync error"],
+    [title*="Version history"], [title*="Subscribed"] {
+      padding: 5px 8px !important;
+      font-size: 10px !important;
+    }
+    /* History button gets icon-only treatment on phone — hide the word "History" */
+    .header button[title*="Version history"] span:last-child {
+      display: none;
+    }
+
+    /* Modals: near-full width with rounded edges, but keep visual containment */
+    .modal-overlay { padding: 6px !important; }
+    .modal, .modal-content {
+      width: 100% !important;
+      max-width: calc(100vw - 12px) !important;
+      padding: 18px 14px !important;
+      border-radius: 12px;
+      max-height: 94vh;
+    }
+
+    /* iOS Safari: 16px+ text inputs prevent the autozoom on focus */
+    input, textarea, select { font-size: 16px !important; }
+
+    /* Sticky view-as banner: shrink padding so it doesn't eat half the screen */
+    [style*="position:'sticky'"][style*="top:0"] {
+      padding: 8px 12px !important;
+      font-size: 11px !important;
+    }
+
+    /* All buttons get a 36pt minimum touch height */
+    button, .btn-outline, .btn-primary { min-height: 36px; }
+  }
+
+  @media (max-width: 380px) {
+    /* iPhone SE / mini territory — squeeze the header even tighter */
+    .team-btn { padding: 6px 9px !important; font-size: 11px !important; letter-spacing: 0.2px; }
+    .logo-text { font-size: 14px; }
+    .logo-sub { font-size: 8px; letter-spacing: 1px; }
+    .logo-icon { width: 36px; height: 36px; }
+    .nav-tab { padding: 8px 9px; font-size: 10px; }
+  }
 </style>
 </head>
 <body>
