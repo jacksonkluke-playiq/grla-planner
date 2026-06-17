@@ -9389,12 +9389,18 @@ const supabaseSync = (() => {
     try {
       out.coach = await fetchCurrentCoach();
     } catch(e) { out.errors.push('coach: ' + (e.message || e)); }
+    // ⚠️ View-as awareness: if we're in view-as mode (restored from
+    // sessionStorage on module load), the session plans we want are the
+    // TARGET coach's, not the current user's. Otherwise reload-into-view
+    // would re-hydrate our own plans on top and we'd see our own profile
+    // even though we just clicked "view <other coach>".
+    const sessionPlansCoachId = window.__viewAsCoachId || (out.coach && out.coach.id);
     const tasks = [
       ['players',  fetchPlayers()],
       ['drills',   fetchDrillLibrary()],
       ['testing',  fetchTestingMetadata()],
       ['seasons',  fetchSeasonConfigs()],
-      ['sessionPlans', fetchCoachSessionPlans(out.coach && out.coach.id)],
+      ['sessionPlans', fetchCoachSessionPlans(sessionPlansCoachId)],
     ];
     const results = await Promise.allSettled(tasks.map(t => t[1]));
     results.forEach((r, i) => {
@@ -9479,6 +9485,17 @@ const supabaseSync = (() => {
 
   async function signOut() {
     try { stopRealtime(); } catch(e){}
+    // Clear any view-as state so the next sign-in starts fresh — otherwise
+    // the next user (or me re-signing in) would inherit the previous
+    // session's view-as target and bootstrap would try to load someone
+    // else's session plans.
+    try {
+      sessionStorage.removeItem('__viewAsCoachId');
+      sessionStorage.removeItem('__viewAsCoachName');
+      sessionStorage.removeItem('__viewAsBackup');
+      delete window.__viewAsCoachId;
+      delete window.__viewAsCoachName;
+    } catch(e) {}
     try { await supabase.auth.signOut(); } catch(e){}
     window.location.reload();
   }
