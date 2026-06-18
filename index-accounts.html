@@ -3295,7 +3295,7 @@ function SessionBuilder({ selectedWeek, setSelectedWeek, selectedDay, setSelecte
           <div contentEditable suppressContentEditableWarning style={{fontSize:14, fontWeight:600, color:'var(--text-primary)', padding:'4px 0', borderBottom:'1px dashed transparent', outline:'none', minHeight:22, cursor:'text'}}
             onFocus={e => { e.currentTarget.style.borderBottomColor = 'var(--border)'; }}
             onBlur={e => { e.currentTarget.style.borderBottomColor = 'transparent'; updateWeekField('focus', e.currentTarget.textContent); }}
-            dangerouslySetInnerHTML={{__html: weekData ? (weekData.focus || '<span style="color:#8f95a8;font-weight:400">What's the focus today?</span>') : ''}}
+            dangerouslySetInnerHTML={{__html: weekData ? (weekData.focus || '<span style="color:#8f95a8;font-weight:400">What’s the focus today?</span>') : ''}}
           />
         </div>
 
@@ -5506,7 +5506,7 @@ function DailyPlanner({ customActivities, setActiveTab, setSelectedWeek, setSele
           <div contentEditable suppressContentEditableWarning style={{fontSize:14, fontWeight:600, color:'var(--text-primary)', padding:'4px 0', borderBottom:'1px dashed transparent', outline:'none', minHeight:22, cursor:'text'}}
             onFocus={e => { e.currentTarget.style.borderBottomColor = 'var(--border)'; }}
             onBlur={e => { e.currentTarget.style.borderBottomColor = 'transparent'; updateWeekField('focus', e.currentTarget.textContent); }}
-            dangerouslySetInnerHTML={{__html: weekFocus || '<span style="color:#8f95a8;font-weight:400">What's the focus today?</span>'}}
+            dangerouslySetInnerHTML={{__html: weekFocus || '<span style="color:#8f95a8;font-weight:400">What’s the focus today?</span>'}}
           />
         </div>
       </div>
