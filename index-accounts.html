@@ -269,7 +269,58 @@
   .empty-state { text-align: center; padding: 40px; color: var(--text-muted); }
 
   /* Save Indicator */
-  .save-indicator { position: fixed; top: 24px; right: 24px; background: var(--green-bg); border: 1px solid var(--green); color: var(--green); padding: 8px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; animation: fadeInOut 2s ease-in-out forwards; z-index: 1000; }
+  .save-indicator {
+    position: fixed; top: 24px; right: 24px;
+    background: white;
+    border: 1px solid var(--green);
+    color: var(--green);
+    padding: 12px 18px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    box-shadow: 0 8px 24px rgba(34, 197, 94, 0.18), 0 2px 6px rgba(0,0,0,0.05);
+    animation: fadeInOut 3.6s ease-in-out forwards;
+    z-index: 1000;
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+  }
+  .save-indicator::before {
+    content: '';
+    display: inline-block;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--green);
+    -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='20 6 9 17 4 12'/></svg>") no-repeat center / 11px 11px;
+            mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='20 6 9 17 4 12'/></svg>") no-repeat center / 11px 11px;
+  }
+  /* Tab-switch progress bar: 2px pink bar fixed to the very top, slides
+     left→right then fades out. Triggered every time activeTab changes. */
+  .tab-loading-bar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--brand-pink, #E95B9E);
+    transform-origin: left center;
+    animation: tabBarSweep 0.6s ease-out forwards;
+    z-index: 1100;
+    pointer-events: none;
+  }
+  @keyframes tabBarSweep {
+    0%   { transform: scaleX(0);    opacity: 1; }
+    60%  { transform: scaleX(1);    opacity: 1; }
+    100% { transform: scaleX(1);    opacity: 0; }
+  }
+
+  /* Pulse the Live badge when a save completes — quick visual reassurance that
+     the cloud sync actually fired. Triggered by adding the .live-pulse class
+     from the saveIndicator effect. */
+  @keyframes livePulse {
+    0%   { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.55); }
+    100% { box-shadow: 0 0 0 8px rgba(34, 197, 94, 0); }
+  }
+  [title="Live"].live-pulse { animation: livePulse 0.7s ease-out; }
   @keyframes fadeInOut { 0% { opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { opacity: 0; } }
 
   /* Modal Styles */
@@ -462,10 +513,57 @@
      The components MobileMenuButton / MobileDrawer / MobileBottomNav
      always render; visibility is controlled here.
      ═══════════════════════════════════════════════════════════ */
-  /* Hidden by default (desktop) — */
-  .mobile-menu-btn { display: none !important; }
-  .mobile-drawer-overlay { display: none !important; }
+  /* Menu button: now shown on all screen sizes — opens the drawer holding
+     Setup Season / Export / Import (and, on mobile, the secondary nav items
+     too). Drawer overlay + bottom nav stay mobile-only. */
+  .mobile-menu-btn { display: inline-flex !important; }
+  .mobile-drawer-overlay { display: block !important; }
   .mobile-bottom-nav { display: none !important; }
+
+  /* Drawer base styles (apply on every viewport — desktop + mobile) */
+  .mobile-drawer-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 1000;
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+  }
+  .mobile-drawer {
+    position: absolute;
+    right: 0; top: 0; bottom: 0;
+    width: 380px;
+    max-width: 92vw;
+    background: var(--bg-page, #ffffff);
+    box-shadow: -4px 0 24px rgba(0,0,0,0.15);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    animation: drawerSlideIn 0.18s ease-out;
+  }
+  @keyframes drawerSlideIn {
+    from { transform: translateX(100%); }
+    to   { transform: translateX(0); }
+  }
+  .drawer-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 14px 18px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    text-align: left;
+    transition: background 0.12s;
+    min-height: 48px;
+  }
+  .drawer-item:hover, .drawer-item:active { background: var(--bg-input, #f5f5f7); }
+  .drawer-item svg { flex-shrink: 0; color: var(--brand-pink); }
 
   @media (max-width: 600px) {
     /* Hide the desktop top nav + the right-side actions row */
@@ -1993,6 +2091,15 @@ function computeCurrentWeek(seasonConfig) {
 
 function App() {
   const [activeTab, setActiveTab] = useState("planner");
+  // Tab-switch progress bar: a 2px pink bar that flashes left→right across the
+  // top of the page for ~600ms whenever the user changes tabs. Just enough to
+  // acknowledge the click — no actual "loading" happens (tab content is in-app).
+  const [tabSwitchLoading, setTabSwitchLoading] = useState(false);
+  useEffect(() => {
+    setTabSwitchLoading(true);
+    const t = setTimeout(() => setTabSwitchLoading(false), 600);
+    return () => clearTimeout(t);
+  }, [activeTab]);
   // selectedWeek defaults to whichever week today falls in for the *current team's* season.
   // Read seasonConfig out of localStorage here so this fires synchronously before first render.
   const [selectedWeek, setSelectedWeek] = useState(() => {
@@ -2413,6 +2520,20 @@ function App() {
   const [showSeasonSetup, setShowSeasonSetup] = useState(false);
   const [showMobileDrawer, setShowMobileDrawer] = useState(false);
   const [saveIndicator, setSaveIndicator] = useState(false);
+  // Helper: show the "Saved to cloud" toast AND pulse the Live badge briefly so
+  // coaches see the cloud sync fire. Both fade out on their own.
+  function triggerSaveIndicator() {
+    setSaveIndicator(true);
+    setTimeout(() => setSaveIndicator(false), 3600);
+    try {
+      document.querySelectorAll('[title="Live"]').forEach(el => {
+        el.classList.remove('live-pulse');
+        void el.offsetWidth;  // force reflow so animation restarts
+        el.classList.add('live-pulse');
+        setTimeout(() => el.classList.remove('live-pulse'), 800);
+      });
+    } catch(e) {}
+  }
   const [blueprintLoaded, setBlueprintLoaded] = useState(() => {
     return localStorage.getItem(`playiq_${currentTeam}_blueprintLoaded`) === 'true';
   });
@@ -2455,8 +2576,7 @@ function App() {
   // Save team-scoped data whenever it changes (to the current team's key)
   useEffect(() => {
     localStorage.setItem(teamKey('customActivities'), JSON.stringify(customActivities));
-    setSaveIndicator(true);
-    setTimeout(() => setSaveIndicator(false), 2000);
+    triggerSaveIndicator();
   }, [customActivities, currentTeam]);
 
   useEffect(() => { localStorage.setItem(teamKey('coverageData'), JSON.stringify(coverageData)); }, [coverageData, currentTeam]);
@@ -2539,8 +2659,7 @@ function App() {
         if (data.weeklyGoals) setWeeklyGoals(data.weeklyGoals);
         if (data.sessionStartTimes) setSessionStartTimes(data.sessionStartTimes);
         else if (data.sessionStartTime) setSessionStartTimes({ _default: data.sessionStartTime });
-        setSaveIndicator(true);
-        setTimeout(() => setSaveIndicator(false), 2000);
+        triggerSaveIndicator();
       } catch (err) {
         alert('Failed to import data: ' + err.message);
       }
@@ -2568,7 +2687,24 @@ function App() {
           </div>
           <div>
             <div className="logo-text">Session Planner</div>
-            <div className="logo-sub">Keebra Park GRLA · {currentGroup.label} {currentSub}</div>
+            <div className="logo-sub">Keebra Park GRLA</div>
+            {/* Big bold team context — coaches juggling multiple teams must
+                always know which one they're editing. Colour-codes by sub-team:
+                Cup = brand pink, Challenge = brand cyan. */}
+            <div className="team-context-bold" style={{
+              marginTop: 4,
+              display: 'inline-block',
+              padding: '4px 10px 3px',
+              borderRadius: 6,
+              fontSize: 13,
+              fontWeight: 800,
+              letterSpacing: '0.3px',
+              color: 'white',
+              background: currentSub === 'Challenge' ? 'var(--brand-cyan)' : 'var(--brand-pink)',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.08)',
+            }}>
+              {currentGroup.label} · {currentSub}
+            </div>
           </div>
         </div>
         <div style={{display:'flex', flexDirection:'column', alignItems:'center', gap:6}}>
@@ -2593,14 +2729,10 @@ function App() {
           <AccountBadge />
           <RealtimeBadge />
           <HistoryButton />
-          <button className="btn-outline" onClick={() => setShowSeasonSetup(true)} style={{fontSize:12, display:'inline-flex', alignItems:'center', gap:6}}><Icon name="settings" size={13}/> Setup Season</button>
-          <button className="btn-outline" onClick={handleExportData} style={{fontSize:12, display:'inline-flex', alignItems:'center', gap:6}}><Icon name="download" size={13}/> Export</button>
-          <label className="btn-outline" style={{cursor:'pointer', fontSize:12, margin:0, padding:'10px 14px', display:'inline-flex', alignItems:'center', gap:6}}>
-            <Icon name="upload" size={13}/> Import
-            <input type="file" accept=".json" onChange={(e) => e.target.files[0] && handleImportData(e.target.files[0])} style={{display:'none'}} />
-          </label>
         </div>
-        {/* Mobile-only hamburger: visible <600px (CSS), opens the drawer */}
+        {/* Drawer button: now visible on ALL screen sizes. Holds Setup Season,
+            Export, Import + (on mobile) Season Overview / Program Overview /
+            Account / Live / History — see MobileDrawer for the full list. */}
         <MobileMenuButton onClick={() => setShowMobileDrawer(true)} />
       </header>
 
@@ -2634,7 +2766,8 @@ function App() {
         onImportData={handleImportData}
       />
 
-      {saveIndicator && <div className="save-indicator">Saved</div>}
+      {saveIndicator && <div className="save-indicator">Saved to cloud</div>}
+      {tabSwitchLoading && <div className="tab-loading-bar" />}
 
       {showOnboarding && (
         <div className="modal-overlay">
@@ -3162,7 +3295,7 @@ function SessionBuilder({ selectedWeek, setSelectedWeek, selectedDay, setSelecte
           <div contentEditable suppressContentEditableWarning style={{fontSize:14, fontWeight:600, color:'var(--text-primary)', padding:'4px 0', borderBottom:'1px dashed transparent', outline:'none', minHeight:22, cursor:'text'}}
             onFocus={e => { e.currentTarget.style.borderBottomColor = 'var(--border)'; }}
             onBlur={e => { e.currentTarget.style.borderBottomColor = 'transparent'; updateWeekField('focus', e.currentTarget.textContent); }}
-            dangerouslySetInnerHTML={{__html: weekData ? (weekData.focus || '<span style="color:#8f95a8;font-weight:400">Click to set objective...</span>') : ''}}
+            dangerouslySetInnerHTML={{__html: weekData ? (weekData.focus || '<span style="color:#8f95a8;font-weight:400">What's the focus today?</span>') : ''}}
           />
         </div>
 
@@ -3307,12 +3440,12 @@ function SessionBuilder({ selectedWeek, setSelectedWeek, selectedDay, setSelecte
           <div>
             <label style={{fontSize:11, fontWeight:700, color:'var(--green)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:6, display:'block'}}>Strengths</label>
             <textarea className="form-textarea" value={(sessionReviews[customKey] && sessionReviews[customKey].strengths) || ''} onChange={e => setSessionReviews(prev => ({ ...prev, [customKey]: { ...(prev[customKey] || {}), strengths: e.target.value } }))}
-              placeholder="What went well this session?" style={{minHeight:90}} />
+              placeholder="What clicked? Best moments, breakthroughs, wins…" style={{minHeight:90}} />
           </div>
           <div>
             <label style={{fontSize:11, fontWeight:700, color:'var(--orange)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:6, display:'block'}}>Work Ons</label>
             <textarea className="form-textarea" value={(sessionReviews[customKey] && sessionReviews[customKey].workOns) || ''} onChange={e => setSessionReviews(prev => ({ ...prev, [customKey]: { ...(prev[customKey] || {}), workOns: e.target.value } }))}
-              placeholder="What needs improvement?" style={{minHeight:90}} />
+              placeholder="What needs more reps? Drills to revisit, players to check in on…" style={{minHeight:90}} />
           </div>
         </div>
       </div>
@@ -5301,7 +5434,8 @@ function SeasonSetupModal({ onComplete, onClose, existing }) {
 function DailyPlanner({ customActivities, setActiveTab, setSelectedWeek, setSelectedDay, userWeekOverrides, setUserWeekOverrides, seasonWeeks, weekDays, currentTeam, sessionStartTimes, getSessionStartTime, seasonConfig }) {
   const today = new Date();
   const dayName = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][today.getDay()];
-  const dateStr = today.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' });
+  // Consistent date format across the app: long → "Friday 19 June 2026", short → "19 Jun"
+  const dateStr = today.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
   // Auto-detect "current week" from season start date when available
   const autoWeekIdx = useMemo(() => {
@@ -5318,7 +5452,25 @@ function DailyPlanner({ customActivities, setActiveTab, setSelectedWeek, setSele
 
   const currentWeek = seasonWeeks[homeWeekIdx] || seasonWeeks[0];
   const activeDays = (weekDays && weekDays[currentWeek?.week]) || ['Tuesday', 'Thursday'];
-  const sessionDay = activeDays.includes(dayName) ? dayName : activeDays[0];
+  // Day-of-week resolution for the "Today's Session" card.
+  //  • If today IS a training day → show today's plan, labelled "Today's Session"
+  //  • Otherwise → find the NEXT upcoming training day this week (Mon→Sat order)
+  //    and show that. If we're past all of this week's training days, fall back
+  //    to the first one (it'll re-appear correctly when the auto-week-advance
+  //    kicks in next week).
+  const DAYS_ORDER = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const sessionDayIsToday = activeDays.includes(dayName);
+  const sessionDay = (() => {
+    if (sessionDayIsToday) return dayName;
+    const todayIdx = today.getDay();
+    // Search forward through the remaining days of this week
+    for (let i = 1; i <= 6; i++) {
+      const checkIdx = (todayIdx + i) % 7;
+      const checkName = DAYS_ORDER[checkIdx];
+      if (activeDays.includes(checkName)) return checkName;
+    }
+    return activeDays[0] || 'Tuesday';
+  })();
   const customKey = `${currentWeek?.week}-${sessionDay}`;
   const todaysActivities = recalcTimes(customActivities[customKey] || [], getSessionStartTime ? getSessionStartTime(currentWeek?.week, sessionDay) : '16:00');
   const sessionsThisWeek = activeDays.filter(d => (customActivities[`${currentWeek?.week}-${d}`] || []).length > 0).length;
@@ -5354,7 +5506,7 @@ function DailyPlanner({ customActivities, setActiveTab, setSelectedWeek, setSele
           <div contentEditable suppressContentEditableWarning style={{fontSize:14, fontWeight:600, color:'var(--text-primary)', padding:'4px 0', borderBottom:'1px dashed transparent', outline:'none', minHeight:22, cursor:'text'}}
             onFocus={e => { e.currentTarget.style.borderBottomColor = 'var(--border)'; }}
             onBlur={e => { e.currentTarget.style.borderBottomColor = 'transparent'; updateWeekField('focus', e.currentTarget.textContent); }}
-            dangerouslySetInnerHTML={{__html: weekFocus || '<span style="color:#8f95a8;font-weight:400">Click to set objective...</span>'}}
+            dangerouslySetInnerHTML={{__html: weekFocus || '<span style="color:#8f95a8;font-weight:400">What's the focus today?</span>'}}
           />
         </div>
       </div>
@@ -5362,7 +5514,7 @@ function DailyPlanner({ customActivities, setActiveTab, setSelectedWeek, setSele
       <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginTop:4}}>
         <div className="card">
           <div className="card-title" style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-            <span>Today's Session</span>
+            <span>{sessionDayIsToday ? "Today's Session" : `Next Session — ${sessionDay}`}</span>
             {todaysActivities.length > 0 && <span style={{fontSize:11, color:'var(--text-muted)', fontWeight:500}}>{todaysActivities.length} activities</span>}
           </div>
           {todaysActivities.length > 0 ? (
@@ -5397,9 +5549,9 @@ function DailyPlanner({ customActivities, setActiveTab, setSelectedWeek, setSele
         <div className="card">
           <div className="card-title">Weekly Focus</div>
           <label className="form-label" style={{color:'var(--brand-cyan)'}}>Focus</label>
-          <input className="form-input" value={weekFocus} onChange={e => updateWeekField('focus', e.target.value)} placeholder="e.g. Defensive line speed, catch-pass under pressure" style={{marginBottom:10}} />
+          <input className="form-input" value={weekFocus} onChange={e => updateWeekField('focus', e.target.value)} placeholder="In a few words — what's this week about?" style={{marginBottom:10}} />
           <label className="form-label" style={{color:'var(--brand-pink)'}}>Desired outcomes</label>
-          <textarea className="form-textarea" value={weekOutcomes} onChange={e => updateWeekField('outcomes', e.target.value)} placeholder="What should the team walk away knowing/doing by the end of this week?" style={{minHeight:80}} />
+          <textarea className="form-textarea" value={weekOutcomes} onChange={e => updateWeekField('outcomes', e.target.value)} placeholder="What will the team know or do by Friday that they couldn't on Monday?" style={{minHeight:80}} />
         </div>
       </div>
 
@@ -9853,11 +10005,25 @@ function AuthScreen({ onSignedIn }) {
         options: { data: { display_name: name.trim() || email.split('@')[0] } },
       });
       if (error) throw error;
+      // With "Confirm email" disabled in Supabase Auth, signUp returns a
+      // session immediately — go straight in.
       if (data?.session) {
         onSignedIn();
-      } else {
-        setMsg('Account created — check your email for a confirmation link, then sign in below.');
+        return;
+      }
+      // Fallback for the edge case where session isn't returned (e.g. if
+      // confirmation gets re-enabled later): try a direct sign-in with the
+      // same credentials so the coach isn't stuck on a "check your email"
+      // dead end that doesn't apply anymore.
+      const { error: signInErr } = await supabase.auth.signInWithPassword({
+        email: email.trim(), password,
+      });
+      if (signInErr) {
+        // Genuinely couldn't sign in — surface a neutral message
+        setMsg('Account created. Sign in below to continue.');
         setMode('signin');
+      } else {
+        onSignedIn();
       }
     } catch(e2) { setErr(e2.message || String(e2)); }
     setBusy(false);
@@ -9895,7 +10061,7 @@ function AuthScreen({ onSignedIn }) {
           {mode === 'signin'
             ? 'Your work is saved to your account. Sign in from any browser, any computer.'
             : mode === 'signup'
-              ? 'Pick an email + password. We\'ll send a one-time confirmation link.'
+              ? 'Pick an email + password. You\'ll be signed in straight away.'
               : 'Enter the email you signed up with — we\'ll email a reset link.'}
         </p>
 
