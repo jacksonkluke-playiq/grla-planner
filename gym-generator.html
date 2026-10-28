@@ -151,6 +151,12 @@ table.t tr.grp td{border-top:2px solid #e6e7ec}
 .check .ca{background:#FFF8E7;color:#B8860B;border:1px solid #EEDFB4}
 .check .cr{background:#FDF2F1;color:#B3261E;border:1px solid #F0C9C5}
 
+
+.cutline{margin-top:7px;background:#FFF8E7;border:1px solid #EEDFB4;border-radius:6px;
+  padding:4px 9px;font-size:9px;font-weight:700;color:#7A5C10}
+table.t.nmct td{padding:3px 6px}
+table.t.nmct .reps{width:100px}
+
 @media print{
   @page{size:A4 portrait;margin:10mm}
   body{background:#fff}
@@ -159,7 +165,7 @@ table.t tr.grp td{border-top:2px solid #e6e7ec}
   .pg{page-break-after:always;padding:0}
   .pg:last-child{page-break-after:auto}
   .pg + .pg{border-top:none}
-  .pg-head::after,.pill,.nmc,.loadbar div.on,.tech-h{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .pg-head::after,.pill,.nmc,.loadbar div.on,.tech-h,.cutline,.check span{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   table.t tr{page-break-inside:avoid}
 }
 </style>
@@ -172,6 +178,7 @@ table.t tr.grp td{border-top:2px solid #e6e7ec}
     <button onclick="printOne()">Print this session</button>
     <button onclick="printBlock()">Print block (all weeks)</button>
     <button onclick="printLevel()">Print whole year</button>
+    <button onclick="printNMC()">Print NMC page</button>
     <button onclick="printTech()">Print technique guide</button>
     <button class="ghost" onclick="exportJSON()">Export</button>
     <button class="ghost" onclick="document.getElementById('imp').click()">Import</button>
@@ -195,8 +202,15 @@ table.t tr.grp td{border-top:2px solid #e6e7ec}
     </div>
     <div class="panel">
       <h3>Session length</h3>
-      <div class="stack" id="timeBox"></div>
-      <div class="hint">Trim C2 first if you are short. Never cut the NMC block or C1.</div>
+      <div class="seg" id="lenSeg"></div>
+      <div class="stack" id="timeBox" style="margin-top:11px"></div>
+      <div class="hint" id="cutHint"></div>
+    </div>
+    <div class="panel">
+      <h3>NMC on its own</h3>
+      <button class="pri" style="width:100%" onclick="printNMC()">Print this phase</button>
+      <button style="width:100%;margin-top:6px" onclick="printNMCall()">Print all four phases</button>
+      <div class="hint">A full page of just the NMC block — for field days, or to pin up in the gym.</div>
     </div>
     <div class="panel">
       <h3>Coach note on the sheet</h3>
@@ -256,6 +270,37 @@ function nmcPicks(ph,wk){
   return out;
 }
 
+
+/* ═══════════════════════════════════════════════════════════
+   SESSION LENGTH
+   What survives a short session, and why:
+   - The NMC block is the last thing cut (QRL Section 2).
+   - C1 eccentric hamstring, A1 squat and B1 hinge never go.
+   - C2 is a second upper movement, already covered by A2 and B2.
+   - A3 core and B3 single-leg are partly carried by the NMC block.
+   - The A1 power jump goes before the S1 speed line, because the NMC
+     spine already contains Jump & Stick - the speed work is not
+     duplicated anywhere else.
+   ═══════════════════════════════════════════════════════════ */
+const PLANS={
+  full:{name:'Full',   nmc:'full',  cutP:[],           cutS:[]},
+  m30 :{name:'30 min', nmc:'full',  cutP:['B1'],       cutS:['C2']},
+  m20 :{name:'20 min', nmc:'spine', cutP:['A1','B1'],  cutS:['C2','A3','B3']}
+};
+const plan=()=>PLANS[S.len||'full'];
+const keepP=r=>!plan().cutP.includes(r.slot);
+const keepS=r=>!plan().cutS.includes(r.slot);
+function estimate(nP,nS,nmcMode){
+  return Math.round((nmcMode==='spine'?4.5:7.5) + nP*2 + nS*2);
+}
+function cutNote(){
+  const p=plan(), bits=[];
+  if(p.nmc==='spine') bits.push('NMC short form (raise + spine, no rotation)');
+  if(p.cutP.length)  bits.push('power '+p.cutP.join(' & ')+' dropped');
+  if(p.cutS.length)  bits.push(p.cutS.join(', ')+' dropped');
+  return bits.length? 'Shortened to '+p.name+' — '+bits.join(' · ') : '';
+}
+
 /* ═══════════════════════════════════════════════════════════
    SHEET MARKUP  —  one A4 page
    ═══════════════════════════════════════════════════════════ */
@@ -279,8 +324,12 @@ function sheetHTML(l,b,wk,editable){
     <td class="tempo">${esc(r.tempo||'')}</td>
     <td class="reps">${ed(r.wk[wk]||'',r.slot,'wk'+wk)}</td></tr>`;
 
-  const P=B.power.map(r=>row(l,b,r)), St=B.strength.map(r=>row(l,b,r));
-  const picks=nmcPicks(ph,wk);
+  const P=B.power.map(r=>row(l,b,r)).filter(keepP);
+  const St=B.strength.map(r=>row(l,b,r)).filter(keepS);
+  const shortNMC=plan().nmc==='spine';
+  const picks=shortNMC?[]:nmcPicks(ph,wk);
+  const mins=estimate(P.length,St.length,plan().nmc);
+  const cut=cutNote();
   const col=(t,items)=>`<div class="nmc-col"><b>${t}</b>${items.map(
      it=>`<div class="nmc-it"><i>${esc(it[0])}</i> <s>${esc(it[1])}</s></div>`).join('')}</div>`;
 
@@ -290,30 +339,30 @@ function sheetHTML(l,b,wk,editable){
           <div class="pg-h2">Keebra Park GRLA — ${esc(L.year)} Gym</div></div>
      <div class="pg-meta">
        <span class="pill" style="background:#FDF0F6;color:#E95B9E">NMC Phase ${ph.id} — ${esc(ph.name)}</span><br>
-       ${DATA.meta.time.map(t=>t[0]+' '+t[1]).join(' · ')}<br>
-       <b>Total 32–34 min</b>
+       ${shortNMC?'NMC short 5 min':'NMC 8 min'} · Power ${P.length*2} min · Strength ${St.length*2} min<br>
+       <b>About ${mins} min</b>
      </div>
    </div>
 
    <div class="nmc">
-     <div class="nmc-h">1 · NMC — 8 min &nbsp;·&nbsp; runs before everything</div>
-     <div class="nmc-grid">
+     <div class="nmc-h">1 · NMC — ${shortNMC?'5 min short form':'8 min'} &nbsp;·&nbsp; runs before everything</div>
+     <div class="nmc-grid" style="${shortNMC?'grid-template-columns:1fr 1fr':''}">
        ${col('Raise 90 sec',DATA.nmc.raise)}
        ${col('Spine — every session',DATA.nmc.spine)}
-       ${col('Phase '+ph.id+' — rotate',picks)}
+       ${shortNMC?'':col('Phase '+ph.id+' — rotate',picks)}
      </div>
    </div>
 
    <div class="sec">
      <div class="sec-h"><span class="sec-t">2 · Power + Speed</span>
-       <span class="sec-s">6 min · full intent, full recovery — quality not fatigue</span></div>
+       <span class="sec-s">${P.length*2} min · full intent, full recovery — quality not fatigue</span></div>
      <table class="t"><thead><tr><th></th><th>Exercise</th><th>Tempo</th><th>Wk ${wk+1}</th></tr></thead>
      <tbody>${P.map(prow).join('')}</tbody></table>
    </div>
 
    <div class="sec">
      <div class="sec-h"><span class="sec-t">3 · Strength</span>
-       <span class="sec-s">18 min · three tri-sets · 45–60 sec rest after each tri-set</span></div>
+       <span class="sec-s">${St.length*2} min · ${Math.ceil(St.length/3)} tri-set${St.length>3?'s':''} · 45–60 sec rest after each</span></div>
      <table class="t"><thead><tr><th></th><th>Exercise</th><th>Tempo</th><th>Wk ${wk+1}</th></tr></thead>
      <tbody>${St.map((r,i)=>srow(r,i%3===0&&i>0)).join('')}</tbody></table>
    </div>
@@ -330,6 +379,7 @@ function sheetHTML(l,b,wk,editable){
    </div>
    <div class="lines"><b>Coach notes — loads used, who was amber, what to change next week</b>
      <div></div><div></div><div></div><div></div></div>
+   ${cut?`<div class="cutline">${esc(cut)}</div>`:''}
    <div class="foot">
      <span>${esc(S.notes[l+'|'+b]||'')}</span>
      <span>CARE · ACCOUNTABILITY · RESPECT · EXCELLENCE</span>
@@ -390,6 +440,79 @@ function techHTML(){
        </div></div></div>`).join('')}
   </div>`;
 }
+
+
+/* ═══════════════════════════════════════════════════════════
+   NMC — standalone A4 page. Printable on its own for field days,
+   or as a wall sheet. Shows the whole phase pool, not 3 picks.
+   ═══════════════════════════════════════════════════════════ */
+function nmcPageHTML(l,b){
+  const L=DATA.levels[l], B=L.blocks[b], ph=phaseFor(l,b);
+  const tbl=(head,rows,accent)=>`
+    <table class="t nmct"><thead><tr>
+      <th style="width:26px"></th><th>${esc(head)}</th><th style="width:110px">Dose</th><th>Coaching cue</th>
+    </tr></thead><tbody>${rows.map((it,i)=>`<tr>
+      <td class="slot" style="color:${accent}">${i+1}</td>
+      <td class="exn">${esc(it[0])}</td>
+      <td class="reps">${esc(it[1])}</td>
+      <td class="note-cell">${esc(it[2])}</td></tr>`).join('')}</tbody></table>`;
+
+  return `<div class="pg">
+   <div class="pg-head">
+     <div><div class="pg-h1">Neuromuscular Control — 8 minutes</div>
+          <div class="pg-h2">Keebra Park GRLA — ${esc(L.year)} · ${esc(B.name)}</div></div>
+     <div class="pg-meta">
+       <span class="pill" style="background:#F1F8F2;color:#1E7A3C">Phase ${ph.id} — ${esc(ph.name)}</span><br>
+       Runs before every session<br><b>Gym or field</b>
+     </div>
+   </div>
+
+   <div class="nmc" style="margin-bottom:9px">
+     <div class="nmc-h">Why this runs first</div>
+     <div style="font-size:9.5px;line-height:1.45">
+       Fifteen minutes is the evidence-based dose; eight minutes done <i>every</i> session beats fifteen done
+       sometimes. Slow and deliberate — this is motor learning, not conditioning. It is the last thing you cut
+       and the first thing you keep, and it runs in full even on an amber day.
+     </div>
+   </div>
+
+   <div class="sec">
+     <div class="sec-h"><span class="sec-t">1 · Raise</span><span class="sec-s">90 seconds</span></div>
+     ${tbl('Exercise',DATA.nmc.raise,'#8f95a8')}
+   </div>
+
+   <div class="sec">
+     <div class="sec-h"><span class="sec-t" style="color:#1E7A3C">2 · The spine</span>
+       <span class="sec-s">every session · all levels · no exceptions</span></div>
+     ${tbl('Exercise',DATA.nmc.spine,'#1E7A3C')}
+   </div>
+
+   <div class="sec">
+     <div class="sec-h"><span class="sec-t">3 · Phase ${ph.id} — ${esc(ph.name)}</span>
+       <span class="sec-s">pick 3 per session · rotate so the block covers all six</span></div>
+     ${tbl('Exercise',ph.items,'#E95B9E')}
+   </div>
+
+   <div class="loadbar" style="margin-top:9px">
+     ${DATA.nmc.phases.map(p=>`<div class="${p.id===ph.id?'on':''}">
+        <b>Phase ${p.id} — ${esc(p.name)}</b><span>${esc(p.when.replace('Typically ',''))}</span></div>`).join('')}
+   </div>
+   <div class="rule">Phase follows movement quality, not age or year level. She moves up when she is controlled
+     and stable at the phase she is in — not when the calendar says so.</div>
+
+   <div class="lines"><b>Who needs watching — knee position, pelvis level, quality under fatigue</b>
+     <div></div><div></div><div></div></div>
+   <div class="foot">
+     <span>Equipment: bands (light/medium/heavy) · low box 15–35 cm · foam pad</span>
+     <span>CARE · ACCOUNTABILITY · RESPECT · EXCELLENCE</span>
+   </div>
+  </div>`;
+}
+const printNMC=()=>printDoc(nmcPageHTML(S.lvl,S.blk),'NMC — '+blk().name);
+const printNMCall=()=>printDoc(DATA.nmc.phases.map((p,i)=>{
+    const saved=S.phase; S.phase=p.id;
+    const h=nmcPageHTML(S.lvl,S.blk); S.phase=saved; return h;
+  }).join(''),'NMC — all four phases');
 
 /* ═══════════════════════════════════════════════════════════
    PRINT  —  same markup, own window (matches the planner)
@@ -572,12 +695,20 @@ function render(){
   document.getElementById('phSel').innerHTML=`<option value="">Auto — Phase ${ph.id}</option>`+
     DATA.nmc.phases.map(p=>`<option value="${p.id}"${String(S.phase)===String(p.id)?' selected':''}>Phase ${p.id} — ${esc(p.name)}</option>`).join('');
   document.getElementById('phHint').textContent=ph.when;
-  document.getElementById('timeBox').innerHTML=DATA.meta.time.map(t=>
+  document.getElementById('lenSeg').innerHTML=Object.entries(PLANS).map(([k,p])=>
+    `<button class="${(S.len||'full')===k?'on':''}" onclick="S.len='${k}';save();render()">${esc(p.name)}</button>`).join('');
+  const nP=B.power.filter(keepP).length, nS=B.strength.filter(keepS).length;
+  const rowsT=[['NMC',(plan().nmc==='spine'?'5 min (short)':'8 min')],
+               ['Power + Speed',nP*2+' min'],
+               ['Strength — '+nS+' lift'+(nS===1?'':'s'),nS*2+' min']];
+  document.getElementById('timeBox').innerHTML=rowsT.map(t=>
     `<div style="display:flex;justify-content:space-between;font-size:11.5px;font-weight:700">
       <span style="color:var(--ink2)">${esc(t[0])}</span><span>${esc(t[1])}</span></div>`).join('')
     +`<div style="display:flex;justify-content:space-between;font-size:12px;font-weight:900;
         border-top:1px solid var(--border);padding-top:6px;margin-top:3px">
-      <span>Total</span><span style="color:var(--pink)">32–34 min</span></div>`;
+      <span>About</span><span style="color:var(--pink)">${estimate(nP,nS,plan().nmc)} min</span></div>`;
+  document.getElementById('cutHint').textContent = cutNote() ||
+    'Everything in. NMC and C1 (eccentric hamstring) are never dropped at any length.';
   document.getElementById('noteIn').value=S.notes[S.lvl+'|'+S.blk]||'';
   const sh=document.getElementById('sheet');
   sh.innerHTML=sheetHTML(S.lvl,S.blk,S.wk,true);
