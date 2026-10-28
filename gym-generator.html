@@ -220,6 +220,7 @@ table.t.thr td{padding:calc(5px * var(--s)) 6px;font-size:calc(9px * var(--s))}
   <div class="tb-actions">
     <button class="pri" onclick="printOne()">Print this sheet</button>
     <button onclick="printLevel()">Print whole year</button>
+    <button onclick="exportSheets()">Send sheets (HTML)</button>
     <button onclick="printTech()">Print technique guide</button>
     <button class="ghost" onclick="exportJSON()">Export</button>
     <button class="ghost" onclick="document.getElementById('imp').click()">Import</button>
@@ -260,6 +261,13 @@ table.t.thr td{padding:calc(5px * var(--s)) 6px;font-size:calc(9px * var(--s))}
       <h3>Coach note on the sheet</h3>
       <input type="text" id="noteIn" placeholder="e.g. Lane 3 only, no sled" oninput="setNote(this.value)">
       <div class="hint">Prints in the footer of every sheet in this block.</div>
+    </div>
+    <div class="panel">
+      <h3>Sending it on</h3>
+      <button class="pri" style="width:100%" onclick="exportSheets()">Send sheets (HTML)</button>
+      <div class="hint">One file with every block sheet for this year group, the NMC pages and the
+        technique guide — <b>with your changes baked in</b>. Email it, open it anywhere, print from it.
+        Your swaps live in this browser, so sending the generator itself would hand them the default program.</div>
     </div>
   </div>
 
@@ -841,6 +849,79 @@ function onSheetClick(e){
       if(ev.key==='Escape'){ fired=true; render(); }
     };
   }
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   EXPORT SHEETS — a standalone HTML file to send to other coaches.
+   Edits live in this browser, not in the generator file, so a coach
+   sent the generator would get the default program. This bakes the
+   current state into a flat, printable document with no app in it.
+   ═══════════════════════════════════════════════════════════ */
+function exportDocHTML(){
+  const L=lvl(), css=document.getElementById('sheetcss').outerHTML;
+  const when=new Date().toLocaleDateString('en-AU',{day:'numeric',month:'long',year:'numeric'});
+  const sheets=L.blocks.map((B,b)=>({name:B.name,html:blockSheetHTML(S.lvl,b,false)}));
+  const extra=[{name:'NMC — 8 minute block',html:nmcPageHTML(S.lvl,S.blk)},
+               {name:'NMC — the four phases',html:nmcProgressionHTML(S.lvl,S.blk)},
+               {name:'Technique guide',html:techHTML()}];
+  const all=sheets.concat(extra);
+  const toc=all.map((s,i)=>`<a href="#s${i}">${esc(s.name)}</a>`).join('');
+  const body=all.map((s,i)=>`<div id="s${i}">${s.html}</div>`).join('');
+  return `<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Keebra Park GRLA — ${esc(L.year)} Gym Sheets</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f6f8;color:#1a1a2e}
+.bar{background:#fff;border-bottom:4px solid #E95B9E;position:relative;padding:16px 22px;
+  display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+.bar::before{content:'';position:absolute;left:0;right:0;bottom:-4px;height:4px;
+  background:linear-gradient(90deg,#E95B9E 0 50%,#29BAE5 50% 100%)}
+.bar b{font-size:17px;font-weight:900;color:#29BAE5;display:block}
+.bar span{font-size:9.5px;font-weight:700;color:#E95B9E;letter-spacing:2px;text-transform:uppercase}
+.bar button{font:700 12px Inter,sans-serif;background:#E95B9E;color:#fff;border:none;
+  padding:10px 20px;border-radius:7px;cursor:pointer}
+.toc{max-width:960px;margin:18px auto 0;padding:0 18px;display:flex;flex-wrap:wrap;gap:7px}
+.toc a{font-size:11px;font-weight:700;color:#5e6278;background:#fff;border:1px solid #dfe1e6;
+  border-radius:20px;padding:6px 13px;text-decoration:none}
+.toc a:hover{border-color:#E95B9E;color:#E95B9E}
+.doc{max-width:960px;margin:18px auto 40px;padding:0 18px;display:flex;flex-direction:column;gap:16px}
+.doc > div{background:#fff;border:1px solid #dfe1e6;border-radius:10px;overflow:hidden}
+@media print{
+  .bar,.toc{display:none!important}
+  .doc{max-width:none;margin:0;padding:0;gap:0;display:block}
+  .doc > div{border:none;border-radius:0}
+  body{background:#fff}
+}
+</style>
+${css}
+</head><body>
+<div class="bar">
+  <div><b>Keebra Park GRLA</b><span>${esc(L.year)} Gym — block sheets</span></div>
+  <div style="font-size:11px;color:#8f95a8;font-weight:600">Issued ${esc(when)}</div>
+  <button onclick="window.print()">Print / Save as PDF</button>
+</div>
+<div class="toc">${toc}</div>
+<div class="doc">${body}</div>
+</body></html>`;
+}
+
+async function exportSheets(){
+  const name='keebra-gym-'+lvl().year.toLowerCase().replace(/\s+/g,'')+'-sheets.html';
+  const text=exportDocHTML();
+  let dl=null;
+  try{ dl=(window.claude&&claude.use)?await claude.use('downloads'):null; }catch(e){ dl=null; }
+  if(dl){
+    try{ await dl.save({filename:name,data:text}); }
+    catch(err){ if(!err||err.code!=='declined') alert('Could not save that file: '+((err&&(err.message||err.code))||err)); }
+    return;
+  }
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([text],{type:'text/html'}));
+  a.download=name; a.click(); URL.revokeObjectURL(a.href);
 }
 
 /* ═══════════════════════════════════════════════════════════
