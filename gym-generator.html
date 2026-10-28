@@ -166,8 +166,15 @@ table.t.nmct .reps{width:100px}
 .pg-h2{max-width:none}
 .pg-meta{white-space:nowrap}
 
+/* block sheet - a column per week */
+table.t.wk th.wkh{text-align:right;width:76px}
+table.t.wk td.wkc{text-align:right;width:76px;padding-left:2px;padding-right:6px}
+table.t.wk td:nth-child(2){padding-right:4px}
+.pg.s-block .nmc-grid{align-items:start}
+
 /* one knob per printable view, tuned so each fills an A4 page */
 .pg.s-session{--s:1.13}
+.pg.s-block{--s:1.10}
 .pg.s-nmc{--s:1.32}
 .pg.s-prog{--s:1.44}
 .pg.s-tech{--s:1.06}
@@ -211,8 +218,7 @@ table.t.thr td{padding:calc(5px * var(--s)) 6px;font-size:calc(9px * var(--s))}
 <div class="topbar">
   <div class="brand"><b>Keebra Park GRLA</b><span>Junior Gym Generator · Yr 7–9</span></div>
   <div class="tb-actions">
-    <button onclick="printOne()">Print this session</button>
-    <button onclick="printBlock()">Print block (all weeks)</button>
+    <button class="pri" onclick="printOne()">Print this sheet</button>
     <button onclick="printLevel()">Print whole year</button>
     <button onclick="printTech()">Print technique guide</button>
     <button class="ghost" onclick="exportJSON()">Export</button>
@@ -229,8 +235,8 @@ table.t.thr td{padding:calc(5px * var(--s)) 6px;font-size:calc(9px * var(--s))}
       <div class="seg" id="lvlSeg"></div>
       <label class="fld">Block</label>
       <select id="blkSel" onchange="setBlock(this.value)"></select>
-      <label class="fld">Week</label>
-      <div class="seg" id="wkSeg"></div>
+      <div id="wkWrap"><label class="fld">Week</label>
+      <div class="seg" id="wkSeg"></div></div>
       <label class="fld">NMC phase</label>
       <select id="phSel" onchange="setPhase(this.value)"></select>
       <div class="hint" id="phHint"></div>
@@ -240,6 +246,7 @@ table.t.thr td{padding:calc(5px * var(--s)) 6px;font-size:calc(9px * var(--s))}
       <div class="seg" id="lenSeg"></div>
       <div class="stack" id="timeBox" style="margin-top:11px"></div>
       <div class="hint" id="cutHint"></div>
+      <div class="hint">Applies to the block sheet too — all four weeks shrink together.</div>
     </div>
     <div class="panel">
       <h3>NMC on its own</h3>
@@ -418,6 +425,95 @@ function sheetHTML(l,b,wk,editable){
    <div class="lines"><b>Coach notes — loads used, who was amber, what to change next week</b>
      ${'<div></div>'.repeat(4 + (9-St.length) + (3-P.length))}</div>
    ${cut?`<div class="cutline">${esc(cut)}</div>`:''}
+   <div class="foot">
+     <span>${esc(S.notes[l+'|'+b]||'')}</span>
+     <span>CARE · ACCOUNTABILITY · RESPECT · EXCELLENCE</span>
+   </div>
+  </div>`;
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   BLOCK SHEET — the whole block on one page, a column per week.
+   This is the one that lives in the gym: printed once, used for
+   four weeks, the way the workbook laid it out.
+   ═══════════════════════════════════════════════════════════ */
+function blockSheetHTML(l,b,editable){
+  const L=DATA.levels[l], B=L.blocks[b], ph=phaseFor(l,b), SN=DATA.meta.slotNames;
+  const W=B.weeks;
+  const P=B.power.map(r=>row(l,b,r)).filter(keepP);
+  const St=B.strength.map(r=>row(l,b,r)).filter(keepS);
+  const shortNMC=plan().nmc==='spine';
+  const mins=estimate(P.length,St.length,plan().nmc);
+  const cut=cutNote();
+  const wk=n=>`<th class="wkh">Wk ${n+1}</th>`;
+  const ed=(txt,slot,f,cls)=>editable
+     ? `<span class="cell-ed ${cls||''}" data-slot="${slot}" data-f="${f}">${esc(txt)}</span>`
+     : esc(txt);
+  const cells=r=>Array.from({length:W},(_,w)=>
+     `<td class="reps wkc">${ed(r.wk[w]||'',r.slot,'wk'+w)}</td>`).join('');
+
+  const prow=r=>`<tr data-sub="${esc(r.sub||'')}">
+     <td class="slot">${esc(r.slot)}</td>
+     <td><span class="exn">${ed(r.ex,r.slot,'ex')}</span></td>
+     <td class="tempo">${esc(r.tempo||'')}</td>${cells(r)}</tr>`;
+  const srow=(r,first)=>`<tr class="${first?'grp':''}" data-sub="${esc(r.sub||'')}">
+     <td class="slot">${esc(r.slot)}<div class="slotname">${esc((SN[r.slot]||'').split(' ')[0])}</div></td>
+     <td><span class="exn">${ed(r.ex,r.slot,'ex')}</span>
+         <div class="slotname">${esc(SN[r.slot]||'')}</div></td>
+     <td class="tempo">${esc(r.tempo||'')}</td>${cells(r)}</tr>`;
+
+  const col=(t,items)=>`<div class="nmc-col"><b>${esc(t)}</b>${items.map(
+     it=>`<div class="nmc-it"><i>${esc(it[0])}</i> <s>${esc(it[1])}</s></div>`).join('')}</div>`;
+
+  return `<div class="pg s-block" style="--s:${W>4?1.03:1.10}">
+   <div class="pg-head">
+     <div><div class="pg-h1">${esc(B.name)}</div>
+          <div class="pg-h2">Keebra Park GRLA — ${esc(L.year)} Gym</div></div>
+     <div class="pg-meta">
+       <span class="pill" style="background:#FDF0F6;color:#E95B9E">NMC Phase ${ph.id} — ${esc(ph.name)}</span><br>
+       ${W} weeks on this sheet · about ${mins} min a session
+     </div>
+   </div>
+
+   <div class="nmc">
+     <div class="nmc-h">1 · NMC — ${shortNMC?'5 min short form':'8 min'} &nbsp;·&nbsp; runs before every session, all ${W} weeks</div>
+     <div class="nmc-grid">
+       ${col('Raise 90 sec',DATA.nmc.raise)}
+       ${col('Spine — every session',DATA.nmc.spine)}
+       ${shortNMC?'':col('Phase '+ph.id+' — pick 3, rotate weekly',ph.items)}
+     </div>
+   </div>
+
+   <div class="sec">
+     <div class="sec-h"><span class="sec-t">2 · Power + Speed</span>
+       <span class="sec-s">${P.length*2} min · full intent, full recovery — quality not fatigue</span></div>
+     <table class="t wk"><thead><tr><th></th><th>Exercise</th><th>Tempo</th>
+       ${Array.from({length:W},(_,w)=>wk(w)).join('')}</tr></thead>
+       <tbody>${P.map(prow).join('')}</tbody></table>
+   </div>
+
+   <div class="sec">
+     <div class="sec-h"><span class="sec-t">3 · Strength</span>
+       <span class="sec-s">${St.length*2} min · ${Math.ceil(St.length/3)} tri-set${St.length>3?'s':''} · 45–60 sec rest after each</span></div>
+     <table class="t wk"><thead><tr><th></th><th>Exercise</th><th>Tempo</th>
+       ${Array.from({length:W},(_,w)=>wk(w)).join('')}</tr></thead>
+       <tbody>${St.map((r,i)=>srow(r,i%3===0&&i>0)).join('')}</tbody></table>
+   </div>
+
+   <div class="loadbar">${DATA.meta.load.slice(0,W).map((x,i)=>
+     `<div><b>${esc(x[0])} — ${esc(x[1])}</b><span>${esc(x[2])}</span></div>`).join('')}</div>
+   <div class="rule">${esc(DATA.meta.rule)}</div>
+
+   <div class="check">
+     <b>Check-in before you start</b>
+     <span class="cg">GREEN — full session</span>
+     <span class="ca">AMBER — reduce load, keep the NMC in full</span>
+     <span class="cr">RED — NMC light only, refer if it repeats</span>
+   </div>
+   ${cut?`<div class="cutline">${esc(cut)}</div>`:''}
+   <div class="lines"><b>Coach notes — loads used, who was amber, what to change next block</b>
+     ${'<div></div>'.repeat(3)}</div>
    <div class="foot">
      <span>${esc(S.notes[l+'|'+b]||'')}</span>
      <span>CARE · ACCOUNTABILITY · RESPECT · EXCELLENCE</span>
@@ -633,14 +729,14 @@ function printDoc(body,title){
   w.document.close();
 }
 const printOne = ()=>{
-  const v=S.view||'session';
-  if(v==='nmc')  return printDoc(nmcPageHTML(S.lvl,S.blk),'NMC — '+blk().name);
-  if(v==='prog') return printProg();
-  return printDoc(sheetHTML(S.lvl,S.blk,S.wk,false),blk().name+' Wk'+(S.wk+1));
+  const v=S.view||'block';
+  if(v==='nmc')   return printDoc(nmcPageHTML(S.lvl,S.blk),'NMC — '+blk().name);
+  if(v==='prog')  return printProg();
+  if(v==='week')  return printDoc(sheetHTML(S.lvl,S.blk,S.wk,false),blk().name+' Wk'+(S.wk+1));
+  return printDoc(blockSheetHTML(S.lvl,S.blk,false),blk().name);
 };
-const printBlock =()=>printDoc(Array.from({length:blk().weeks},(_,w)=>sheetHTML(S.lvl,S.blk,w,false)).join(''),blk().name);
-const printLevel =()=>printDoc(lvl().blocks.map((B,b)=>
-      Array.from({length:B.weeks},(_,w)=>sheetHTML(S.lvl,b,w,false)).join('')).join(''),lvl().year);
+/* one block sheet per block - 8 pages for a year, not 32 */
+const printLevel =()=>printDoc(lvl().blocks.map((B,b)=>blockSheetHTML(S.lvl,b,false)).join(''),lvl().year);
 const printTech  =()=>printDoc(techHTML(),'Technique Guide');
 
 /* ═══════════════════════════════════════════════════════════
@@ -813,16 +909,19 @@ function render(){
   document.getElementById('cutHint').textContent = cutNote() ||
     'Everything in. NMC and C1 (eccentric hamstring) are never dropped at any length.';
   document.getElementById('noteIn').value=S.notes[S.lvl+'|'+S.blk]||'';
-  const view=S.view||'session';
+  const view=S.view||'block';
   document.getElementById('viewSeg').innerHTML=
-    [['session','Session sheet'],['nmc','NMC page'],['prog','Progression']].map(([k,n])=>
+    [['block','Block sheet'],['week','One week'],['nmc','NMC page'],['prog','Progression']].map(([k,n])=>
       `<button class="${view===k?'on':''}" onclick="S.view='${k}';save();render()">${esc(n)}</button>`).join('');
-  document.getElementById('editnote').style.display = view==='session'?'':'none';
+  const editable = view==='block'||view==='week';
+  document.getElementById('editnote').style.display = editable?'':'none';
+  document.getElementById('wkWrap').style.display = view==='week'?'':'none';
   const sh=document.getElementById('sheet');
-  sh.innerHTML = view==='nmc'  ? nmcPageHTML(S.lvl,S.blk)
-               : view==='prog' ? nmcProgressionHTML(S.lvl,S.blk)
-               : sheetHTML(S.lvl,S.blk,S.wk,true);
-  sh.onclick = view==='session' ? onSheetClick : null;
+  sh.innerHTML = view==='nmc'   ? nmcPageHTML(S.lvl,S.blk)
+               : view==='prog'  ? nmcProgressionHTML(S.lvl,S.blk)
+               : view==='week'  ? sheetHTML(S.lvl,S.blk,S.wk,true)
+               : blockSheetHTML(S.lvl,S.blk,true);
+  sh.onclick = editable ? onSheetClick : null;
   document.documentElement.style.colorScheme='light dark';
 }
 render();
