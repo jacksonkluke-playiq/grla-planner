@@ -266,13 +266,13 @@ function sheetHTML(l,b,wk,editable){
      ? `<span class="cell-ed ${cls||''}" data-slot="${slot}" data-f="${f}">${esc(txt)}</span>`
      : esc(txt);
 
-  const prow=r=>`<tr>
+  const prow=r=>`<tr data-sub="${esc(r.sub||'')}">
     <td class="slot">${esc(r.slot)}</td>
     <td><span class="exn">${ed(r.ex,r.slot,'ex')}</span></td>
     <td class="tempo">${esc(r.tempo||'')}</td>
     <td class="reps">${ed(r.wk[wk]||'',r.slot,'wk'+wk)}</td></tr>`;
 
-  const srow=(r,first)=>`<tr class="${first?'grp':''}">
+  const srow=(r,first)=>`<tr class="${first?'grp':''}" data-sub="${esc(r.sub||'')}">
     <td class="slot">${esc(r.slot)}<div class="slotname">${esc((SN[r.slot]||'').split(' ')[0])}</div></td>
     <td><span class="exn">${ed(r.ex,r.slot,'ex')}</span>
         <div class="slotname">${esc(SN[r.slot]||'')}</div></td>
@@ -423,40 +423,76 @@ const printTech  =()=>printDoc(techHTML(),'Technique Guide');
 const SLOT_LIB={
  A1:['Squat_Str','Step_Up_Str','Lunge_Split_Squat_Str'],
  A2:['Horizontal_Push_Str','Vertical_Push_OH_Str','Vertical_Push_Dip_Str'],
- A3:['Lower_Accessory_Str','Upper_Stability'],
+ A3:['Core_Brace'],
  B1:['Hinge_Str'],
  B2:['Horizontal_Pull_Str','Vertical_Pull_Chin_Str','Vertical_Pull_Upright_Str','Upper_Back'],
  B3:['SL_Squat_Str','Lateral_Lunge_Str','Lunge_Split_Squat_Str','Step_Up_Str'],
  C1:['Hip_Thrust_Glute_Ham_Str'],
  C2:['Upper_Back','Raises_Curls','Horizontal_Push_Str','Horizontal_Pull_Str','Calf_Str'],
- C3:['Lower_Accessory_Str'],
- S1:['Speed_Strength','Jump_Land','Lower_Impact']
+ C3:['Carry_Finish'],
+ S1:['Speed_Strength','Jump_Land','Lower_Impact'],
+ PA:['Jump_Land','Ant_Chain_Pwr'],
+ PB:['Post_Chain_Pwr','Horizontal_Push_Pwr','Vertical_Push_Pwr','Olympic_Variations']
 };
-const CORE=['Deadbug','Weighted Deadbug','Plank','Side Plank','Chinese Plank','Pallof Press',
- 'Kneeling Pallof Press','Hollow Hold','Copenhagen Plank','Copenhagen Plank Bent Knee','Shoulder Taps','Plank Down'];
-const CARRY=['Farmers Carry','Suitcase Carry','Med Ball Carry','OH Med Ball Carry','OH KB Carry','Sled Push','Sled Pull'];
-const POWER=['Jump_Land','Ant_Chain_Pwr','Post_Chain_Pwr','Horizontal_Push_Pwr','Vertical_Push_Pwr','Olympic_Variations'];
+const CORE=['Deadbug','Weighted Deadbug','Plank','Push Up Position Plank','Plank Down','Shoulder Taps',
+ 'Hollow Hold','Chinese Plank','Side Plank','Copenhagen Plank Bent Knee','Copenhagen Plank',
+ 'Pallof Press','Kneeling Pallof Press','Cable Pallof Press','Pallof Press (Partner)','Pallof Press (Perturbations)'];
+const CARRY=['Med Ball Carry','Farmers Carry','Suitcase Carry','OH Med Ball Carry','OH KB Carry',
+ 'Offset KB Carry','OH Plate Carry','Sled Push','Sled Pull'];
 
-function optionsFor(slot){
-  let o=[];
-  if(slot==='A3') o=CORE;
-  else if(slot==='C3') o=CARRY;
-  else if(slot==='A1'&&false) o=[];
-  else if(slot==='B1'||slot==='A1'||slot==='A2'||slot==='B2'||slot==='B3'||slot==='C1'||slot==='C2'){
-    (SLOT_LIB[slot]||[]).forEach(g=>o=o.concat(DATA.library[g]||[]));
-  } else if(slot==='S1'){ (SLOT_LIB.S1||[]).forEach(g=>o=o.concat(DATA.library[g]||[])); }
-  else POWER.forEach(g=>o=o.concat(DATA.library[g]||[]));
-  if(!o.length) Object.values(DATA.library).forEach(v=>o=o.concat(v));
-  return [...new Set(o)].sort();
+/* Library groups are stored in PROGRESSION order (bodyweight -> med ball ->
+   plate -> goblet -> KB -> barbell). Never sort them: that order is what
+   makes a swap comparable to what it replaces. */
+const LIB=Object.assign({},DATA.library,{Core_Brace:CORE,Carry_Finish:CARRY});
+const PRETTY=g=>g.replace(/_(Str|Pwr)$/,'').replace(/_/g,' ')
+                 .replace('Hip Thrust Glute Ham','Hamstring / glute')
+                 .replace('Core Brace','Core').replace('Carry Finish','Carry');
+
+function homeGroup(name,sub){
+  if(sub&&LIB[sub]){ const i=LIB[sub].indexOf(name); if(i>=0) return {g:sub,i}; }
+  for(const g in LIB){ const i=LIB[g].indexOf(name); if(i>=0) return {g,i}; }
+  return (sub&&LIB[sub])?{g:sub,i:-1}:null;
+}
+
+/* Comparable first: a window of the same progression around the current
+   exercise, then the rest of that group, then the wider slot family. */
+const HAM=/nordic|ghr|razor|harop|curl|glute ham/i;   // C1 is the hamstring protector
+function swapGroups(slot,cur,sub){
+  const WIN=5, out=[], seen=new Set([cur]);
+  const home=homeGroup(cur,sub);
+  if(home){
+    let list=LIB[home.g]||[];
+    // C1 lives in a group that mixes hip thrusts with hamstring curls.
+    // Keep the curl family at the top so a swap stays an eccentric hamstring.
+    if(slot==='C1'){
+      const ham=list.filter(x=>HAM.test(x));
+      if(ham.length>3) list=ham.concat(list.filter(x=>!HAM.test(x)));
+    }
+    const idx=Math.max(0,list.indexOf(cur));
+    const near=list.slice(Math.max(0,idx-WIN),idx+WIN+1).filter(x=>!seen.has(x));
+    near.forEach(x=>seen.add(x));
+    const rest=list.filter(x=>!seen.has(x));
+    if(near.length) out.push(['Similar — '+PRETTY(home.g),near]);
+    if(rest.length) out.push(['More '+PRETTY(home.g),rest]);
+    rest.forEach(x=>seen.add(x));
+  }
+  const fam=(SLOT_LIB[slot]||SLOT_LIB.PB).filter(g=>!home||g!==home.g);
+  const other=[];
+  fam.forEach(g=>(LIB[g]||[]).forEach(x=>{ if(!seen.has(x)){seen.add(x);other.push(x);} }));
+  if(other.length) out.push(['Other '+(DATA.meta.slotNames[slot]||slot).toLowerCase()+' options',other]);
+  return out;
 }
 
 function onSheetClick(e){
   const t=e.target.closest('.cell-ed'); if(!t) return;
   const slot=t.dataset.slot, f=t.dataset.f, cur=t.textContent.trim();
   if(f==='ex'){
-    const opts=optionsFor(slot);
+    const sub=t.closest('tr').dataset.sub||'';
     const sel=document.createElement('select');
-    sel.innerHTML=opts.map(o=>`<option${o===cur?' selected':''}>${esc(o)}</option>`).join('')
+    sel.innerHTML=`<option selected>${esc(cur)}</option>`
+      +swapGroups(slot,cur,sub).map(([label,items])=>
+         `<optgroup label="${esc(label)}">`+
+         items.map(o=>`<option>${esc(o)}</option>`).join('')+`</optgroup>`).join('')
       +`<option value="__custom">— type my own —</option>`;
     sel.style.cssText='font:700 11px Inter,sans-serif;max-width:230px';
     t.replaceWith(sel); sel.focus();
