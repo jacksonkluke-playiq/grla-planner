@@ -221,6 +221,12 @@ table.t .dn{width:142px}
 .phrow.on{background:#FDF0F6}
 .phrow.on b{color:var(--pink)}
 
+.yb{display:inline-block;font-size:calc(7.5px * var(--s));font-weight:800;letter-spacing:.4px;
+  padding:1px 5px;border-radius:9px;margin:0 2px 2px 0;background:#F2F2F2;color:#5e6278}
+.yb.y1{background:#FDF0F6;color:#C2407E}
+.yb.y2{background:#FFF6E5;color:#A8741A}
+.yb.y3{background:#E8F4FB;color:#1A7FA8}
+
 @media print{
   @page{size:A4 portrait;margin:10mm}
   body{background:#fff}
@@ -243,6 +249,7 @@ table.t .dn{width:142px}
     <button class="pri" onclick="printOne()">Print this sheet</button>
     <button onclick="printLevel()">Print whole year</button>
     <button onclick="exportSheets()">Send sheets (HTML)</button>
+    <button onclick="exportBank()">Drill bank (HTML)</button>
     <button class="ghost" onclick="resetAll()">Reset</button>
   </div>
 </div>
@@ -272,6 +279,8 @@ table.t .dn{width:142px}
       <button class="pri" style="width:100%" onclick="exportSheets()">Send sheets (HTML)</button>
       <div class="hint">Every block for this year group plus the coach briefing and the drill bank,
         with your changes baked in.</div>
+      <button style="width:100%;margin-top:8px" onclick="exportBank()">Drill bank (HTML)</button>
+      <div class="hint">Just the drills — all 26, every year group, as its own file.</div>
     </div>
   </div>
 
@@ -454,6 +463,83 @@ function libraryHTML(l){
   </div>`;
 }
 
+
+/* ═══ FULL DRILL BANK — every drill, every level, standalone ═══ */
+function fullBankHTML(){
+  const CAT=[['prep','Movement prep','Runs after the NMC block. Deceleration before acceleration, always.'],
+             ['main1','Phase 1 — Aerobic base','Preseason. Builds the engine that lets her recover between hard efforts.'],
+             ['main2','Phase 2 — Repeat effort','QRL 4.1: 10–30 sec efforts at 1:3 to 1:5 work-to-rest.'],
+             ['main3','Phase 3 — Game speed & RHIE','Running and contact together. A bout is 3+ efforts inside 21 seconds.'],
+             ['main4','Phase 4 — In-season','Volume down, quality up. The game is the main stimulus now.'],
+             ['fin','Game finishers','Skill under fatigue. Gabbett 2006: games condition as well as running does.']];
+  const yr=d=>d.lvl.map(n=>`<span class="yb y${n}">Yr ${n+6}</span>`).join('');
+  return CAT.map(([c,label,blurb])=>{
+    const ds=DATA.drills.filter(d=>d.cat===c);
+    return `<div class="pg s-lib" style="--s:1.06"><div class="pg-head">
+      <div><div class="pg-h1">${esc(label)}</div>
+      <div class="pg-h2">Keebra Park GRLA — conditioning drill bank</div></div>
+      <div class="pg-meta">${ds.length} drill${ds.length>1?'s':''}<br><b>Yr 7–9</b></div></div>
+      <div class="aim"><b>When</b> ${esc(blurb)}</div>
+      <table class="t"><thead><tr><th style="width:150px">Drill</th><th style="width:92px">Dose</th>
+        <th style="width:78px">Suits</th><th>Set-up, cue and why</th></tr></thead><tbody>
+      ${ds.map(d=>`<tr><td class="exn">${esc(d.name)}
+         <div class="kit">${esc(d.kit)}${d.contact?' · <b class="ct">contact</b>':''}</div></td>
+        <td class="reps">${esc(d.work)}</td><td>${yr(d)}</td>
+        <td class="note-cell"><b>${esc(d.setup)}</b> ${esc(d.cue)}
+          <div class="why">${esc(d.why)}</div></td></tr>`).join('')}
+      </tbody></table>
+      <div class="foot"><span>Contact drills follow QRL 5.3 — neck and trunk bracing, and controlled positions
+        demonstrated, before any contact load.</span><span>CARE · ACCOUNTABILITY · RESPECT · EXCELLENCE</span></div>
+      </div>`;}).join('');
+}
+function bankDocHTML(){
+  const css=document.getElementById('sheetcss').outerHTML;
+  const when=new Date().toLocaleDateString('en-AU',{day:'numeric',month:'long',year:'numeric'});
+  const CATN=['Movement prep','Phase 1 — Aerobic base','Phase 2 — Repeat effort',
+              'Phase 3 — Game speed & RHIE','Phase 4 — In-season','Game finishers'];
+  const parts=fullBankHTML().split('<div class="pg s-lib"').filter(Boolean)
+     .map((p,i)=>`<div id="s${i}"><div class="pg s-lib"${p}</div>`);
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Conditioning Drill Bank</title>
+<style>@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',-apple-system,sans-serif;background:#f5f6f8;color:#1a1a2e}
+.bar{background:#fff;border-bottom:4px solid #E95B9E;position:relative;padding:16px 22px;display:flex;
+ justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+.bar::before{content:'';position:absolute;left:0;right:0;bottom:-4px;height:4px;
+ background:linear-gradient(90deg,#E95B9E 0 50%,#29BAE5 50% 100%)}
+.bar b{font-size:17px;font-weight:900;color:#29BAE5;display:block}
+.bar span{font-size:9.5px;font-weight:700;color:#E95B9E;letter-spacing:2px;text-transform:uppercase}
+.bar button{font:700 12px Inter,sans-serif;background:#E95B9E;color:#fff;border:none;padding:10px 20px;border-radius:7px;cursor:pointer}
+.toc{max-width:1040px;margin:18px auto 0;padding:0 18px;display:flex;flex-wrap:wrap;gap:7px}
+.toc a{font-size:11px;font-weight:700;color:#5e6278;background:#fff;border:1px solid #dfe1e6;
+ border-radius:20px;padding:6px 13px;text-decoration:none}
+.toc a:hover{border-color:#E95B9E;color:#E95B9E}
+.doc{max-width:1040px;margin:18px auto 40px;padding:0 18px;display:flex;flex-direction:column;gap:16px}
+.doc > div{background:#fff;border:1px solid #dfe1e6;border-radius:10px;overflow:hidden}
+@media print{.bar,.toc{display:none!important}.doc{max-width:none;margin:0;padding:0;gap:0;display:block}
+ .doc > div{border:none;border-radius:0}body{background:#fff}}
+</style>${css}</head><body>
+<div class="bar"><div><b>Keebra Park GRLA</b><span>Conditioning drill bank · Yr 7–9</span></div>
+<div style="font-size:11px;color:#8f95a8;font-weight:600">${DATA.drills.length} drills · issued ${esc(when)}</div>
+<button onclick="window.print()">Print / Save as PDF</button></div>
+<div class="toc">${CATN.map((n,i)=>`<a href="#s${i}">${esc(n)}</a>`).join('')}</div>
+<div class="doc">${parts.join('')}</div>
+</body></html>`;
+}
+async function exportBank(){
+  const text=bankDocHTML(), name='keebra-conditioning-drill-bank.html';
+  let dl=null; try{dl=(window.claude&&claude.use)?await claude.use('downloads'):null;}catch(e){dl=null;}
+  if(dl){ try{await dl.save({filename:name,data:text});}
+    catch(err){ if(!err||err.code!=='declined') alert('Could not save: '+((err&&(err.message||err.code))||err)); }
+    return; }
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([text],{type:'text/html'}));
+  a.download=name; a.click(); URL.revokeObjectURL(a.href);
+}
+const printBank=()=>printDoc(fullBankHTML(),'Conditioning drill bank');
+
 /* ═══ PRINT ═══ */
 function printDoc(body,title){
   const css=document.getElementById('sheetcss').outerHTML;
@@ -472,6 +558,7 @@ function printDoc(body,title){
 const printOne=()=>{const v=S.view||'block';
   if(v==='brief') return printDoc(briefHTML(),'Conditioning the female athlete');
   if(v==='lib')   return printDoc(libraryHTML(S.lvl),'Conditioning drill bank');
+  if(v==='all')   return printBank();
   return printDoc(blockSheetHTML(S.lvl,S.blk,false),blk().name);};
 const printLevel=()=>printDoc(lvl().blocks.map((B,b)=>blockSheetHTML(S.lvl,b,false)).join('')
   +briefHTML()+libraryHTML(S.lvl),lvl().year+' Conditioning');
@@ -568,7 +655,7 @@ function render(){
   document.getElementById('lenSeg').innerHTML=Object.entries(PLANS).map(([k,p])=>
     `<button class="${(S.len||'full')===k?'on':''}" onclick="S.len='${k}';save();render()">${esc(p.name)}</button>`).join('');
   document.getElementById('viewSeg').innerHTML=
-    [['block','Block sheet'],['brief','Coach briefing'],['lib','Drill bank']].map(([k,n])=>
+    [['block','Block sheet'],['brief','Coach briefing'],['lib','Drill bank'],['all','All drills']].map(([k,n])=>
       `<button class="${view===k?'on':''}" onclick="S.view='${k}';save();render()">${esc(n)}</button>`).join('');
   document.getElementById('phaseBox').innerHTML=DATA.phases.map(p=>
     `<div class="phrow ${p.id===ph.id?'on':''}"><b>${esc(p.name)}</b><span>${esc(p.term)}</span></div>`).join('');
@@ -582,7 +669,8 @@ function render(){
   document.getElementById('noteIn').value=S.notes[S.lvl+'|'+S.blk]||'';
   document.getElementById('editnote').style.display=view==='block'?'':'none';
   const sh=document.getElementById('sheet');
-  sh.innerHTML = view==='brief'?briefHTML() : view==='lib'?libraryHTML(S.lvl) : blockSheetHTML(S.lvl,S.blk,true);
+  sh.innerHTML = view==='brief'?briefHTML() : view==='lib'?libraryHTML(S.lvl)
+    : view==='all'?fullBankHTML() : blockSheetHTML(S.lvl,S.blk,true);
   sh.onclick = view==='block'?onSheetClick:null;
 }
 render();
