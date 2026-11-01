@@ -1,0 +1,948 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Keebra Park GRLA — Year 7 Conditioning</title>
+<style>@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',-apple-system,sans-serif;background:#f5f6f8;color:#1a1a2e}
+.bar{background:#fff;border-bottom:4px solid #E95B9E;position:relative;padding:16px 22px;display:flex;
+ justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+.bar::before{content:'';position:absolute;left:0;right:0;bottom:-4px;height:4px;
+ background:linear-gradient(90deg,#E95B9E 0 50%,#29BAE5 50% 100%)}
+.bar b{font-size:17px;font-weight:900;color:#29BAE5;display:block}
+.bar span{font-size:9.5px;font-weight:700;color:#E95B9E;letter-spacing:2px;text-transform:uppercase}
+.bar button{font:700 12px Inter,sans-serif;background:#E95B9E;color:#fff;border:none;padding:10px 20px;border-radius:7px;cursor:pointer}
+.toc{max-width:1000px;margin:18px auto 0;padding:0 18px;display:flex;flex-wrap:wrap;gap:7px}
+.toc a{font-size:11px;font-weight:700;color:#5e6278;background:#fff;border:1px solid #dfe1e6;border-radius:20px;padding:6px 13px;text-decoration:none}
+.doc{max-width:1000px;margin:18px auto 40px;padding:0 18px;display:flex;flex-direction:column;gap:16px}
+.doc > div{background:#fff;border:1px solid #dfe1e6;border-radius:10px;overflow:hidden}
+@media print{.bar,.toc{display:none!important}.doc{max-width:none;margin:0;padding:0;gap:0;display:block}
+ .doc > div{border:none;border-radius:0}body{background:#fff}}
+</style><style id="sheetcss">
+/* ═══════════════════════════════════════════════════════════
+   SESSION SHEET — shared by the on-screen preview and print
+   ═══════════════════════════════════════════════════════════ */
+.pg{--s:1;background:#fff;color:#16161d;padding:14px 18px 16px;font-size:calc(10.5px * var(--s));line-height:1.35}
+.pg + .pg{border-top:12px solid #f0f1f4}
+.pg-head{display:flex;justify-content:space-between;align-items:flex-start;
+  border-bottom:3px solid #E95B9E;padding-bottom:8px;position:relative;margin-bottom:10px}
+.pg-head::after{content:'';position:absolute;left:0;right:0;bottom:-3px;height:3px;
+  background:linear-gradient(90deg,#E95B9E 0 50%,#29BAE5 50% 100%)}
+.pg-h1{font-size:calc(15px * min(var(--s),1.25));font-weight:900;letter-spacing:-.2px;color:#16161d}
+.pg-h2{font-size:calc(9px * min(var(--s),1.2));font-weight:700;letter-spacing:1.6px;text-transform:uppercase;color:#E95B9E;margin-top:1px}
+.pg-meta{text-align:right;font-size:calc(9px * min(var(--s),1.15));color:#5e6278;font-weight:600;line-height:1.5}
+.pill{display:inline-block;padding:3px 9px;border-radius:20px;font-size:calc(9px * var(--s));font-weight:800;
+  text-transform:uppercase;letter-spacing:.9px}
+
+.sec{margin-top:9px}
+.sec-h{display:flex;align-items:baseline;gap:8px;margin-bottom:3px}
+.sec-t{font-size:calc(10px * var(--s));font-weight:900;letter-spacing:1.3px;text-transform:uppercase;color:#6B1C3A}
+.sec-s{font-size:calc(9px * var(--s));color:#8f95a8;font-weight:600}
+
+table.t{width:100%;border-collapse:collapse}
+table.t th{font-size:calc(8.5px * var(--s));font-weight:800;letter-spacing:.9px;text-transform:uppercase;color:#8f95a8;
+  text-align:left;padding:3px 6px;border-bottom:1px solid #dfe1e6}
+table.t td{padding:calc(4px * var(--s)) 6px;border-bottom:1px solid #f0f0f5;vertical-align:top}
+table.t tr.grp td{border-top:2px solid #e6e7ec}
+.slot{font-weight:900;color:#E95B9E;font-size:calc(10px * var(--s));width:30px}
+.slotname{font-size:calc(8.5px * var(--s));color:#8f95a8;font-weight:600}
+.exn{font-weight:700;color:#16161d}
+.cell-ed{cursor:pointer;border-radius:4px}
+.cell-ed:hover{background:#FDF0F6;outline:1px solid #F5C6DF}
+.tempo{font-variant-numeric:tabular-nums;color:#5e6278;font-weight:600;width:52px}
+.reps{font-weight:800;color:#16161d;width:78px;font-variant-numeric:tabular-nums}
+.note-cell{color:#5e6278;font-size:calc(9.5px * var(--s))}
+
+.nmc{border:1.5px solid #1E7A3C;border-radius:7px;padding:7px 9px;background:#F4FAF5}
+.nmc-h{font-size:calc(9.5px * var(--s));font-weight:900;letter-spacing:1.2px;text-transform:uppercase;color:#1E7A3C;margin-bottom:3px}
+.nmc-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px 12px}
+.nmc-col b{display:block;font-size:calc(8.5px * var(--s));font-weight:800;letter-spacing:.7px;text-transform:uppercase;
+  color:#8f95a8;margin-bottom:2px}
+.nmc-it{font-size:calc(9.5px * var(--s));line-height:1.4}
+.nmc-it i{font-style:normal;font-weight:800;color:#16161d}
+.nmc-it s{text-decoration:none;color:#5e6278}
+
+.loadbar{display:flex;gap:0;border:1px solid #dfe1e6;border-radius:7px;overflow:hidden;margin-top:7px}
+.loadbar div{flex:1;padding:5px 8px;border-right:1px solid #f0f0f5;font-size:calc(9px * var(--s))}
+.loadbar div:last-child{border-right:none}
+.loadbar div.on{background:#FDF0F6}
+.loadbar b{display:block;font-size:calc(8.5px * var(--s));font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:#E95B9E}
+.loadbar span{color:#5e6278}
+
+.foot{margin-top:9px;border-top:1px solid #dfe1e6;padding-top:6px;display:flex;
+  justify-content:space-between;gap:12px;font-size:calc(8.5px * var(--s));color:#8f95a8;font-weight:600}
+.rule{font-size:calc(9px * var(--s));color:#B8860B;font-weight:700;margin-top:5px}
+.lines{margin-top:7px}
+.lines b{font-size:calc(8.5px * var(--s));font-weight:800;letter-spacing:.9px;text-transform:uppercase;color:#8f95a8}
+.lines div{border-bottom:1px solid #e6e7ec;height:calc(15px * var(--s))}
+
+/* technique guide */
+.tech{page-break-inside:avoid;margin-bottom:14px;border:1px solid #dfe1e6;border-radius:9px;overflow:hidden}
+.tech-h{background:#6B1C3A;color:#fff;padding:6px 11px;display:flex;justify-content:space-between;align-items:center}
+.tech-h b{font-size:calc(12px * var(--s));font-weight:800}
+.tech-h span{font-size:calc(9px * var(--s));font-weight:600;opacity:.85}
+.tech-b{display:grid;grid-template-columns:1.35fr 1fr;gap:12px;padding:10px 11px}
+.tech-txt p{margin-bottom:7px;font-size:calc(10px * var(--s));line-height:1.45}
+.tech-txt b{display:block;font-size:calc(8.5px * var(--s));font-weight:800;letter-spacing:.9px;text-transform:uppercase;margin-bottom:1px}
+
+
+.check{margin-top:8px;border:1px solid #dfe1e6;border-radius:7px;padding:5px 9px;
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:calc(9px * var(--s));font-weight:700}
+.check b{font-size:calc(8.5px * var(--s));font-weight:800;letter-spacing:.9px;text-transform:uppercase;color:#8f95a8}
+.check span{padding:2px 8px;border-radius:20px}
+.check .cg{background:#F1F8F2;color:#1E7A3C;border:1px solid #BEE0C6}
+.check .ca{background:#FFF8E7;color:#B8860B;border:1px solid #EEDFB4}
+.check .cr{background:#FDF2F1;color:#B3261E;border:1px solid #F0C9C5}
+
+
+.cutline{margin-top:7px;background:#FFF8E7;border:1px solid #EEDFB4;border-radius:6px;
+  padding:4px 9px;font-size:calc(9px * var(--s));font-weight:700;color:#7A5C10}
+table.t.nmct td{padding:calc(4px * var(--s)) 6px}
+table.t.nmct .reps{width:100px}
+
+
+.blurb{font-size:calc(9.5px * var(--s));line-height:1.45}
+.pg-head{gap:14px}
+.pg-h2{max-width:none}
+.pg-meta{white-space:nowrap}
+
+/* block sheet - a column per week */
+table.t.wk th.wkh{text-align:right;width:76px}
+table.t.wk td.wkc{text-align:right;width:76px;padding-left:2px;padding-right:6px}
+table.t.wk td:nth-child(2){padding-right:4px}
+.pg.s-block .nmc-grid{align-items:start}
+
+/* one knob per printable view, tuned so each fills an A4 page */
+.pg.s-session{--s:1.13}
+.pg.s-block{--s:1.10}
+.pg.s-nmc{--s:1.32}
+.pg.s-prog{--s:1.44}
+.pg.s-tech{--s:1.06}
+
+/* NMC progression page */
+.phgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:9px}
+.ph{border:1px solid #dfe1e6;border-radius:7px;overflow:hidden;position:relative}
+.ph.now{border-color:#E95B9E;box-shadow:0 0 0 1.5px #F5C6DF}
+.ph-h{color:#fff;padding:4px 7px;display:flex;justify-content:space-between;align-items:baseline;gap:4px}
+.ph-h b{font-size:calc(8.5px * var(--s));font-weight:900;letter-spacing:.9px}
+.ph-h span{font-size:calc(9px * var(--s));font-weight:800;letter-spacing:.4px}
+.ph-w{font-size:calc(8px * var(--s));font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:#8f95a8;padding:4px 7px 1px}
+.ph-t{font-size:calc(8.5px * var(--s));line-height:1.35;color:#5e6278;padding:0 7px 5px;border-bottom:1px solid #f0f0f5}
+.ph-l{margin:0;padding:5px 7px 6px 20px}
+
+.ph-l li{font-size:calc(8.5px * var(--s));line-height:1.3;margin-bottom:3px}
+.ph-l b{display:block;font-weight:700;color:#16161d}
+.ph-l s{text-decoration:none;color:#8f95a8}
+.ph-now{position:absolute;right:5px;bottom:4px;font-size:calc(7.5px * var(--s));font-weight:900;letter-spacing:.7px;
+  text-transform:uppercase;color:#E95B9E}
+table.t.thr th{font-size:calc(8px * var(--s))}
+table.t.thr td{padding:calc(5px * var(--s)) 6px;font-size:calc(9px * var(--s))}
+.th-n{font-weight:800;color:#6B1C3A;width:120px;font-size:calc(8.5px * var(--s))}
+.th-s span{display:inline-block;font-weight:900;margin-right:4px}
+
+.pg.s-lib .sec{page-break-inside:avoid}
+
+
+/* ── conditioning sheet ───────────────────────────────────────── */
+.aim{margin:8px 0 2px;border-left:3px solid #29BAE5;background:#F4FAFD;border-radius:0 6px 6px 0;
+  padding:5px 10px;font-size:calc(9.5px * var(--s));line-height:1.4}
+.aim b{color:#1A7FA8;font-weight:800;margin-right:5px}
+.aim s{text-decoration:none;color:#5e6278;display:block;margin-top:2px}
+table.t .dn{width:142px}
+.kit{font-size:calc(8px * var(--s));color:#8f95a8;font-weight:600;margin-top:1px}
+.kit .ct{color:#B3261E;font-weight:800;text-transform:uppercase;letter-spacing:.5px}
+.why{font-size:calc(8.5px * var(--s));color:#8f95a8;font-style:italic;margin-top:2px;line-height:1.35}
+.check .cw{background:#E8F4FB;color:#1A7FA8;border:1px solid #BBDDEE}
+.pg.s-lib .sec{page-break-inside:avoid}
+.phrow{display:flex;justify-content:space-between;align-items:baseline;gap:6px;padding:5px 8px;
+  border-radius:6px;font-size:11px}
+.phrow b{font-weight:800;color:var(--ink2)}
+.phrow span{font-size:9.5px;color:var(--muted)}
+.phrow.on{background:#FDF0F6}
+.phrow.on b{color:var(--pink)}
+
+@media print{
+  @page{size:A4 portrait;margin:10mm}
+  body{background:#fff}
+  .topbar,.wrap > div:first-child,.editnote,.no-print{display:none!important}
+  .sheetbox{border:none;border-radius:0}
+  .pg{page-break-after:always;padding:0}
+  .pg:last-child{page-break-after:auto}
+  .pg + .pg{border-top:none}
+  .pg-head::after,.pill,.nmc,.loadbar div.on,.tech-h,.cutline,.check span,.ph-h,.ph.now,.aim{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  table.t tr{page-break-inside:avoid}
+}
+</style></head><body>
+<div class="bar"><div><b>Keebra Park GRLA</b><span>Year 7 Conditioning</span></div>
+<div style="font-size:11px;color:#8f95a8;font-weight:600">Issued 1 November 2026</div>
+<button onclick="window.print()">Print / Save as PDF</button></div>
+<div class="toc"><a href="#s0">COND 1.1 · AEROBIC BASE</a><a href="#s1">COND 1.2 · AEROBIC BASE</a><a href="#s2">COND 1.3 · REPEAT EFFORT</a><a href="#s3">COND 1.4 · REPEAT EFFORT</a><a href="#s4">COND 1.5 · GAME SPEED &amp; RHIE</a><a href="#s5">COND 1.6 · GAME SPEED &amp; RHIE</a><a href="#s6">COND 1.7 · IN-SEASON</a><a href="#s7">COND 1.8 · IN-SEASON</a><a href="#s8">Coach briefing</a><a href="#s9">Drill bank</a></div>
+<div class="doc"><div id="s0"><div class="pg s-block" style="--s:1.02">
+   <div class="pg-head">
+     <div><div class="pg-h1">COND 1.1 &nbsp;·&nbsp; AEROBIC BASE</div>
+          <div class="pg-h2">Keebra Park GRLA — Year 7 Conditioning</div></div>
+     <div class="pg-meta">
+       <span class="pill" style="background:#E8F4FB;color:#1A7FA8">Term 1 · preseason</span><br>
+       4 weeks on this sheet · about 35 min a session
+     </div>
+   </div>
+
+   <div class="aim"><b>Block aim</b> Build the engine that lets her recover between hard efforts. <s>QRL 4.2: 60–75% of max HR, 20–40 min. Female athletes respond well to this work given their fibre profile.</s></div>
+
+   <div class="nmc">
+     <div class="nmc-h">NMC — 8 min &nbsp;·&nbsp; opens every session, field or gym</div>
+     <div class="nmc-grid" style="">
+       <div class="nmc-col"><b>Raise 90 sec</b><div class="nmc-it"><i>Skip / bike / 10m shuttles</i> <s>60–90 sec</s></div><div class="nmc-it"><i>Inch Worm</i> <s>3 reps</s></div><div class="nmc-it"><i>Walking Lunge</i> <s>5 e/s</s></div></div>
+       <div class="nmc-col"><b>Spine — every session</b><div class="nmc-it"><i>Low Box Step-Down (15–35 cm)</i> <s>2 x 6 e/s</s></div><div class="nmc-it"><i>Jump &amp; Stick Landing</i> <s>5 jumps</s></div><div class="nmc-it"><i>Neck Iso Holds — 4-way</i> <s>1 x 10 sec e/way</s></div></div>
+       <div class="nmc-col"><b>Pick 3 from the gym sheet phase</b><div class="nmc-it"><i>Supine Heel Slide Walkout</i> <s>2 x 6 e/s</s></div><div class="nmc-it"><i>Single Leg Glute Bridge</i> <s>2 x 8 e/s</s></div><div class="nmc-it"><i>Clamshell</i> <s>2 x 10 e/s</s></div></div>
+     </div>
+   </div>
+
+   <div class="sec">
+      <div class="sec-h"><span class="sec-t">Movement prep</span><span class="sec-s">4 min · decel before accel, always</span></div>
+      <table class="t wk"><thead><tr><th>Drill</th><th>Set-up &amp; coaching cue</th>
+        <th class="wkh">Wk 1</th><th class="wkh">Wk 2</th><th class="wkh">Wk 3</th><th class="wkh">Wk 4</th></tr></thead>
+      <tbody><tr>
+        <td class="dn"><span class="exn">Acceleration Wall Drill</span>
+          <div class="kit">Wall or partner</div></td>
+        <td class="note-cell"><b>Lean on a wall or partner, hips tall.</b><br>Punch the ground away, shin angle out not down. Short, fast steps.
+          <div class="why">Teaches the accel shin angle before it is asked for at speed.</div></td>
+        <td class="reps wkc">3 x 10m</td><td class="reps wkc">3 x 15m</td><td class="reps wkc">4 x 15m</td><td class="reps wkc">4 x 20m</td>
+      </tr><tr>
+        <td class="dn"><span class="exn">Build-Up Sprint</span>
+          <div class="kit">Cones</div></td>
+        <td class="note-cell"><b>20m lane, build through the first 10m.</b><br>Build, do not launch. Tall, relaxed jaw and hands.
+          <div class="why">Exposes top-end mechanics without a max effort cold.</div></td>
+        <td class="reps wkc">3 x 20m</td><td class="reps wkc">3 x 20m</td><td class="reps wkc">3 x 20m</td><td class="reps wkc">3 x 20m</td>
+      </tr></tbody></table></div>
+   <div class="sec">
+      <div class="sec-h"><span class="sec-t">Main conditioning</span><span class="sec-s">14 min · this is the dose</span></div>
+      <table class="t wk"><thead><tr><th>Drill</th><th>Set-up &amp; coaching cue</th>
+        <th class="wkh">Wk 1</th><th class="wkh">Wk 2</th><th class="wkh">Wk 3</th><th class="wkh">Wk 4</th></tr></thead>
+      <tbody><tr>
+        <td class="dn"><span class="exn">Figure-8 Continuous</span>
+          <div class="kit">2 cones</div></td>
+        <td class="note-cell"><b>Two cones 20m apart, run a figure 8 around them continuously.</b><br>Lean into the turn from the hip, not the ankle. Same pace each lap.
+          <div class="why">Low-impact aerobic volume with a constant gentle direction change.</div></td>
+        <td class="reps wkc">3 x 6 min</td><td class="reps wkc">3 x 7 min</td><td class="reps wkc">4 x 6 min</td><td class="reps wkc">4 x 7 min</td>
+      </tr><tr>
+        <td class="dn"><span class="exn">Ball-in-Hand Continuous</span>
+          <div class="kit">Balls, cones</div></td>
+        <td class="note-cell"><b>Grid 30x30. Continuous handling at stride, two-pass minimum before a turn.</b><br>Hands early, eyes up. Skill does not drop because the lungs are working.
+          <div class="why">Gabbett 2006: skill-based games match traditional running for conditioning in rugby league.</div></td>
+        <td class="reps wkc">3 x 4 min</td><td class="reps wkc">4 x 4 min</td><td class="reps wkc">4 x 5 min</td><td class="reps wkc">4 x 5 min</td>
+      </tr></tbody></table></div>
+   <div class="sec">
+      <div class="sec-h"><span class="sec-t">Game finisher</span><span class="sec-s">7 min · skill under fatigue</span></div>
+      <table class="t wk"><thead><tr><th>Drill</th><th>Set-up &amp; coaching cue</th>
+        <th class="wkh">Wk 1</th><th class="wkh">Wk 2</th><th class="wkh">Wk 3</th><th class="wkh">Wk 4</th></tr></thead>
+      <tbody><tr>
+        <td class="dn"><span class="exn">Off-Side Small-Sided Game</span>
+          <div class="kit">Balls, cones</div></td>
+        <td class="note-cell"><b>4v4 or 5v5, 30x30 grid, off-side rules.</b><br>Support the carry. Nobody stands still.
+          <div class="why">Gabbett 2006: skill-based games are an effective alternative to traditional conditioning.</div></td>
+        <td class="reps wkc">2 x 2 min</td><td class="reps wkc">3 x 2 min</td><td class="reps wkc">3 x 2 min</td><td class="reps wkc">3 x 2 min</td>
+      </tr></tbody></table></div>
+
+   <div class="loadbar"><div><b>RPE 5–6 — Aerobic base</b><span>Full sentences. 60–75% of max heart rate. 20–40 min.</span></div><div><b>RPE 7–8 — Repeat effort</b><span>Short phrases only. Recovery is active, not standing.</span></div><div><b>RPE 9–10 — Max / RHIE</b><span>Cannot talk. Every effort full intent — if the times drop, stop the set.</span></div></div>
+   <div class="rule">Technique rule: if running mechanics, landing or cutting start to fall apart, reduce the INTENSITY before you reduce the volume. Protective movement patterns fail earlier in female athletes than male at the same relative load (QRL Section 4).</div>
+
+   <div class="check">
+     <b>Check-in before you start</b>
+     <span class="cg">GREEN — full session</span>
+     <span class="ca">AMBER — cut a bout, keep the quality</span>
+     <span class="cr">RED — NMC and skills only</span>
+     <span class="cw">Hot day or luteal phase — fluids out, move it to the cool part of the day</span>
+   </div>
+   
+   <div class="lines"><b>Coach notes — who faded, whose technique went, what to change next block</b>
+     <div></div><div></div></div>
+   <div class="foot"><span></span>
+     <span>CARE · ACCOUNTABILITY · RESPECT · EXCELLENCE</span></div>
+  </div></div><div id="s1"><div class="pg s-block" style="--s:1.02">
+   <div class="pg-head">
+     <div><div class="pg-h1">COND 1.2 &nbsp;·&nbsp; AEROBIC BASE</div>
+          <div class="pg-h2">Keebra Park GRLA — Year 7 Conditioning</div></div>
+     <div class="pg-meta">
+       <span class="pill" style="background:#E8F4FB;color:#1A7FA8">Term 1 · preseason</span><br>
+       4 weeks on this sheet · about 35 min a session
+     </div>
+   </div>
+
+   <div class="aim"><b>Block aim</b> Build the engine that lets her recover between hard efforts. <s>QRL 4.2: 60–75% of max HR, 20–40 min. Female athletes respond well to this work given their fibre profile.</s></div>
+
+   <div class="nmc">
+     <div class="nmc-h">NMC — 8 min &nbsp;·&nbsp; opens every session, field or gym</div>
+     <div class="nmc-grid" style="">
+       <div class="nmc-col"><b>Raise 90 sec</b><div class="nmc-it"><i>Skip / bike / 10m shuttles</i> <s>60–90 sec</s></div><div class="nmc-it"><i>Inch Worm</i> <s>3 reps</s></div><div class="nmc-it"><i>Walking Lunge</i> <s>5 e/s</s></div></div>
+       <div class="nmc-col"><b>Spine — every session</b><div class="nmc-it"><i>Low Box Step-Down (15–35 cm)</i> <s>2 x 6 e/s</s></div><div class="nmc-it"><i>Jump &amp; Stick Landing</i> <s>5 jumps</s></div><div class="nmc-it"><i>Neck Iso Holds — 4-way</i> <s>1 x 10 sec e/way</s></div></div>
+       <div class="nmc-col"><b>Pick 3 from the gym sheet phase</b><div class="nmc-it"><i>Supine Heel Slide Walkout</i> <s>2 x 6 e/s</s></div><div class="nmc-it"><i>Single Leg Glute Bridge</i> <s>2 x 8 e/s</s></div><div class="nmc-it"><i>Clamshell</i> <s>2 x 10 e/s</s></div></div>
+     </div>
+   </div>
+
+   <div class="sec">
+      <div class="sec-h"><span class="sec-t">Movement prep</span><span class="sec-s">4 min · decel before accel, always</span></div>
+      <table class="t wk"><thead><tr><th>Drill</th><th>Set-up &amp; coaching cue</th>
+        <th class="wkh">Wk 1</th><th class="wkh">Wk 2</th><th class="wkh">Wk 3</th><th class="wkh">Wk 4</th></tr></thead>
+      <tbody><tr>
+        <td class="dn"><span class="exn">Build-Up Sprint</span>
+          <div class="kit">Cones</div></td>
+        <td class="note-cell"><b>20m lane, build through the first 10m.</b><br>Build, do not launch. Tall, relaxed jaw and hands.
+          <div class="why">Exposes top-end mechanics without a max effort cold.</div></td>
+        <td class="reps wkc">3 x 10m</td><td class="reps wkc">3 x 15m</td><td class="reps wkc">4 x 15m</td><td class="reps wkc">4 x 20m</td>
+      </tr><tr>
+        <td class="dn"><span class="exn">Jog-to-Stick Decel</span>
+          <div class="kit">Cones</div></td>
+        <td class="note-cell"><b>Jog 10m into a cone, stop dead and hold 2 sec.</b><br>Drop the hips, short braking steps, knee over the 2nd toe.
+          <div class="why">QRL 5.1: teach deceleration before acceleration. Decel is where the ACL goes.</div></td>
+        <td class="reps wkc">4 x 10m</td><td class="reps wkc">4 x 10m</td><td class="reps wkc">4 x 10m</td><td class="reps wkc">4 x 10m</td>
+      </tr></tbody></table></div>
+   <div class="sec">
+      <div class="sec-h"><span class="sec-t">Main conditioning</span><span class="sec-s">14 min · this is the dose</span></div>
+      <table class="t wk"><thead><tr><th>Drill</th><th>Set-up &amp; coaching cue</th>
+        <th class="wkh">Wk 1</th><th class="wkh">Wk 2</th><th class="wkh">Wk 3</th><th class="wkh">Wk 4</th></tr></thead>
+      <tbody><tr>
+        <td class="dn"><span class="exn">Ball-in-Hand Continuous</span>
+          <div class="kit">Balls, cones</div></td>
+        <td class="note-cell"><b>Grid 30x30. Continuous handling at stride, two-pass minimum before a turn.</b><br>Hands early, eyes up. Skill does not drop because the lungs are working.
+          <div class="why">Gabbett 2006: skill-based games match traditional running for conditioning in rugby league.</div></td>
+        <td class="reps wkc">3 x 6 min</td><td class="reps wkc">3 x 7 min</td><td class="reps wkc">4 x 6 min</td><td class="reps wkc">4 x 7 min</td>
+      </tr><tr>
+        <td class="dn"><span class="exn">Figure-8 Continuous</span>
+          <div class="kit">2 cones</div></td>
+        <td class="note-cell"><b>Two cones 20m apart, run a figure 8 around them continuously.</b><br>Lean into the turn from the hip, not the ankle. Same pace each lap.
+          <div class="why">Low-impact aerobic volume with a constant gentle direction change.</div></td>
+        <td class="reps wkc">3 x 4 min</td><td class="reps wkc">4 x 4 min</td><td class="reps wkc">4 x 5 min</td><td class="reps wkc">4 x 5 min</td>
+      </tr></tbody></table></div>
+   <div class="sec">
+      <div class="sec-h"><span class="sec-t">Game finisher</span><span class="sec-s">7 min · skill under fatigue</span></div>
+      <table class="t wk"><thead><tr><th>Drill</th><th>Set-up &amp; coaching cue</th>
+        <th class="wkh">Wk 1</th><th class="wkh">Wk 2</th><th class="wkh">Wk 3</th><th class="wkh">Wk 4</th></tr></thead>
+      <tbody><tr>
+        <td class="dn"><span class="exn">Two-Pass Transition Game</span>
+          <div class="kit">Balls, cones</div></td>
+        <td class="note-cell"><b>Minimum two passes before contact or touch. Turnover = instant transition.</b><br>React to the turnover. The first three steps after it decide the set.
+          <div class="why">Trains the transition moment, where repeat-effort demand spikes.</div></td>
+        <td class="reps wkc">3 x 90 sec</td><td class="reps wkc">4 x 90 sec</td><td class="reps wkc">4 x 90 sec</td><td class="reps wkc">4 x 90 sec</td>
+      </tr></tbody></table></div>
+
+   <div class="loadbar"><div><b>RPE 5–6 — Aerobic base</b><span>Full sentences. 60–75% of max heart rate. 20–40 min.</span></div><div><b>RPE 7–8 — Repeat effort</b><span>Short phrases only. Recovery is active, not standing.</span></div><div><b>RPE 9–10 — Max / RHIE</b><span>Cannot talk. Every effort full intent — if the times drop, stop the set.</span></div></div>
+   <div class="rule">Technique rule: if running mechanics, landing or cutting start to fall apart, reduce the INTENSITY before you reduce the volume. Protective movement patterns fail earlier in female athletes than male at the same relative load (QRL Section 4).</div>
+
+   <div class="check">
+     <b>Check-in before you start</b>
+     <span class="cg">GREEN — full session</span>
+     <span class="ca">AMBER — cut a bout, keep the quality</span>
+     <span class="cr">RED — NMC and skills only</span>
+     <span class="cw">Hot day or luteal phase — fluids out, move it to the cool part of the day</span>
+   </div>
+   
+   <div class="lines"><b>Coach notes — who faded, whose technique went, what to change next block</b>
+     <div></div><div></div></div>
+   <div class="foot"><span></span>
+     <span>CARE · ACCOUNTABILITY · RESPECT · EXCELLENCE</span></div>
+  </div></div><div id="s2"><div class="pg s-block" style="--s:1.02">
+   <div class="pg-head">
+     <div><div class="pg-h1">COND 1.3 &nbsp;·&nbsp; REPEAT EFFORT</div>
+          <div class="pg-h2">Keebra Park GRLA — Year 7 Conditioning</div></div>
+     <div class="pg-meta">
+       <span class="pill" style="background:#E8F4FB;color:#1A7FA8">Term 2</span><br>
+       4 weeks on this sheet · about 35 min a session
+     </div>
+   </div>
+
+   <div class="aim"><b>Block aim</b> Repeat sprint quality — the thing the game actually asks for. <s>QRL 4.1: 10–30 sec efforts at 1:3 to 1:5. Give slightly longer recovery than you would a boys' squad.</s></div>
+
+   <div class="nmc">
+     <div class="nmc-h">NMC — 8 min &nbsp;·&nbsp; opens every session, field or gym</div>
+     <div class="nmc-grid" style="">
+       <div class="nmc-col"><b>Raise 90 sec</b><div class="nmc-it"><i>Skip / bike / 10m shuttles</i> <s>60–90 sec</s></div><div class="nmc-it"><i>Inch Worm</i> <s>3 reps</s></div><div class="nmc-it"><i>Walking Lunge</i> <s>5 e/s</s></div></div>
+       <div class="nmc-col"><b>Spine — every session</b><div class="nmc-it"><i>Low Box Step-Down (15–35 cm)</i> <s>2 x 6 e/s</s></div><div class="nmc-it"><i>Jump &amp; Stick Landing</i> <s>5 jumps</s></div><div class="nmc-it"><i>Neck Iso Holds — 4-way</i> <s>1 x 10 sec e/way</s></div></div>
+       <div class="nmc-col"><b>Pick 3 from the gym sheet phase</b><div class="nmc-it"><i>Banded Clamshell</i> <s>2 x 12 e/s</s></div><div class="nmc-it"><i>Banded Glute Bridge</i> <s>2 x 12</s></div><div class="nmc-it"><i>Lateral Band Walk</i> <s>2 x 10 e/way</s></div></div>
+     </div>
+   </div>
+
+   <div class="sec">
+      <div class="sec-h"><span class="sec-t">Movement prep</span><span class="sec-s">4 min · decel before accel, always</span></div>
+      <table class="t wk"><thead><tr><th>Drill</th><th>Set-up &amp; coaching cue</th>
+        <th class="wkh">Wk 1</th><th class="wkh">Wk 2</th><th class="wkh">Wk 3</th><th class="wkh">Wk 4</th></tr></thead>
+      <tbody><tr>
+        <td class="dn"><span class="exn">Jog-to-Stick Decel</span>
+          <div class="kit">Cones</div></td>
+        <td class="note-cell"><b>Jog 10m into a cone, stop dead and hold 2 sec.</b><br>Drop the hips, short braking steps, knee over the 2nd toe.
+          <div class="why">QRL 5.1: teach deceleration before acceleration. Decel is where the ACL goes.</div></td>
+        <td class="reps wkc">3 x 10m</td><td class="reps wkc">3 x 15m</td><td class="reps wkc">4 x 15m</td><td class="reps wkc">4 x 20m</td>
+      </tr><tr>
+        <td class="dn"><span class="exn">Acceleration Wall Drill</span>
+          <div class="kit">Wall or partner</div></td>
+        <td class="note-cell"><b>Lean on a wall or partner, hips tall.</b><br>Punch the ground away, shin angle out not down. Short, fast steps.
+          <div class="why">Teaches the accel shin angle before it is asked for at speed.</div></td>
+        <td class="reps wkc">3 x 10m</td><td class="reps wkc">3 x 10m</td><td class="reps wkc">3 x 10m</td><td class="reps wkc">3 x 10m</td>
+      </tr></tbody></table></div>
+   <div class="sec">
+      <div class="sec-h"><span class="sec-t">Main conditioning</span><span class="sec-s">14 min · this is the dose</span></div>
+      <table class="t wk"><thead><tr><th>Drill</th><th>Set-up &amp; coaching cue</th>
+        <th class="wkh">Wk 1</th><th class="wkh">Wk 2</th><th class="wkh">Wk 3</th><th class="wkh">Wk 4</th></tr></thead>
+      <tbody><tr>
+        <td class="dn"><span class="exn">15:60 Repeat Sprint</span>
+          <div class="kit">Cones, timer</div></td>
+        <td class="note-cell"><b>15 seconds maximal effort, 60 seconds active recovery (walk, do not stand).</b><br>Full intent every rep. The recovery is a walk, not a rest.
+          <div class="why">QRL 4.1 prescribes exactly this: 10–30 sec efforts at 1:3 to 1:5.</div></td>
+        <td class="reps wkc">8 reps</td><td class="reps wkc">10 reps</td><td class="reps wkc">10 reps</td><td class="reps wkc">12 reps</td>
+      </tr><tr>
+        <td class="dn"><span class="exn">10/20/30 Shuttle + Skill</span>
+          <div class="kit">Cones, ball</div></td>
+        <td class="note-cell"><b>Sprint to 10m, back; 20m, back; 30m, back. Catch and pass at the line each time.</b><br>The pass still has to be good on the last shuttle. That is the whole point.
+          <div class="why">Repeat effort with a skill under fatigue, which is how the game actually asks for it.</div></td>
+        <td class="reps wkc">4 efforts</td><td class="reps wkc">5 efforts</td><td class="reps wkc">6 efforts</td><td class="reps wkc">6 efforts</td>
+      </tr></tbody></table></div>
+   <div class="sec">
+      <div class="sec-h"><span class="sec-t">Game finisher</span><span class="sec-s">7 min · skill under fatigue</span></div>
+      <table class="t wk"><thead><tr><th>Drill</th><th>Set-up &amp; coaching cue</th>
+        <th class="wkh">Wk 1</th><th class="wkh">Wk 2</th><th class="wkh">Wk 3</th><th class="wkh">Wk 4</th></tr></thead>
+      <tbody><tr>
+        <td class="dn"><span class="exn">Numbers-Up Attack v Defence</span>
+          <div class="kit">Balls, cones</div></td>
+        <td class="note-cell"><b>4v3 or 5v4 attack. Swap after each set.</b><br>Attack: hold the defender. Defence: slide and talk.
+          <div class="why">Decision-making under fatigue, which is the quality that fails first.</div></td>
+        <td class="reps wkc">2 x 2 min</td><td class="reps wkc">3 x 2 min</td><td class="reps wkc">3 x 2 min</td><td class="reps wkc">3 x 2 min</td>
+      </tr></tbody></table></div>
+
+   <div class="loadbar"><div><b>RPE 5–6 — Aerobic base</b><span>Full sentences. 60–75% of max heart rate. 20–40 min.</span></div><div><b>RPE 7–8 — Repeat effort</b><span>Short phrases only. Recovery is active, not standing.</span></div><div><b>RPE 9–10 — Max / RHIE</b><span>Cannot talk. Every effort full intent — if the times drop, stop the set.</span></div></div>
+   <div class="rule">Technique rule: if running mechanics, landing or cutting start to fall apart, reduce the INTENSITY before you reduce the volume. Protective movement patterns fail earlier in female athletes than male at the same relative load (QRL Section 4).</div>
+
+   <div class="check">
+     <b>Check-in before you start</b>
+     <span class="cg">GREEN — full session</span>
+     <span class="ca">AMBER — cut a bout, keep the quality</span>
+     <span class="cr">RED — NMC and skills only</span>
+     <span class="cw">Hot day or luteal phase — fluids out, move it to the cool part of the day</span>
+   </div>
+   
+   <div class="lines"><b>Coach notes — who faded, whose technique went, what to change next block</b>
+     <div></div><div></div></div>
+   <div class="foot"><span></span>
+     <span>CARE · ACCOUNTABILITY · RESPECT · EXCELLENCE</span></div>
+  </div></div><div id="s3"><div class="pg s-block" style="--s:1.02">
+   <div class="pg-head">
+     <div><div class="pg-h1">COND 1.4 &nbsp;·&nbsp; REPEAT EFFORT</div>
+          <div class="pg-h2">Keebra Park GRLA — Year 7 Conditioning</div></div>
+     <div class="pg-meta">
+       <span class="pill" style="background:#E8F4FB;color:#1A7FA8">Term 2</span><br>
+       4 weeks on this sheet · about 35 min a session
+     </div>
+   </div>
+
+   <div class="aim"><b>Block aim</b> Repeat sprint quality — the thing the game actually asks for. <s>QRL 4.1: 10–30 sec efforts at 1:3 to 1:5. Give slightly longer recovery than you would a boys' squad.</s></div>
+
+   <div class="nmc">
+     <div class="nmc-h">NMC — 8 min &nbsp;·&nbsp; opens every session, field or gym</div>
+     <div class="nmc-grid" style="">
+       <div class="nmc-col"><b>Raise 90 sec</b><div class="nmc-it"><i>Skip / bike / 10m shuttles</i> <s>60–90 sec</s></div><div class="nmc-it"><i>Inch Worm</i> <s>3 reps</s></div><div class="nmc-it"><i>Walking Lunge</i> <s>5 e/s</s></div></div>
+       <div class="nmc-col"><b>Spine — every session</b><div class="nmc-it"><i>Low Box Step-Down (15–35 cm)</i> <s>2 x 6 e/s</s></div><div class="nmc-it"><i>Jump &amp; Stick Landing</i> <s>5 jumps</s></div><div class="nmc-it"><i>Neck Iso Holds — 4-way</i> <s>1 x 10 sec e/way</s></div></div>
+       <div class="nmc-col"><b>Pick 3 from the gym sheet phase</b><div class="nmc-it"><i>Banded Clamshell</i> <s>2 x 12 e/s</s></div><div class="nmc-it"><i>Banded Glute Bridge</i> <s>2 x 12</s></div><div class="nmc-it"><i>Lateral Band Walk</i> <s>2 x 10 e/way</s></div></div>
+     </div>
+   </div>
+
+   <div class="sec">
+      <div class="sec-h"><span class="sec-t">Movement prep</span><span class="sec-s">4 min · decel before accel, always</span></div>
+      <table class="t wk"><thead><tr><th>Drill</th><th>Set-up &amp; coaching cue</th>
+        <th class="wkh">Wk 1</th><th class="wkh">Wk 2</th><th class="wkh">Wk 3</th><th class="wkh">Wk 4</th></tr></thead>
+      <tbody><tr>
+        <td class="dn"><span class="exn">Acceleration Wall Drill</span>
+          <div class="kit">Wall or partner</div></td>
+        <td class="note-cell"><b>Lean on a wall or partner, hips tall.</b><br>Punch the ground away, shin angle out not down. Short, fast steps.
+          <div class="why">Teaches the accel shin angle before it is asked for at speed.</div></td>
+        <td class="reps wkc">3 x 10m</td><td class="reps wkc">3 x 15m</td><td class="reps wkc">4 x 15m</td><td class="reps wkc">4 x 20m</td>
+      </tr><tr>
+        <td class="dn"><span class="exn">Build-Up Sprint</span>
+          <div class="kit">Cones</div></td>
+        <td class="note-cell"><b>20m lane, build through the first 10m.</b><br>Build, do not launch. Tall, relaxed jaw and hands.
+          <div class="why">Exposes top-end mechanics without a max effort cold.</div></td>
+        <td class="reps wkc">3 x 20m</td><td class="reps wkc">3 x 20m</td><td class="reps wkc">3 x 20m</td><td class="reps wkc">3 x 20m</td>
+      </tr></tbody></table></div>
+   <div class="sec">
+      <div class="sec-h"><span class="sec-t">Main conditioning</span><span class="sec-s">14 min · this is the dose</span></div>
+      <table class="t wk"><thead><tr><th>Drill</th><th>Set-up &amp; coaching cue</th>
+        <th class="wkh">Wk 1</th><th class="wkh">Wk 2</th><th class="wkh">Wk 3</th><th class="wkh">Wk 4</th></tr></thead>
+      <tbody><tr>
+        <td class="dn"><span class="exn">10/20/30 Shuttle + Skill</span>
+          <div class="kit">Cones, ball</div></td>
+        <td class="note-cell"><b>Sprint to 10m, back; 20m, back; 30m, back. Catch and pass at the line each time.</b><br>The pass still has to be good on the last shuttle. That is the whole point.
+          <div class="why">Repeat effort with a skill under fatigue, which is how the game actually asks for it.</div></td>
+        <td class="reps wkc">8 reps</td><td class="reps wkc">10 reps</td><td class="reps wkc">10 reps</td><td class="reps wkc">12 reps</td>
+      </tr><tr>
+        <td class="dn"><span class="exn">15:60 Repeat Sprint</span>
+          <div class="kit">Cones, timer</div></td>
+        <td class="note-cell"><b>15 seconds maximal effort, 60 seconds active recovery (walk, do not stand).</b><br>Full intent every rep. The recovery is a walk, not a rest.
+          <div class="why">QRL 4.1 prescribes exactly this: 10–30 sec efforts at 1:3 to 1:5.</div></td>
+        <td class="reps wkc">4 efforts</td><td class="reps wkc">5 efforts</td><td class="reps wkc">6 efforts</td><td class="reps wkc">6 efforts</td>
+      </tr></tbody></table></div>
+   <div class="sec">
+      <div class="sec-h"><span class="sec-t">Game finisher</span><span class="sec-s">7 min · skill under fatigue</span></div>
+      <table class="t wk"><thead><tr><th>Drill</th><th>Set-up &amp; coaching cue</th>
+        <th class="wkh">Wk 1</th><th class="wkh">Wk 2</th><th class="wkh">Wk 3</th><th class="wkh">Wk 4</th></tr></thead>
+      <tbody><tr>
+        <td class="dn"><span class="exn">Off-Side Small-Sided Game</span>
+          <div class="kit">Balls, cones</div></td>
+        <td class="note-cell"><b>4v4 or 5v5, 30x30 grid, off-side rules.</b><br>Support the carry. Nobody stands still.
+          <div class="why">Gabbett 2006: skill-based games are an effective alternative to traditional conditioning.</div></td>
+        <td class="reps wkc">3 x 90 sec</td><td class="reps wkc">4 x 90 sec</td><td class="reps wkc">4 x 90 sec</td><td class="reps wkc">4 x 90 sec</td>
+      </tr></tbody></table></div>
+
+   <div class="loadbar"><div><b>RPE 5–6 — Aerobic base</b><span>Full sentences. 60–75% of max heart rate. 20–40 min.</span></div><div><b>RPE 7–8 — Repeat effort</b><span>Short phrases only. Recovery is active, not standing.</span></div><div><b>RPE 9–10 — Max / RHIE</b><span>Cannot talk. Every effort full intent — if the times drop, stop the set.</span></div></div>
+   <div class="rule">Technique rule: if running mechanics, landing or cutting start to fall apart, reduce the INTENSITY before you reduce the volume. Protective movement patterns fail earlier in female athletes than male at the same relative load (QRL Section 4).</div>
+
+   <div class="check">
+     <b>Check-in before you start</b>
+     <span class="cg">GREEN — full session</span>
+     <span class="ca">AMBER — cut a bout, keep the quality</span>
+     <span class="cr">RED — NMC and skills only</span>
+     <span class="cw">Hot day or luteal phase — fluids out, move it to the cool part of the day</span>
+   </div>
+   
+   <div class="lines"><b>Coach notes — who faded, whose technique went, what to change next block</b>
+     <div></div><div></div></div>
+   <div class="foot"><span></span>
+     <span>CARE · ACCOUNTABILITY · RESPECT · EXCELLENCE</span></div>
+  </div></div><div id="s4"><div class="pg s-block" style="--s:1.02">
+   <div class="pg-head">
+     <div><div class="pg-h1">COND 1.5 &nbsp;·&nbsp; GAME SPEED &amp; RHIE</div>
+          <div class="pg-h2">Keebra Park GRLA — Year 7 Conditioning</div></div>
+     <div class="pg-meta">
+       <span class="pill" style="background:#E8F4FB;color:#1A7FA8">Term 3</span><br>
+       4 weeks on this sheet · about 35 min a session
+     </div>
+   </div>
+
+   <div class="aim"><b>Block aim</b> Running and contact together, at game intensity. <s>An RHIE bout is 3+ efforts inside 21 sec. Contact lowers running output — train them combined, not apart.</s></div>
+
+   <div class="nmc">
+     <div class="nmc-h">NMC — 8 min &nbsp;·&nbsp; opens every session, field or gym</div>
+     <div class="nmc-grid" style="">
+       <div class="nmc-col"><b>Raise 90 sec</b><div class="nmc-it"><i>Skip / bike / 10m shuttles</i> <s>60–90 sec</s></div><div class="nmc-it"><i>Inch Worm</i> <s>3 reps</s></div><div class="nmc-it"><i>Walking Lunge</i> <s>5 e/s</s></div></div>
+       <div class="nmc-col"><b>Spine — every session</b><div class="nmc-it"><i>Low Box Step-Down (15–35 cm)</i> <s>2 x 6 e/s</s></div><div class="nmc-it"><i>Jump &amp; Stick Landing</i> <s>5 jumps</s></div><div class="nmc-it"><i>Neck Iso Holds — 4-way</i> <s>1 x 10 sec e/way</s></div></div>
+       <div class="nmc-col"><b>Pick 3 from the gym sheet phase</b><div class="nmc-it"><i>SL Glute Bridge, foot elevated</i> <s>2 x 8 e/s</s></div><div class="nmc-it"><i>Lateral Band Walk — low stance</i> <s>2 x 12 e/way</s></div><div class="nmc-it"><i>Single Leg Balance on foam pad</i> <s>2 x 30 sec e/s</s></div></div>
+     </div>
+   </div>
+
+   <div class="sec">
+      <div class="sec-h"><span class="sec-t">Movement prep</span><span class="sec-s">4 min · decel before accel, always</span></div>
+      <table class="t wk"><thead><tr><th>Drill</th><th>Set-up &amp; coaching cue</th>
+        <th class="wkh">Wk 1</th><th class="wkh">Wk 2</th><th class="wkh">Wk 3</th><th class="wkh">Wk 4</th></tr></thead>
+      <tbody><tr>
+        <td class="dn"><span class="exn">Build-Up Sprint</span>
+          <div class="kit">Cones</div></td>
+        <td class="note-cell"><b>20m lane, build through the first 10m.</b><br>Build, do not launch. Tall, relaxed jaw and hands.
+          <div class="why">Exposes top-end mechanics without a max effort cold.</div></td>
+        <td class="reps wkc">3 x 10m</td><td class="reps wkc">3 x 15m</td><td class="reps wkc">4 x 15m</td><td class="reps wkc">4 x 20m</td>
+      </tr><tr>
+        <td class="dn"><span class="exn">Jog-to-Stick Decel</span>
+          <div class="kit">Cones</div></td>
+        <td class="note-cell"><b>Jog 10m into a cone, stop dead and hold 2 sec.</b><br>Drop the hips, short braking steps, knee over the 2nd toe.
+          <div class="why">QRL 5.1: teach deceleration before acceleration. Decel is where the ACL goes.</div></td>
+        <td class="reps wkc">4 x 10m</td><td class="reps wkc">4 x 10m</td><td class="reps wkc">4 x 10m</td><td class="reps wkc">4 x 10m</td>
+      </tr></tbody></table></div>
+   <div class="sec">
+      <div class="sec-h"><span class="sec-t">Main conditioning</span><span class="sec-s">14 min · this is the dose</span></div>
+      <table class="t wk"><thead><tr><th>Drill</th><th>Set-up &amp; coaching cue</th>
+        <th class="wkh">Wk 1</th><th class="wkh">Wk 2</th><th class="wkh">Wk 3</th><th class="wkh">Wk 4</th></tr></thead>
+      <tbody><tr>
+        <td class="dn"><span class="exn">Tackle Tube Continuous</span>
+          <div class="kit">Tackle tube · <b class="ct">contact</b></div></td>
+        <td class="note-cell"><b>Pairs. Run to a standing tube, tackle it to ground, carry it back. Repeat for the minute.</b><br>Both arms wrap, get low, cheek to the right side. Technique first, speed second.
+          <div class="why">Tests the ability to keep making tackles once tired — the moment technique slips is the moment to stop.</div></td>
+        <td class="reps wkc">4 bouts</td><td class="reps wkc">5 bouts</td><td class="reps wkc">6 bouts</td><td class="reps wkc">6 bouts</td>
+      </tr><tr>
+        <td class="dn"><span class="exn">Tackle Shuttle</span>
+          <div class="kit">Tackle bag · <b class="ct">contact</b></div></td>
+        <td class="note-cell"><b>Face down 3m from a bag. Get up, stay low, tackle, alternating lead shoulders.</b><br>Alternate shoulders every rep. Chin off chest, eyes open, shoulder through.
+          <div class="why">Builds both shoulders. Female athletes are often one-sided in the tackle.</div></td>
+        <td class="reps wkc">3 x 1 min</td><td class="reps wkc">4 x 1 min</td><td class="reps wkc">4 x 1 min</td><td class="reps wkc">4 x 1 min</td>
+      </tr></tbody></table></div>
+   <div class="sec">
+      <div class="sec-h"><span class="sec-t">Game finisher</span><span class="sec-s">7 min · skill under fatigue</span></div>
+      <table class="t wk"><thead><tr><th>Drill</th><th>Set-up &amp; coaching cue</th>
+        <th class="wkh">Wk 1</th><th class="wkh">Wk 2</th><th class="wkh">Wk 3</th><th class="wkh">Wk 4</th></tr></thead>
+      <tbody><tr>
+        <td class="dn"><span class="exn">Two-Pass Transition Game</span>
+          <div class="kit">Balls, cones</div></td>
+        <td class="note-cell"><b>Minimum two passes before contact or touch. Turnover = instant transition.</b><br>React to the turnover. The first three steps after it decide the set.
+          <div class="why">Trains the transition moment, where repeat-effort demand spikes.</div></td>
+        <td class="reps wkc">2 x 2 min</td><td class="reps wkc">3 x 2 min</td><td class="reps wkc">3 x 2 min</td><td class="reps wkc">3 x 2 min</td>
+      </tr></tbody></table></div>
+
+   <div class="loadbar"><div><b>RPE 5–6 — Aerobic base</b><span>Full sentences. 60–75% of max heart rate. 20–40 min.</span></div><div><b>RPE 7–8 — Repeat effort</b><span>Short phrases only. Recovery is active, not standing.</span></div><div><b>RPE 9–10 — Max / RHIE</b><span>Cannot talk. Every effort full intent — if the times drop, stop the set.</span></div></div>
+   <div class="rule">Technique rule: if running mechanics, landing or cutting start to fall apart, reduce the INTENSITY before you reduce the volume. Protective movement patterns fail earlier in female athletes than male at the same relative load (QRL Section 4).</div>
+
+   <div class="check">
+     <b>Check-in before you start</b>
+     <span class="cg">GREEN — full session</span>
+     <span class="ca">AMBER — cut a bout, keep the quality</span>
+     <span class="cr">RED — NMC and skills only</span>
+     <span class="cw">Hot day or luteal phase — fluids out, move it to the cool part of the day</span>
+   </div>
+   
+   <div class="lines"><b>Coach notes — who faded, whose technique went, what to change next block</b>
+     <div></div><div></div></div>
+   <div class="foot"><span></span>
+     <span>CARE · ACCOUNTABILITY · RESPECT · EXCELLENCE</span></div>
+  </div></div><div id="s5"><div class="pg s-block" style="--s:1.02">
+   <div class="pg-head">
+     <div><div class="pg-h1">COND 1.6 &nbsp;·&nbsp; GAME SPEED &amp; RHIE</div>
+          <div class="pg-h2">Keebra Park GRLA — Year 7 Conditioning</div></div>
+     <div class="pg-meta">
+       <span class="pill" style="background:#E8F4FB;color:#1A7FA8">Term 3</span><br>
+       4 weeks on this sheet · about 35 min a session
+     </div>
+   </div>
+
+   <div class="aim"><b>Block aim</b> Running and contact together, at game intensity. <s>An RHIE bout is 3+ efforts inside 21 sec. Contact lowers running output — train them combined, not apart.</s></div>
+
+   <div class="nmc">
+     <div class="nmc-h">NMC — 8 min &nbsp;·&nbsp; opens every session, field or gym</div>
+     <div class="nmc-grid" style="">
+       <div class="nmc-col"><b>Raise 90 sec</b><div class="nmc-it"><i>Skip / bike / 10m shuttles</i> <s>60–90 sec</s></div><div class="nmc-it"><i>Inch Worm</i> <s>3 reps</s></div><div class="nmc-it"><i>Walking Lunge</i> <s>5 e/s</s></div></div>
+       <div class="nmc-col"><b>Spine — every session</b><div class="nmc-it"><i>Low Box Step-Down (15–35 cm)</i> <s>2 x 6 e/s</s></div><div class="nmc-it"><i>Jump &amp; Stick Landing</i> <s>5 jumps</s></div><div class="nmc-it"><i>Neck Iso Holds — 4-way</i> <s>1 x 10 sec e/way</s></div></div>
+       <div class="nmc-col"><b>Pick 3 from the gym sheet phase</b><div class="nmc-it"><i>SL Glute Bridge, foot elevated</i> <s>2 x 8 e/s</s></div><div class="nmc-it"><i>Lateral Band Walk — low stance</i> <s>2 x 12 e/way</s></div><div class="nmc-it"><i>Single Leg Balance on foam pad</i> <s>2 x 30 sec e/s</s></div></div>
+     </div>
+   </div>
+
+   <div class="sec">
+      <div class="sec-h"><span class="sec-t">Movement prep</span><span class="sec-s">4 min · decel before accel, always</span></div>
+      <table class="t wk"><thead><tr><th>Drill</th><th>Set-up &amp; coaching cue</th>
+        <th class="wkh">Wk 1</th><th class="wkh">Wk 2</th><th class="wkh">Wk 3</th><th class="wkh">Wk 4</th></tr></thead>
+      <tbody><tr>
+        <td class="dn"><span class="exn">Jog-to-Stick Decel</span>
+          <div class="kit">Cones</div></td>
+        <td class="note-cell"><b>Jog 10m into a cone, stop dead and hold 2 sec.</b><br>Drop the hips, short braking steps, knee over the 2nd toe.
+          <div class="why">QRL 5.1: teach deceleration before acceleration. Decel is where the ACL goes.</div></td>
+        <td class="reps wkc">3 x 10m</td><td class="reps wkc">3 x 15m</td><td class="reps wkc">4 x 15m</td><td class="reps wkc">4 x 20m</td>
+      </tr><tr>
+        <td class="dn"><span class="exn">Acceleration Wall Drill</span>
+          <div class="kit">Wall or partner</div></td>
+        <td class="note-cell"><b>Lean on a wall or partner, hips tall.</b><br>Punch the ground away, shin angle out not down. Short, fast steps.
+          <div class="why">Teaches the accel shin angle before it is asked for at speed.</div></td>
+        <td class="reps wkc">3 x 10m</td><td class="reps wkc">3 x 10m</td><td class="reps wkc">3 x 10m</td><td class="reps wkc">3 x 10m</td>
+      </tr></tbody></table></div>
+   <div class="sec">
+      <div class="sec-h"><span class="sec-t">Main conditioning</span><span class="sec-s">14 min · this is the dose</span></div>
+      <table class="t wk"><thead><tr><th>Drill</th><th>Set-up &amp; coaching cue</th>
+        <th class="wkh">Wk 1</th><th class="wkh">Wk 2</th><th class="wkh">Wk 3</th><th class="wkh">Wk 4</th></tr></thead>
+      <tbody><tr>
+        <td class="dn"><span class="exn">Tackle Shuttle</span>
+          <div class="kit">Tackle bag · <b class="ct">contact</b></div></td>
+        <td class="note-cell"><b>Face down 3m from a bag. Get up, stay low, tackle, alternating lead shoulders.</b><br>Alternate shoulders every rep. Chin off chest, eyes open, shoulder through.
+          <div class="why">Builds both shoulders. Female athletes are often one-sided in the tackle.</div></td>
+        <td class="reps wkc">4 bouts</td><td class="reps wkc">5 bouts</td><td class="reps wkc">6 bouts</td><td class="reps wkc">6 bouts</td>
+      </tr><tr>
+        <td class="dn"><span class="exn">Tackle Tube Continuous</span>
+          <div class="kit">Tackle tube · <b class="ct">contact</b></div></td>
+        <td class="note-cell"><b>Pairs. Run to a standing tube, tackle it to ground, carry it back. Repeat for the minute.</b><br>Both arms wrap, get low, cheek to the right side. Technique first, speed second.
+          <div class="why">Tests the ability to keep making tackles once tired — the moment technique slips is the moment to stop.</div></td>
+        <td class="reps wkc">3 x 1 min</td><td class="reps wkc">4 x 1 min</td><td class="reps wkc">4 x 1 min</td><td class="reps wkc">4 x 1 min</td>
+      </tr></tbody></table></div>
+   <div class="sec">
+      <div class="sec-h"><span class="sec-t">Game finisher</span><span class="sec-s">7 min · skill under fatigue</span></div>
+      <table class="t wk"><thead><tr><th>Drill</th><th>Set-up &amp; coaching cue</th>
+        <th class="wkh">Wk 1</th><th class="wkh">Wk 2</th><th class="wkh">Wk 3</th><th class="wkh">Wk 4</th></tr></thead>
+      <tbody><tr>
+        <td class="dn"><span class="exn">Numbers-Up Attack v Defence</span>
+          <div class="kit">Balls, cones</div></td>
+        <td class="note-cell"><b>4v3 or 5v4 attack. Swap after each set.</b><br>Attack: hold the defender. Defence: slide and talk.
+          <div class="why">Decision-making under fatigue, which is the quality that fails first.</div></td>
+        <td class="reps wkc">3 x 90 sec</td><td class="reps wkc">4 x 90 sec</td><td class="reps wkc">4 x 90 sec</td><td class="reps wkc">4 x 90 sec</td>
+      </tr></tbody></table></div>
+
+   <div class="loadbar"><div><b>RPE 5–6 — Aerobic base</b><span>Full sentences. 60–75% of max heart rate. 20–40 min.</span></div><div><b>RPE 7–8 — Repeat effort</b><span>Short phrases only. Recovery is active, not standing.</span></div><div><b>RPE 9–10 — Max / RHIE</b><span>Cannot talk. Every effort full intent — if the times drop, stop the set.</span></div></div>
+   <div class="rule">Technique rule: if running mechanics, landing or cutting start to fall apart, reduce the INTENSITY before you reduce the volume. Protective movement patterns fail earlier in female athletes than male at the same relative load (QRL Section 4).</div>
+
+   <div class="check">
+     <b>Check-in before you start</b>
+     <span class="cg">GREEN — full session</span>
+     <span class="ca">AMBER — cut a bout, keep the quality</span>
+     <span class="cr">RED — NMC and skills only</span>
+     <span class="cw">Hot day or luteal phase — fluids out, move it to the cool part of the day</span>
+   </div>
+   
+   <div class="lines"><b>Coach notes — who faded, whose technique went, what to change next block</b>
+     <div></div><div></div></div>
+   <div class="foot"><span></span>
+     <span>CARE · ACCOUNTABILITY · RESPECT · EXCELLENCE</span></div>
+  </div></div><div id="s6"><div class="pg s-block" style="--s:1.02">
+   <div class="pg-head">
+     <div><div class="pg-h1">COND 1.7 &nbsp;·&nbsp; IN-SEASON</div>
+          <div class="pg-h2">Keebra Park GRLA — Year 7 Conditioning</div></div>
+     <div class="pg-meta">
+       <span class="pill" style="background:#E8F4FB;color:#1A7FA8">Term 4 · competition</span><br>
+       4 weeks on this sheet · about 35 min a session
+     </div>
+   </div>
+
+   <div class="aim"><b>Block aim</b> Hold what you built. Volume down, quality up. <s>Short and sharp. The game is the main conditioning stimulus now.</s></div>
+
+   <div class="nmc">
+     <div class="nmc-h">NMC — 8 min &nbsp;·&nbsp; opens every session, field or gym</div>
+     <div class="nmc-grid" style="">
+       <div class="nmc-col"><b>Raise 90 sec</b><div class="nmc-it"><i>Skip / bike / 10m shuttles</i> <s>60–90 sec</s></div><div class="nmc-it"><i>Inch Worm</i> <s>3 reps</s></div><div class="nmc-it"><i>Walking Lunge</i> <s>5 e/s</s></div></div>
+       <div class="nmc-col"><b>Spine — every session</b><div class="nmc-it"><i>Low Box Step-Down (15–35 cm)</i> <s>2 x 6 e/s</s></div><div class="nmc-it"><i>Jump &amp; Stick Landing</i> <s>5 jumps</s></div><div class="nmc-it"><i>Neck Iso Holds — 4-way</i> <s>1 x 10 sec e/way</s></div></div>
+       <div class="nmc-col"><b>Pick 3 from the gym sheet phase</b><div class="nmc-it"><i>Lateral Band Walk — fast</i> <s>2 x 15 e/way</s></div><div class="nmc-it"><i>Pallof Press (Perturbations)</i> <s>2 x 8 e/s</s></div><div class="nmc-it"><i>Single Leg Balance + partner taps</i> <s>2 x 20 sec e/s</s></div></div>
+     </div>
+   </div>
+
+   <div class="sec">
+      <div class="sec-h"><span class="sec-t">Movement prep</span><span class="sec-s">4 min · decel before accel, always</span></div>
+      <table class="t wk"><thead><tr><th>Drill</th><th>Set-up &amp; coaching cue</th>
+        <th class="wkh">Wk 1</th><th class="wkh">Wk 2</th><th class="wkh">Wk 3</th><th class="wkh">Wk 4</th></tr></thead>
+      <tbody><tr>
+        <td class="dn"><span class="exn">Acceleration Wall Drill</span>
+          <div class="kit">Wall or partner</div></td>
+        <td class="note-cell"><b>Lean on a wall or partner, hips tall.</b><br>Punch the ground away, shin angle out not down. Short, fast steps.
+          <div class="why">Teaches the accel shin angle before it is asked for at speed.</div></td>
+        <td class="reps wkc">3 x 10m</td><td class="reps wkc">3 x 15m</td><td class="reps wkc">4 x 15m</td><td class="reps wkc">4 x 20m</td>
+      </tr><tr>
+        <td class="dn"><span class="exn">Build-Up Sprint</span>
+          <div class="kit">Cones</div></td>
+        <td class="note-cell"><b>20m lane, build through the first 10m.</b><br>Build, do not launch. Tall, relaxed jaw and hands.
+          <div class="why">Exposes top-end mechanics without a max effort cold.</div></td>
+        <td class="reps wkc">3 x 20m</td><td class="reps wkc">3 x 20m</td><td class="reps wkc">3 x 20m</td><td class="reps wkc">3 x 20m</td>
+      </tr></tbody></table></div>
+   <div class="sec">
+      <div class="sec-h"><span class="sec-t">Main conditioning</span><span class="sec-s">14 min · this is the dose</span></div>
+      <table class="t wk"><thead><tr><th>Drill</th><th>Set-up &amp; coaching cue</th>
+        <th class="wkh">Wk 1</th><th class="wkh">Wk 2</th><th class="wkh">Wk 3</th><th class="wkh">Wk 4</th></tr></thead>
+      <tbody><tr>
+        <td class="dn"><span class="exn">Short Sharp 6 x 20m</span>
+          <div class="kit">Cones, ball</div></td>
+        <td class="note-cell"><b>20m sprint, play-the-ball at the end, jog back.</b><br>Sharp and clean. This is a top-up, not a flogging.
+          <div class="why">In-season volume comes down; intensity and quality stay up.</div></td>
+        <td class="reps wkc">5 reps</td><td class="reps wkc">6 reps</td><td class="reps wkc">6 reps</td><td class="reps wkc">6 reps</td>
+      </tr><tr>
+        <td class="dn"><span class="exn">Short Sharp 6 x 20m</span>
+          <div class="kit">Cones, ball</div></td>
+        <td class="note-cell"><b>20m sprint, play-the-ball at the end, jog back.</b><br>Sharp and clean. This is a top-up, not a flogging.
+          <div class="why">In-season volume comes down; intensity and quality stay up.</div></td>
+        <td class="reps wkc">3 x 45 sec</td><td class="reps wkc">4 x 45 sec</td><td class="reps wkc">5 x 45 sec</td><td class="reps wkc">5 x 45 sec</td>
+      </tr></tbody></table></div>
+   <div class="sec">
+      <div class="sec-h"><span class="sec-t">Game finisher</span><span class="sec-s">7 min · skill under fatigue</span></div>
+      <table class="t wk"><thead><tr><th>Drill</th><th>Set-up &amp; coaching cue</th>
+        <th class="wkh">Wk 1</th><th class="wkh">Wk 2</th><th class="wkh">Wk 3</th><th class="wkh">Wk 4</th></tr></thead>
+      <tbody><tr>
+        <td class="dn"><span class="exn">Off-Side Small-Sided Game</span>
+          <div class="kit">Balls, cones</div></td>
+        <td class="note-cell"><b>4v4 or 5v5, 30x30 grid, off-side rules.</b><br>Support the carry. Nobody stands still.
+          <div class="why">Gabbett 2006: skill-based games are an effective alternative to traditional conditioning.</div></td>
+        <td class="reps wkc">2 x 2 min</td><td class="reps wkc">3 x 2 min</td><td class="reps wkc">3 x 2 min</td><td class="reps wkc">3 x 2 min</td>
+      </tr></tbody></table></div>
+
+   <div class="loadbar"><div><b>RPE 5–6 — Aerobic base</b><span>Full sentences. 60–75% of max heart rate. 20–40 min.</span></div><div><b>RPE 7–8 — Repeat effort</b><span>Short phrases only. Recovery is active, not standing.</span></div><div><b>RPE 9–10 — Max / RHIE</b><span>Cannot talk. Every effort full intent — if the times drop, stop the set.</span></div></div>
+   <div class="rule">Technique rule: if running mechanics, landing or cutting start to fall apart, reduce the INTENSITY before you reduce the volume. Protective movement patterns fail earlier in female athletes than male at the same relative load (QRL Section 4).</div>
+
+   <div class="check">
+     <b>Check-in before you start</b>
+     <span class="cg">GREEN — full session</span>
+     <span class="ca">AMBER — cut a bout, keep the quality</span>
+     <span class="cr">RED — NMC and skills only</span>
+     <span class="cw">Hot day or luteal phase — fluids out, move it to the cool part of the day</span>
+   </div>
+   
+   <div class="lines"><b>Coach notes — who faded, whose technique went, what to change next block</b>
+     <div></div><div></div></div>
+   <div class="foot"><span></span>
+     <span>CARE · ACCOUNTABILITY · RESPECT · EXCELLENCE</span></div>
+  </div></div><div id="s7"><div class="pg s-block" style="--s:1.02">
+   <div class="pg-head">
+     <div><div class="pg-h1">COND 1.8 &nbsp;·&nbsp; IN-SEASON</div>
+          <div class="pg-h2">Keebra Park GRLA — Year 7 Conditioning</div></div>
+     <div class="pg-meta">
+       <span class="pill" style="background:#E8F4FB;color:#1A7FA8">Term 4 · competition</span><br>
+       4 weeks on this sheet · about 35 min a session
+     </div>
+   </div>
+
+   <div class="aim"><b>Block aim</b> Hold what you built. Volume down, quality up. <s>Short and sharp. The game is the main conditioning stimulus now.</s></div>
+
+   <div class="nmc">
+     <div class="nmc-h">NMC — 8 min &nbsp;·&nbsp; opens every session, field or gym</div>
+     <div class="nmc-grid" style="">
+       <div class="nmc-col"><b>Raise 90 sec</b><div class="nmc-it"><i>Skip / bike / 10m shuttles</i> <s>60–90 sec</s></div><div class="nmc-it"><i>Inch Worm</i> <s>3 reps</s></div><div class="nmc-it"><i>Walking Lunge</i> <s>5 e/s</s></div></div>
+       <div class="nmc-col"><b>Spine — every session</b><div class="nmc-it"><i>Low Box Step-Down (15–35 cm)</i> <s>2 x 6 e/s</s></div><div class="nmc-it"><i>Jump &amp; Stick Landing</i> <s>5 jumps</s></div><div class="nmc-it"><i>Neck Iso Holds — 4-way</i> <s>1 x 10 sec e/way</s></div></div>
+       <div class="nmc-col"><b>Pick 3 from the gym sheet phase</b><div class="nmc-it"><i>Lateral Band Walk — fast</i> <s>2 x 15 e/way</s></div><div class="nmc-it"><i>Pallof Press (Perturbations)</i> <s>2 x 8 e/s</s></div><div class="nmc-it"><i>Single Leg Balance + partner taps</i> <s>2 x 20 sec e/s</s></div></div>
+     </div>
+   </div>
+
+   <div class="sec">
+      <div class="sec-h"><span class="sec-t">Movement prep</span><span class="sec-s">4 min · decel before accel, always</span></div>
+      <table class="t wk"><thead><tr><th>Drill</th><th>Set-up &amp; coaching cue</th>
+        <th class="wkh">Wk 1</th><th class="wkh">Wk 2</th><th class="wkh">Wk 3</th><th class="wkh">Wk 4</th></tr></thead>
+      <tbody><tr>
+        <td class="dn"><span class="exn">Build-Up Sprint</span>
+          <div class="kit">Cones</div></td>
+        <td class="note-cell"><b>20m lane, build through the first 10m.</b><br>Build, do not launch. Tall, relaxed jaw and hands.
+          <div class="why">Exposes top-end mechanics without a max effort cold.</div></td>
+        <td class="reps wkc">3 x 10m</td><td class="reps wkc">3 x 15m</td><td class="reps wkc">4 x 15m</td><td class="reps wkc">4 x 20m</td>
+      </tr><tr>
+        <td class="dn"><span class="exn">Jog-to-Stick Decel</span>
+          <div class="kit">Cones</div></td>
+        <td class="note-cell"><b>Jog 10m into a cone, stop dead and hold 2 sec.</b><br>Drop the hips, short braking steps, knee over the 2nd toe.
+          <div class="why">QRL 5.1: teach deceleration before acceleration. Decel is where the ACL goes.</div></td>
+        <td class="reps wkc">4 x 10m</td><td class="reps wkc">4 x 10m</td><td class="reps wkc">4 x 10m</td><td class="reps wkc">4 x 10m</td>
+      </tr></tbody></table></div>
+   <div class="sec">
+      <div class="sec-h"><span class="sec-t">Main conditioning</span><span class="sec-s">14 min · this is the dose</span></div>
+      <table class="t wk"><thead><tr><th>Drill</th><th>Set-up &amp; coaching cue</th>
+        <th class="wkh">Wk 1</th><th class="wkh">Wk 2</th><th class="wkh">Wk 3</th><th class="wkh">Wk 4</th></tr></thead>
+      <tbody><tr>
+        <td class="dn"><span class="exn">Short Sharp 6 x 20m</span>
+          <div class="kit">Cones, ball</div></td>
+        <td class="note-cell"><b>20m sprint, play-the-ball at the end, jog back.</b><br>Sharp and clean. This is a top-up, not a flogging.
+          <div class="why">In-season volume comes down; intensity and quality stay up.</div></td>
+        <td class="reps wkc">5 reps</td><td class="reps wkc">6 reps</td><td class="reps wkc">6 reps</td><td class="reps wkc">6 reps</td>
+      </tr><tr>
+        <td class="dn"><span class="exn">Short Sharp 6 x 20m</span>
+          <div class="kit">Cones, ball</div></td>
+        <td class="note-cell"><b>20m sprint, play-the-ball at the end, jog back.</b><br>Sharp and clean. This is a top-up, not a flogging.
+          <div class="why">In-season volume comes down; intensity and quality stay up.</div></td>
+        <td class="reps wkc">3 x 45 sec</td><td class="reps wkc">4 x 45 sec</td><td class="reps wkc">5 x 45 sec</td><td class="reps wkc">5 x 45 sec</td>
+      </tr></tbody></table></div>
+   <div class="sec">
+      <div class="sec-h"><span class="sec-t">Game finisher</span><span class="sec-s">7 min · skill under fatigue</span></div>
+      <table class="t wk"><thead><tr><th>Drill</th><th>Set-up &amp; coaching cue</th>
+        <th class="wkh">Wk 1</th><th class="wkh">Wk 2</th><th class="wkh">Wk 3</th><th class="wkh">Wk 4</th></tr></thead>
+      <tbody><tr>
+        <td class="dn"><span class="exn">Two-Pass Transition Game</span>
+          <div class="kit">Balls, cones</div></td>
+        <td class="note-cell"><b>Minimum two passes before contact or touch. Turnover = instant transition.</b><br>React to the turnover. The first three steps after it decide the set.
+          <div class="why">Trains the transition moment, where repeat-effort demand spikes.</div></td>
+        <td class="reps wkc">3 x 90 sec</td><td class="reps wkc">4 x 90 sec</td><td class="reps wkc">4 x 90 sec</td><td class="reps wkc">4 x 90 sec</td>
+      </tr></tbody></table></div>
+
+   <div class="loadbar"><div><b>RPE 5–6 — Aerobic base</b><span>Full sentences. 60–75% of max heart rate. 20–40 min.</span></div><div><b>RPE 7–8 — Repeat effort</b><span>Short phrases only. Recovery is active, not standing.</span></div><div><b>RPE 9–10 — Max / RHIE</b><span>Cannot talk. Every effort full intent — if the times drop, stop the set.</span></div></div>
+   <div class="rule">Technique rule: if running mechanics, landing or cutting start to fall apart, reduce the INTENSITY before you reduce the volume. Protective movement patterns fail earlier in female athletes than male at the same relative load (QRL Section 4).</div>
+
+   <div class="check">
+     <b>Check-in before you start</b>
+     <span class="cg">GREEN — full session</span>
+     <span class="ca">AMBER — cut a bout, keep the quality</span>
+     <span class="cr">RED — NMC and skills only</span>
+     <span class="cw">Hot day or luteal phase — fluids out, move it to the cool part of the day</span>
+   </div>
+   
+   <div class="lines"><b>Coach notes — who faded, whose technique went, what to change next block</b>
+     <div></div><div></div></div>
+   <div class="foot"><span></span>
+     <span>CARE · ACCOUNTABILITY · RESPECT · EXCELLENCE</span></div>
+  </div></div><div id="s8"><div class="pg s-brief" style="--s:1.55">
+   <div class="pg-head">
+     <div><div class="pg-h1">Conditioning the female athlete</div>
+          <div class="pg-h2">Keebra Park GRLA — what changes, and what does not</div></div>
+     <div class="pg-meta">QRL Female Athlete<br>Physical Framework § 4</div>
+   </div>
+   <div class="aim"><b>The principle</b> The principles of training do not change for female athletes. The way they are applied must.
+     <s>Do not assume a conditioning program built for male athletes transfers across.</s></div>
+   <div class="sec">
+     <div class="sec-h"><span class="sec-t">Five differences that change the session</span></div>
+     <table class="t"><thead><tr><th style="width:230px">What is different</th><th>What you do about it</th></tr></thead>
+     <tbody><tr><td class="exn">Higher heart rate at the same relative work</td>
+       <td class="note-cell">Smaller heart and stroke volume means she beats faster for the same output. Do not judge her off a male HR benchmark.</td></tr><tr><td class="exn">Better at sustaining moderate work</td>
+       <td class="note-cell">More Type I fibres and about a third greater mitochondrial respiration. Repeat-effort work is a strength — use it.</td></tr><tr><td class="exn">Steeper power drop between maximal efforts</td>
+       <td class="note-cell">At maximal and supramaximal intensity she may fade faster between reps. Give slightly longer recovery, not shorter.</td></tr><tr><td class="exn">Luteal phase raises core temperature 0.3–0.5°C</td>
+       <td class="note-cell">Heat tolerance drops in the two weeks after ovulation. Move hard sessions to the cool part of the day.</td></tr><tr><td class="exn">Lactate threshold at a higher % of VO2max</td>
+       <td class="note-cell">She holds a higher percentage before she tips over. HR-based zones built for males will under-prescribe her.</td></tr></tbody></table>
+   </div>
+   <div class="sec">
+     <div class="sec-h"><span class="sec-t">What the game asks for</span>
+       <span class="sec-s">women's rugby league, measured</span></div>
+     <table class="t"><thead><tr><th style="width:230px">Measure</th><th>Number</th></tr></thead><tbody>
+       <tr><td class="exn">Relative distance, NRLW match</td><td class="note-cell">About 79–80 m per minute. State of Origin runs higher at ~81.6, Trans-Tasman Tests lower at ~73.4.</td></tr>
+       <tr><td class="exn">Peak 30-second intensity</td><td class="note-cell">Backs ~189 m/min, forwards ~161 m/min. Over a 10-minute window both settle near 81–89.</td></tr>
+       <tr><td class="exn">A repeat high-intensity bout</td><td class="note-cell">Three or more efforts — sprints, tackles, rucks — inside 21 seconds. Longest bouts run 49–64 seconds.</td></tr>
+       <tr><td class="exn">When bouts happen</td><td class="note-cell">About 70% fall within five minutes of a try being scored. Condition for the critical periods, not the average.</td></tr>
+       <tr><td class="exn">Contact and running together</td><td class="note-cell">Running output drops as contact efforts rise. Training them separately trains neither.</td></tr>
+     </tbody></table>
+   </div>
+   <div class="nmc"><div class="nmc-h">The one rule that outranks the session plan</div>
+     <div class="blurb">Technique rule: if running mechanics, landing or cutting start to fall apart, reduce the INTENSITY before you reduce the volume. Protective movement patterns fail earlier in female athletes than male at the same relative load (QRL Section 4). A missed bout costs one bout. A soft-tissue injury in week three costs the season.</div></div>
+   <div class="foot"><span>Sources: QRL Female Athlete Physical Framework §4 · Gabbett 2005, 2006 · Austin, Gabbett &amp; Jenkins 2011 · Johnston, Gabbett &amp; Jenkins 2014 · NRLW GPS 2018–19</span><span></span></div>
+  </div></div><div id="s9"><div class="pg s-lib" style="--s:1.06">
+   <div class="pg-head">
+     <div><div class="pg-h1">Conditioning drill bank</div>
+          <div class="pg-h2">Keebra Park GRLA — Year 7</div></div>
+     <div class="pg-meta">Everything available to swap in<br><b>contact</b> marks a drill needing contact clearance</div>
+   </div>
+   <div class="sec"><div class="sec-h"><span class="sec-t">Movement prep</span>
+       <span class="sec-s">3 drills</span></div>
+       <table class="t"><thead><tr><th style="width:150px">Drill</th><th style="width:94px">Dose</th>
+         <th>Set-up, cue and why</th></tr></thead><tbody>
+       <tr><td class="exn">Acceleration Wall Drill
+          <div class="kit">Wall or partner</div></td>
+         <td class="reps">3 x 10m</td>
+         <td class="note-cell"><b>Lean on a wall or partner, hips tall.</b> Punch the ground away, shin angle out not down. Short, fast steps.<div class="why">Teaches the accel shin angle before it is asked for at speed.</div></td></tr><tr><td class="exn">Build-Up Sprint
+          <div class="kit">Cones</div></td>
+         <td class="reps">3 x 20m</td>
+         <td class="note-cell"><b>20m lane, build through the first 10m.</b> Build, do not launch. Tall, relaxed jaw and hands.<div class="why">Exposes top-end mechanics without a max effort cold.</div></td></tr><tr><td class="exn">Jog-to-Stick Decel
+          <div class="kit">Cones</div></td>
+         <td class="reps">4 x 10m</td>
+         <td class="note-cell"><b>Jog 10m into a cone, stop dead and hold 2 sec.</b> Drop the hips, short braking steps, knee over the 2nd toe.<div class="why">QRL 5.1: teach deceleration before acceleration. Decel is where the ACL goes.</div></td></tr>
+       </tbody></table></div><div class="sec"><div class="sec-h"><span class="sec-t">Aerobic base</span>
+       <span class="sec-s">3 drills</span></div>
+       <table class="t"><thead><tr><th style="width:150px">Drill</th><th style="width:94px">Dose</th>
+         <th>Set-up, cue and why</th></tr></thead><tbody>
+       <tr><td class="exn">3-2-1 Continuous Game
+          <div class="kit">Cones, whistle</div></td>
+         <td class="reps">3 x 7 min, 2 min between</td>
+         <td class="note-cell"><b>50m area. Coach calls every change: '3-2-1 sprint', '3-2-1 drop and jog'.</b> On 'drop', controlled to the ground and back up fast, then straight into the next call.<div class="why">QRL's own session. Coach controls the walk:jog:sprint ratio, so intensity is dialled live.</div></td></tr><tr><td class="exn">Ball-in-Hand Continuous
+          <div class="kit">Balls, cones</div></td>
+         <td class="reps">4 x 5 min, 90 sec between</td>
+         <td class="note-cell"><b>Grid 30x30. Continuous handling at stride, two-pass minimum before a turn.</b> Hands early, eyes up. Skill does not drop because the lungs are working.<div class="why">Gabbett 2006: skill-based games match traditional running for conditioning in rugby league.</div></td></tr><tr><td class="exn">Figure-8 Continuous
+          <div class="kit">2 cones</div></td>
+         <td class="reps">3 x 4 min, 60 sec between</td>
+         <td class="note-cell"><b>Two cones 20m apart, run a figure 8 around them continuously.</b> Lean into the turn from the hip, not the ankle. Same pace each lap.<div class="why">Low-impact aerobic volume with a constant gentle direction change.</div></td></tr>
+       </tbody></table></div><div class="sec"><div class="sec-h"><span class="sec-t">Repeat effort</span>
+       <span class="sec-s">2 drills</span></div>
+       <table class="t"><thead><tr><th style="width:150px">Drill</th><th style="width:94px">Dose</th>
+         <th>Set-up, cue and why</th></tr></thead><tbody>
+       <tr><td class="exn">15:60 Repeat Sprint
+          <div class="kit">Cones, timer</div></td>
+         <td class="reps">8–12 reps</td>
+         <td class="note-cell"><b>15 seconds maximal effort, 60 seconds active recovery (walk, do not stand).</b> Full intent every rep. The recovery is a walk, not a rest.<div class="why">QRL 4.1 prescribes exactly this: 10–30 sec efforts at 1:3 to 1:5.</div></td></tr><tr><td class="exn">10/20/30 Shuttle + Skill
+          <div class="kit">Cones, ball</div></td>
+         <td class="reps">6 efforts, 1:3</td>
+         <td class="note-cell"><b>Sprint to 10m, back; 20m, back; 30m, back. Catch and pass at the line each time.</b> The pass still has to be good on the last shuttle. That is the whole point.<div class="why">Repeat effort with a skill under fatigue, which is how the game actually asks for it.</div></td></tr>
+       </tbody></table></div><div class="sec"><div class="sec-h"><span class="sec-t">Game speed &amp; RHIE</span>
+       <span class="sec-s">2 drills</span></div>
+       <table class="t"><thead><tr><th style="width:150px">Drill</th><th style="width:94px">Dose</th>
+         <th>Set-up, cue and why</th></tr></thead><tbody>
+       <tr><td class="exn">Tackle Tube Continuous
+          <div class="kit">Tackle tube · <b class="ct">contact</b></div></td>
+         <td class="reps">4 x 1 min, 90 sec between</td>
+         <td class="note-cell"><b>Pairs. Run to a standing tube, tackle it to ground, carry it back. Repeat for the minute.</b> Both arms wrap, get low, cheek to the right side. Technique first, speed second.<div class="why">Tests the ability to keep making tackles once tired — the moment technique slips is the moment to stop.</div></td></tr><tr><td class="exn">Tackle Shuttle
+          <div class="kit">Tackle bag · <b class="ct">contact</b></div></td>
+         <td class="reps">3 x 8 tackles</td>
+         <td class="note-cell"><b>Face down 3m from a bag. Get up, stay low, tackle, alternating lead shoulders.</b> Alternate shoulders every rep. Chin off chest, eyes open, shoulder through.<div class="why">Builds both shoulders. Female athletes are often one-sided in the tackle.</div></td></tr>
+       </tbody></table></div><div class="sec"><div class="sec-h"><span class="sec-t">In-season</span>
+       <span class="sec-s">1 drill</span></div>
+       <table class="t"><thead><tr><th style="width:150px">Drill</th><th style="width:94px">Dose</th>
+         <th>Set-up, cue and why</th></tr></thead><tbody>
+       <tr><td class="exn">Short Sharp 6 x 20m
+          <div class="kit">Cones, ball</div></td>
+         <td class="reps">6 reps, 1:4</td>
+         <td class="note-cell"><b>20m sprint, play-the-ball at the end, jog back.</b> Sharp and clean. This is a top-up, not a flogging.<div class="why">In-season volume comes down; intensity and quality stay up.</div></td></tr>
+       </tbody></table></div><div class="sec"><div class="sec-h"><span class="sec-t">Game finishers</span>
+       <span class="sec-s">3 drills</span></div>
+       <table class="t"><thead><tr><th style="width:150px">Drill</th><th style="width:94px">Dose</th>
+         <th>Set-up, cue and why</th></tr></thead><tbody>
+       <tr><td class="exn">Off-Side Small-Sided Game
+          <div class="kit">Balls, cones</div></td>
+         <td class="reps">3 x 2 min</td>
+         <td class="note-cell"><b>4v4 or 5v5, 30x30 grid, off-side rules.</b> Support the carry. Nobody stands still.<div class="why">Gabbett 2006: skill-based games are an effective alternative to traditional conditioning.</div></td></tr><tr><td class="exn">Two-Pass Transition Game
+          <div class="kit">Balls, cones</div></td>
+         <td class="reps">4 x 90 sec</td>
+         <td class="note-cell"><b>Minimum two passes before contact or touch. Turnover = instant transition.</b> React to the turnover. The first three steps after it decide the set.<div class="why">Trains the transition moment, where repeat-effort demand spikes.</div></td></tr><tr><td class="exn">Numbers-Up Attack v Defence
+          <div class="kit">Balls, cones</div></td>
+         <td class="reps">6 sets</td>
+         <td class="note-cell"><b>4v3 or 5v4 attack. Swap after each set.</b> Attack: hold the defender. Defence: slide and talk.<div class="why">Decision-making under fatigue, which is the quality that fails first.</div></td></tr>
+       </tbody></table></div>
+   <div class="foot"><span>Contact drills follow QRL 5.3: neck and trunk bracing first, controlled positions demonstrated before load.</span><span></span></div>
+  </div></div></div>
+</body></html>

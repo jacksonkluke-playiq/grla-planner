@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Conditioning Generator</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --pink:#E95B9E; --cyan:#29BAE5; --maroon:#6B1C3A;
+  --bg:#f5f6f8; --card:#fff; --input:#f0f1f4; --border:#dfe1e6;
+  --ink:#1a1a2e; --ink2:#5e6278; --muted:#8f95a8;
+  --good:#1E7A3C; --bad:#B3261E; --amber:#B8860B;
+}
+/* Dark mode dims the chrome only. The session sheet stays paper-white,
+   the way a document editor does - it is a preview of something printed. */
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#15161a; --card:#1d1f25; --input:#262930; --border:#343843;
+    --ink:#eef0f4; --ink2:#a8aebd; --muted:#7e8699;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#15161a; --card:#1d1f25; --input:#262930; --border:#343843;
+  --ink:#eef0f4; --ink2:#a8aebd; --muted:#7e8699;
+}
+body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  background:var(--bg);color:var(--ink)}
+.topbar{background:var(--card)}
+button{background:var(--card)}
+button.pri{background:var(--pink)}
+
+/* ═══ top bar ═══ */
+.topbar{background:#fff;border-bottom:4px solid var(--pink);position:relative;padding:14px 22px;
+  display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.topbar::before{content:'';position:absolute;left:0;right:0;bottom:-4px;height:4px;
+  background:linear-gradient(90deg,var(--pink) 0 50%,var(--cyan) 50% 100%)}
+.brand b{font-size:17px;font-weight:900;color:var(--cyan);letter-spacing:-.2px;display:block}
+.brand span{font-size:9.5px;font-weight:700;color:var(--pink);letter-spacing:2px;text-transform:uppercase}
+.tb-actions{display:flex;gap:8px;flex-wrap:wrap}
+
+button{font-family:inherit;font-size:12px;font-weight:700;border:1px solid var(--border);background:#fff;
+  color:var(--ink2);padding:8px 13px;border-radius:7px;cursor:pointer;transition:.14s;letter-spacing:.2px}
+button:hover{background:var(--input);color:var(--ink)}
+button.pri{background:var(--pink);border-color:var(--pink);color:#fff}
+button.pri:hover{background:#D14A8A}
+button.ghost{background:none}
+
+/* ═══ layout ═══ */
+.wrap{display:grid;grid-template-columns:270px 1fr;gap:20px;padding:20px;max-width:1500px;margin:0 auto;align-items:start}
+@media(max-width:940px){.wrap{grid-template-columns:1fr}}
+.panel{background:var(--card);border:1px solid var(--border);border-radius:11px;padding:16px}
+.panel h3{font-size:10px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);margin:0 0 9px}
+.panel + .panel{margin-top:14px}
+label.fld{display:block;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;
+  letter-spacing:1px;margin:11px 0 4px}
+select,input[type=text]{width:100%;font-family:inherit;font-size:13px;font-weight:600;color:var(--ink);
+  background:var(--input);border:1px solid var(--border);border-radius:7px;padding:8px 9px}
+.seg{display:flex;gap:3px;background:var(--input);padding:3px;border-radius:8px}
+.seg button{flex:1;border:none;background:none;padding:7px 0;font-size:12px;border-radius:6px}
+.seg button.on{background:#fff;color:var(--pink);box-shadow:0 1px 3px rgba(0,0,0,.09)}
+.stack{display:flex;flex-direction:column;gap:7px}
+.hint{font-size:10.5px;color:var(--muted);line-height:1.5;margin-top:9px}
+
+/* ═══ sheet preview ═══ */
+.sheetbox{background:#fff;border:1px solid var(--border);border-radius:11px;overflow:hidden}
+.sheetscroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.sheetscroll > .pg{min-width:660px}
+@media(max-width:940px){
+  .wrap{padding:16px;gap:14px}
+  .topbar{padding:12px 16px}
+  .tb-actions button{padding:7px 10px;font-size:11px}
+}
+.viewbar{padding:10px 14px 0;background:var(--card);border-bottom:1px solid var(--border)}
+.viewbar .seg{display:inline-flex;margin-bottom:10px}
+.viewbar .seg button{padding:7px 16px}
+.editnote{background:#FFF8E7;border-bottom:1px solid #F0E0B8;padding:8px 16px;font-size:11px;
+  color:#7A5C10;font-weight:600}
+</style>
+<style id="sheetcss">
+/* ═══════════════════════════════════════════════════════════
+   SESSION SHEET — shared by the on-screen preview and print
+   ═══════════════════════════════════════════════════════════ */
+.pg{--s:1;background:#fff;color:#16161d;padding:14px 18px 16px;font-size:calc(10.5px * var(--s));line-height:1.35}
+.pg + .pg{border-top:12px solid #f0f1f4}
+.pg-head{display:flex;justify-content:space-between;align-items:flex-start;
+  border-bottom:3px solid #E95B9E;padding-bottom:8px;position:relative;margin-bottom:10px}
+.pg-head::after{content:'';position:absolute;left:0;right:0;bottom:-3px;height:3px;
+  background:linear-gradient(90deg,#E95B9E 0 50%,#29BAE5 50% 100%)}
+.pg-h1{font-size:calc(15px * min(var(--s),1.25));font-weight:900;letter-spacing:-.2px;color:#16161d}
+.pg-h2{font-size:calc(9px * min(var(--s),1.2));font-weight:700;letter-spacing:1.6px;text-transform:uppercase;color:#E95B9E;margin-top:1px}
+.pg-meta{text-align:right;font-size:calc(9px * min(var(--s),1.15));color:#5e6278;font-weight:600;line-height:1.5}
+.pill{display:inline-block;padding:3px 9px;border-radius:20px;font-size:calc(9px * var(--s));font-weight:800;
+  text-transform:uppercase;letter-spacing:.9px}
+
+.sec{margin-top:9px}
+.sec-h{display:flex;align-items:baseline;gap:8px;margin-bottom:3px}
+.sec-t{font-size:calc(10px * var(--s));font-weight:900;letter-spacing:1.3px;text-transform:uppercase;color:#6B1C3A}
+.sec-s{font-size:calc(9px * var(--s));color:#8f95a8;font-weight:600}
+
+table.t{width:100%;border-collapse:collapse}
+table.t th{font-size:calc(8.5px * var(--s));font-weight:800;letter-spacing:.9px;text-transform:uppercase;color:#8f95a8;
+  text-align:left;padding:3px 6px;border-bottom:1px solid #dfe1e6}
+table.t td{padding:calc(4px * var(--s)) 6px;border-bottom:1px solid #f0f0f5;vertical-align:top}
+table.t tr.grp td{border-top:2px solid #e6e7ec}
+.slot{font-weight:900;color:#E95B9E;font-size:calc(10px * var(--s));width:30px}
+.slotname{font-size:calc(8.5px * var(--s));color:#8f95a8;font-weight:600}
+.exn{font-weight:700;color:#16161d}
+.cell-ed{cursor:pointer;border-radius:4px}
+.cell-ed:hover{background:#FDF0F6;outline:1px solid #F5C6DF}
+.tempo{font-variant-numeric:tabular-nums;color:#5e6278;font-weight:600;width:52px}
+.reps{font-weight:800;color:#16161d;width:78px;font-variant-numeric:tabular-nums}
+.note-cell{color:#5e6278;font-size:calc(9.5px * var(--s))}
+
+.nmc{border:1.5px solid #1E7A3C;border-radius:7px;padding:7px 9px;background:#F4FAF5}
+.nmc-h{font-size:calc(9.5px * var(--s));font-weight:900;letter-spacing:1.2px;text-transform:uppercase;color:#1E7A3C;margin-bottom:3px}
+.nmc-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px 12px}
+.nmc-col b{display:block;font-size:calc(8.5px * var(--s));font-weight:800;letter-spacing:.7px;text-transform:uppercase;
+  color:#8f95a8;margin-bottom:2px}
+.nmc-it{font-size:calc(9.5px * var(--s));line-height:1.4}
+.nmc-it i{font-style:normal;font-weight:800;color:#16161d}
+.nmc-it s{text-decoration:none;color:#5e6278}
+
+.loadbar{display:flex;gap:0;border:1px solid #dfe1e6;border-radius:7px;overflow:hidden;margin-top:7px}
+.loadbar div{flex:1;padding:5px 8px;border-right:1px solid #f0f0f5;font-size:calc(9px * var(--s))}
+.loadbar div:last-child{border-right:none}
+.loadbar div.on{background:#FDF0F6}
+.loadbar b{display:block;font-size:calc(8.5px * var(--s));font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:#E95B9E}
+.loadbar span{color:#5e6278}
+
+.foot{margin-top:9px;border-top:1px solid #dfe1e6;padding-top:6px;display:flex;
+  justify-content:space-between;gap:12px;font-size:calc(8.5px * var(--s));color:#8f95a8;font-weight:600}
+.rule{font-size:calc(9px * var(--s));color:#B8860B;font-weight:700;margin-top:5px}
+.lines{margin-top:7px}
+.lines b{font-size:calc(8.5px * var(--s));font-weight:800;letter-spacing:.9px;text-transform:uppercase;color:#8f95a8}
+.lines div{border-bottom:1px solid #e6e7ec;height:calc(15px * var(--s))}
+
+/* technique guide */
+.tech{page-break-inside:avoid;margin-bottom:14px;border:1px solid #dfe1e6;border-radius:9px;overflow:hidden}
+.tech-h{background:#6B1C3A;color:#fff;padding:6px 11px;display:flex;justify-content:space-between;align-items:center}
+.tech-h b{font-size:calc(12px * var(--s));font-weight:800}
+.tech-h span{font-size:calc(9px * var(--s));font-weight:600;opacity:.85}
+.tech-b{display:grid;grid-template-columns:1.35fr 1fr;gap:12px;padding:10px 11px}
+.tech-txt p{margin-bottom:7px;font-size:calc(10px * var(--s));line-height:1.45}
+.tech-txt b{display:block;font-size:calc(8.5px * var(--s));font-weight:800;letter-spacing:.9px;text-transform:uppercase;margin-bottom:1px}
+
+
+.check{margin-top:8px;border:1px solid #dfe1e6;border-radius:7px;padding:5px 9px;
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:calc(9px * var(--s));font-weight:700}
+.check b{font-size:calc(8.5px * var(--s));font-weight:800;letter-spacing:.9px;text-transform:uppercase;color:#8f95a8}
+.check span{padding:2px 8px;border-radius:20px}
+.check .cg{background:#F1F8F2;color:#1E7A3C;border:1px solid #BEE0C6}
+.check .ca{background:#FFF8E7;color:#B8860B;border:1px solid #EEDFB4}
+.check .cr{background:#FDF2F1;color:#B3261E;border:1px solid #F0C9C5}
+
+
+.cutline{margin-top:7px;background:#FFF8E7;border:1px solid #EEDFB4;border-radius:6px;
+  padding:4px 9px;font-size:calc(9px * var(--s));font-weight:700;color:#7A5C10}
+table.t.nmct td{padding:calc(4px * var(--s)) 6px}
+table.t.nmct .reps{width:100px}
+
+
+.blurb{font-size:calc(9.5px * var(--s));line-height:1.45}
+.pg-head{gap:14px}
+.pg-h2{max-width:none}
+.pg-meta{white-space:nowrap}
+
+/* block sheet - a column per week */
+table.t.wk th.wkh{text-align:right;width:76px}
+table.t.wk td.wkc{text-align:right;width:76px;padding-left:2px;padding-right:6px}
+table.t.wk td:nth-child(2){padding-right:4px}
+.pg.s-block .nmc-grid{align-items:start}
+
+/* one knob per printable view, tuned so each fills an A4 page */
+.pg.s-session{--s:1.13}
+.pg.s-block{--s:1.10}
+.pg.s-nmc{--s:1.32}
+.pg.s-prog{--s:1.44}
+.pg.s-tech{--s:1.06}
+
+/* NMC progression page */
+.phgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:9px}
+.ph{border:1px solid #dfe1e6;border-radius:7px;overflow:hidden;position:relative}
+.ph.now{border-color:#E95B9E;box-shadow:0 0 0 1.5px #F5C6DF}
+.ph-h{color:#fff;padding:4px 7px;display:flex;justify-content:space-between;align-items:baseline;gap:4px}
+.ph-h b{font-size:calc(8.5px * var(--s));font-weight:900;letter-spacing:.9px}
+.ph-h span{font-size:calc(9px * var(--s));font-weight:800;letter-spacing:.4px}
+.ph-w{font-size:calc(8px * var(--s));font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:#8f95a8;padding:4px 7px 1px}
+.ph-t{font-size:calc(8.5px * var(--s));line-height:1.35;color:#5e6278;padding:0 7px 5px;border-bottom:1px solid #f0f0f5}
+.ph-l{margin:0;padding:5px 7px 6px 20px}
+
+.ph-l li{font-size:calc(8.5px * var(--s));line-height:1.3;margin-bottom:3px}
+.ph-l b{display:block;font-weight:700;color:#16161d}
+.ph-l s{text-decoration:none;color:#8f95a8}
+.ph-now{position:absolute;right:5px;bottom:4px;font-size:calc(7.5px * var(--s));font-weight:900;letter-spacing:.7px;
+  text-transform:uppercase;color:#E95B9E}
+table.t.thr th{font-size:calc(8px * var(--s))}
+table.t.thr td{padding:calc(5px * var(--s)) 6px;font-size:calc(9px * var(--s))}
+.th-n{font-weight:800;color:#6B1C3A;width:120px;font-size:calc(8.5px * var(--s))}
+.th-s span{display:inline-block;font-weight:900;margin-right:4px}
+
+.pg.s-lib .sec{page-break-inside:avoid}
+
+
+/* ── conditioning sheet ───────────────────────────────────────── */
+.aim{margin:8px 0 2px;border-left:3px solid #29BAE5;background:#F4FAFD;border-radius:0 6px 6px 0;
+  padding:5px 10px;font-size:calc(9.5px * var(--s));line-height:1.4}
+.aim b{color:#1A7FA8;font-weight:800;margin-right:5px}
+.aim s{text-decoration:none;color:#5e6278;display:block;margin-top:2px}
+table.t .dn{width:142px}
+.kit{font-size:calc(8px * var(--s));color:#8f95a8;font-weight:600;margin-top:1px}
+.kit .ct{color:#B3261E;font-weight:800;text-transform:uppercase;letter-spacing:.5px}
+.why{font-size:calc(8.5px * var(--s));color:#8f95a8;font-style:italic;margin-top:2px;line-height:1.35}
+.check .cw{background:#E8F4FB;color:#1A7FA8;border:1px solid #BBDDEE}
+.pg.s-lib .sec{page-break-inside:avoid}
+.phrow{display:flex;justify-content:space-between;align-items:baseline;gap:6px;padding:5px 8px;
+  border-radius:6px;font-size:11px}
+.phrow b{font-weight:800;color:var(--ink2)}
+.phrow span{font-size:9.5px;color:var(--muted)}
+.phrow.on{background:#FDF0F6}
+.phrow.on b{color:var(--pink)}
+
+@media print{
+  @page{size:A4 portrait;margin:10mm}
+  body{background:#fff}
+  .topbar,.wrap > div:first-child,.editnote,.no-print{display:none!important}
+  .sheetbox{border:none;border-radius:0}
+  .pg{page-break-after:always;padding:0}
+  .pg:last-child{page-break-after:auto}
+  .pg + .pg{border-top:none}
+  .pg-head::after,.pill,.nmc,.loadbar div.on,.tech-h,.cutline,.check span,.ph-h,.ph.now,.aim{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  table.t tr{page-break-inside:avoid}
+}
+</style>
+
+
+</head>
+<body>
+<div class="topbar">
+  <div class="brand"><b>Keebra Park GRLA</b><span>Conditioning Generator · Yr 7–9</span></div>
+  <div class="tb-actions">
+    <button class="pri" onclick="printOne()">Print this sheet</button>
+    <button onclick="printLevel()">Print whole year</button>
+    <button onclick="exportSheets()">Send sheets (HTML)</button>
+    <button class="ghost" onclick="resetAll()">Reset</button>
+  </div>
+</div>
+
+<div class="wrap">
+  <div>
+    <div class="panel">
+      <h3>Year group</h3>
+      <div class="seg" id="lvlSeg"></div>
+      <label class="fld">Block</label>
+      <select id="blkSel" onchange="setBlock(this.value)"></select>
+      <label class="fld">Season phase</label>
+      <div id="phaseBox"></div>
+    </div>
+    <div class="panel">
+      <h3>Session length</h3>
+      <div class="seg" id="lenSeg"></div>
+      <div class="stack" id="timeBox" style="margin-top:11px"></div>
+      <div class="hint" id="cutHint"></div>
+    </div>
+    <div class="panel">
+      <h3>Coach note on the sheet</h3>
+      <input type="text" id="noteIn" placeholder="e.g. back field only, sleds in the shed" oninput="setNote(this.value)">
+    </div>
+    <div class="panel">
+      <h3>Sending it on</h3>
+      <button class="pri" style="width:100%" onclick="exportSheets()">Send sheets (HTML)</button>
+      <div class="hint">Every block for this year group plus the coach briefing and the drill bank,
+        with your changes baked in.</div>
+    </div>
+  </div>
+
+  <div class="sheetbox">
+    <div class="viewbar"><div class="seg" id="viewSeg"></div></div>
+    <div class="editnote" id="editnote">Click a drill name to swap it · click a week cell to edit the dose · changes save in this browser</div>
+    <div class="sheetscroll"><div id="sheet"></div></div>
+  </div>
+</div>
+
+<script>
+const DATA = {"meta":{"title":"Conditioning","time":[["NMC","8 min"],["Movement prep","4 min"],["Main conditioning","14 min"],["Game finisher","7 min"],["Cool-down + fluids","2 min"]],"rule":"Technique rule: if running mechanics, landing or cutting start to fall apart, reduce the INTENSITY before you reduce the volume. Protective movement patterns fail earlier in female athletes than male at the same relative load (QRL Section 4).","intensity":[["RPE 5–6","Aerobic base","Full sentences. 60–75% of max heart rate. 20–40 min."],["RPE 7–8","Repeat effort","Short phrases only. Recovery is active, not standing."],["RPE 9–10","Max / RHIE","Cannot talk. Every effort full intent — if the times drop, stop the set."]],"physio":[["Higher heart rate at the same relative work","Smaller heart and stroke volume means she beats faster for the same output. Do not judge her off a male HR benchmark."],["Better at sustaining moderate work","More Type I fibres and about a third greater mitochondrial respiration. Repeat-effort work is a strength — use it."],["Steeper power drop between maximal efforts","At maximal and supramaximal intensity she may fade faster between reps. Give slightly longer recovery, not shorter."],["Luteal phase raises core temperature 0.3–0.5°C","Heat tolerance drops in the two weeks after ovulation. Move hard sessions to the cool part of the day."],["Lactate threshold at a higher % of VO2max","She holds a higher percentage before she tips over. HR-based zones built for males will under-prescribe her."]]},"drills":[{"id":"p_wall","name":"Acceleration Wall Drill","cat":"prep","lvl":[1,2,3],"setup":"Lean on a wall or partner, hips tall.","work":"3 x 10m","cue":"Punch the ground away, shin angle out not down. Short, fast steps.","why":"Teaches the accel shin angle before it is asked for at speed.","kit":"Wall or partner","contact":0},{"id":"p_build","name":"Build-Up Sprint","cat":"prep","lvl":[1,2,3],"setup":"20m lane, build through the first 10m.","work":"3 x 20m","cue":"Build, do not launch. Tall, relaxed jaw and hands.","why":"Exposes top-end mechanics without a max effort cold.","kit":"Cones","contact":0},{"id":"p_stick","name":"Jog-to-Stick Decel","cat":"prep","lvl":[1,2,3],"setup":"Jog 10m into a cone, stop dead and hold 2 sec.","work":"4 x 10m","cue":"Drop the hips, short braking steps, knee over the 2nd toe.","why":"QRL 5.1: teach deceleration before acceleration. Decel is where the ACL goes.","kit":"Cones","contact":0},{"id":"p_idrill","name":"I-Drill at 50%","cat":"prep","lvl":[2,3],"setup":"Five cones, 5m apart. Touch every cone, always running forward.","work":"3 runs @ 50%","cue":"Plant the foot CLOSE to the body, rotate the hip through. No wide step.","why":"QRL coach manual. A wide braking step is the highest-risk cut pattern in female athletes.","kit":"6 cones","contact":0},{"id":"p_mdrill","name":"M-Drill at 50–75%","cat":"prep","lvl":[3],"setup":"M shape, 5m legs. Forward running throughout, hip-driven turns.","work":"3 runs, build 50→75%","cue":"Hip first, foot follows. Speed is earned by mechanics, not assigned.","why":"QRL coach manual. Repeated direction change under forward momentum.","kit":"6 cones","contact":0},{"id":"a_321","name":"3-2-1 Continuous Game","cat":"main1","lvl":[1,2,3],"setup":"50m area. Coach calls every change: '3-2-1 sprint', '3-2-1 drop and jog'.","work":"3 x 7 min, 2 min between","cue":"On 'drop', controlled to the ground and back up fast, then straight into the next call.","why":"QRL's own session. Coach controls the walk:jog:sprint ratio, so intensity is dialled live.","kit":"Cones, whistle","contact":0},{"id":"a_ball","name":"Ball-in-Hand Continuous","cat":"main1","lvl":[1,2,3],"setup":"Grid 30x30. Continuous handling at stride, two-pass minimum before a turn.","work":"4 x 5 min, 90 sec between","cue":"Hands early, eyes up. Skill does not drop because the lungs are working.","why":"Gabbett 2006: skill-based games match traditional running for conditioning in rugby league.","kit":"Balls, cones","contact":0},{"id":"a_tempo","name":"Extensive Shuttle Tempo","cat":"main1","lvl":[2,3],"setup":"60m out and back at ~70%, walk the same distance back.","work":"2 x 8 reps, 1:1","cue":"Smooth and repeatable. If rep 8 is slower than rep 1, you went too hard.","why":"Builds the aerobic base that lets her recover between the hard efforts (QRL 4.2).","kit":"Cones","contact":0},{"id":"a_fig8","name":"Figure-8 Continuous","cat":"main1","lvl":[1,2],"setup":"Two cones 20m apart, run a figure 8 around them continuously.","work":"3 x 4 min, 60 sec between","cue":"Lean into the turn from the hip, not the ankle. Same pace each lap.","why":"Low-impact aerobic volume with a constant gentle direction change.","kit":"2 cones","contact":0},{"id":"r_1560","name":"15:60 Repeat Sprint","cat":"main2","lvl":[1,2,3],"setup":"15 seconds maximal effort, 60 seconds active recovery (walk, do not stand).","work":"8–12 reps","cue":"Full intent every rep. The recovery is a walk, not a rest.","why":"QRL 4.1 prescribes exactly this: 10–30 sec efforts at 1:3 to 1:5.","kit":"Cones, timer","contact":0},{"id":"r_102030","name":"10/20/30 Shuttle + Skill","cat":"main2","lvl":[1,2,3],"setup":"Sprint to 10m, back; 20m, back; 30m, back. Catch and pass at the line each time.","work":"6 efforts, 1:3","cue":"The pass still has to be good on the last shuttle. That is the whole point.","why":"Repeat effort with a skill under fatigue, which is how the game actually asks for it.","kit":"Cones, ball","contact":0},{"id":"r_sled","name":"Sled Push-Pull Relay","cat":"main2","lvl":[2,3],"setup":"Cones at 0/10/20/30m, one sled per four, 10kg plate. Push 10m, pull back 10m, push 30m, hand over.","work":"3 full efforts each","cue":"Push: drive the ground away, high knees, eyes up. Pull: stay low, drive the heels.","why":"QRL's own session. Runs alongside skills — rotate four out, they return fatigued.","kit":"Sled + 10kg","contact":0},{"id":"r_flying","name":"40m Flying Repeats","cat":"main2","lvl":[3],"setup":"20m build-up, 20m at full speed. Walk back recovery.","work":"6 reps, 1:5","cue":"If the last rep is more than 5% slower than the first, the set is done.","why":"Protects top-end speed quality — speed work stops being speed work when it slows.","kit":"Cones, timer","contact":0},{"id":"g_rhie","name":"3-Effort RHIE Bout","cat":"main3","lvl":[2,3],"setup":"Sprint 15m, get up off the deck, sprint 10m, hit the tackle tube, sprint 10m. All inside ~20 sec.","work":"6 bouts, 90 sec between","cue":"Three efforts, no gap between them. The last 10m is the one that matters.","why":"A rugby league RHIE bout is 3+ efforts inside 21 sec (Austin, Gabbett & Jenkins). Max bouts run 49–64 sec.","kit":"Tackle tube, cones","contact":1},{"id":"g_wrestle","name":"Wrestle + Shuttle","cat":"main3","lvl":[3],"setup":"Even pairs. Sprint 10m, 20m, 30m back to the line, then wrestle for 30 sec.","work":"4 rounds each","cue":"Wrestle from a braced trunk and a strong neck, never a loose one.","why":"Wrestling inside games raises repeat-effort demand while lowering running load (Johnston et al.).","kit":"Mats or soft ground","contact":2},{"id":"g_tube","name":"Tackle Tube Continuous","cat":"main3","lvl":[1,2,3],"setup":"Pairs. Run to a standing tube, tackle it to ground, carry it back. Repeat for the minute.","work":"4 x 1 min, 90 sec between","cue":"Both arms wrap, get low, cheek to the right side. Technique first, speed second.","why":"Tests the ability to keep making tackles once tired — the moment technique slips is the moment to stop.","kit":"Tackle tube","contact":1},{"id":"g_tshuttle","name":"Tackle Shuttle","cat":"main3","lvl":[1,2,3],"setup":"Face down 3m from a bag. Get up, stay low, tackle, alternating lead shoulders.","work":"3 x 8 tackles","cue":"Alternate shoulders every rep. Chin off chest, eyes open, shoulder through.","why":"Builds both shoulders. Female athletes are often one-sided in the tackle.","kit":"Tackle bag","contact":1},{"id":"g_contact_ssg","name":"Off-Side Game + Contact Bout","cat":"main3","lvl":[2,3],"setup":"Small-sided off-side game. Every 2 min the coach calls a contact bout.","work":"2 x 10 min halves","cue":"Running intensity must not drop when the contact goes in. That is the trainable thing.","why":"Johnston et al.: running intensity falls as contact efforts rise — so train them together.","kit":"Balls, cones, pads","contact":2},{"id":"s_short","name":"Short Sharp 6 x 20m","cat":"main4","lvl":[1,2,3],"setup":"20m sprint, play-the-ball at the end, jog back.","work":"6 reps, 1:4","cue":"Sharp and clean. This is a top-up, not a flogging.","why":"In-season volume comes down; intensity and quality stay up.","kit":"Cones, ball","contact":0},{"id":"s_line","name":"Defensive Line Speed + Retreat","cat":"main4","lvl":[2,3],"setup":"Line of 5. Up together 10m on the call, retreat 10m, repeat.","work":"5 x 45 sec, 90 sec between","cue":"Up as one. The slowest player sets the line, so talk.","why":"Game-specific repeat effort that also rehearses line discipline.","kit":"Cones","contact":0},{"id":"s_sim","name":"Game Simulation Sets","cat":"main4","lvl":[2,3],"setup":"Full set of six with a kick, then the chase and retreat. Live tempo.","work":"4 sets, 2 min between","cue":"Last tackle discipline. Chase hard, reset the line, talk.","why":"70% of RHIE bouts happen within 5 min of a try being scored — train the critical periods.","kit":"Balls, cones","contact":1},{"id":"s_touch","name":"Touch + Wrestle Transition","cat":"main4","lvl":[3],"setup":"Touch game. On the whistle the two nearest players wrestle for 15 sec, then play restarts.","work":"4 x 4 min","cue":"Get up and back into the line first. The game does not wait for you.","why":"Hybrid of skill-based conditioning and contact load without full tackle volume.","kit":"Balls, cones","contact":2},{"id":"f_ssg","name":"Off-Side Small-Sided Game","cat":"fin","lvl":[1,2,3],"setup":"4v4 or 5v5, 30x30 grid, off-side rules.","work":"3 x 2 min","cue":"Support the carry. Nobody stands still.","why":"Gabbett 2006: skill-based games are an effective alternative to traditional conditioning.","kit":"Balls, cones","contact":0},{"id":"f_2pass","name":"Two-Pass Transition Game","cat":"fin","lvl":[1,2,3],"setup":"Minimum two passes before contact or touch. Turnover = instant transition.","work":"4 x 90 sec","cue":"React to the turnover. The first three steps after it decide the set.","why":"Trains the transition moment, where repeat-effort demand spikes.","kit":"Balls, cones","contact":0},{"id":"f_kick","name":"Kick-Chase and Retreat","cat":"fin","lvl":[2,3],"setup":"Kick, full line chase 20m, retreat 10m, reset.","work":"6 reps","cue":"Chase as a line, not as individuals.","why":"Rehearses the highest-speed phase of the game.","kit":"Balls, cones","contact":0},{"id":"f_numbers","name":"Numbers-Up Attack v Defence","cat":"fin","lvl":[1,2,3],"setup":"4v3 or 5v4 attack. Swap after each set.","work":"6 sets","cue":"Attack: hold the defender. Defence: slide and talk.","why":"Decision-making under fatigue, which is the quality that fails first.","kit":"Balls, cones","contact":0}],"phases":[{"id":1,"name":"AEROBIC BASE","term":"Term 1 · preseason","key":"main1","aim":"Build the engine that lets her recover between hard efforts.","note":"QRL 4.2: 60–75% of max HR, 20–40 min. Female athletes respond well to this work given their fibre profile."},{"id":2,"name":"REPEAT EFFORT","term":"Term 2","key":"main2","aim":"Repeat sprint quality — the thing the game actually asks for.","note":"QRL 4.1: 10–30 sec efforts at 1:3 to 1:5. Give slightly longer recovery than you would a boys' squad."},{"id":3,"name":"GAME SPEED & RHIE","term":"Term 3","key":"main3","aim":"Running and contact together, at game intensity.","note":"An RHIE bout is 3+ efforts inside 21 sec. Contact lowers running output — train them combined, not apart."},{"id":4,"name":"IN-SEASON","term":"Term 4 · competition","key":"main4","aim":"Hold what you built. Volume down, quality up.","note":"Short and sharp. The game is the main conditioning stimulus now."}],"levels":[{"id":"Lvl 1","year":"Year 7","blocks":[{"name":"COND 1.1","phase":1,"weeks":4,"rows":[{"sec":"prep","id":"p_wall","wk":["3 x 10m","3 x 15m","4 x 15m","4 x 20m"]},{"sec":"prep","id":"p_build","wk":["3 x 20m","3 x 20m","3 x 20m","3 x 20m"]},{"sec":"main","id":"a_321","wk":["3 x 6 min","3 x 7 min","4 x 6 min","4 x 7 min"]},{"sec":"main","id":"a_ball","wk":["3 x 4 min","4 x 4 min","4 x 5 min","4 x 5 min"]},{"sec":"fin","id":"f_ssg","wk":["2 x 2 min","3 x 2 min","3 x 2 min","3 x 2 min"]}]},{"name":"COND 1.2","phase":1,"weeks":4,"rows":[{"sec":"prep","id":"p_build","wk":["3 x 10m","3 x 15m","4 x 15m","4 x 20m"]},{"sec":"prep","id":"p_stick","wk":["4 x 10m","4 x 10m","4 x 10m","4 x 10m"]},{"sec":"main","id":"a_ball","wk":["3 x 6 min","3 x 7 min","4 x 6 min","4 x 7 min"]},{"sec":"main","id":"a_fig8","wk":["3 x 4 min","4 x 4 min","4 x 5 min","4 x 5 min"]},{"sec":"fin","id":"f_2pass","wk":["3 x 90 sec","4 x 90 sec","4 x 90 sec","4 x 90 sec"]}]},{"name":"COND 1.3","phase":2,"weeks":4,"rows":[{"sec":"prep","id":"p_stick","wk":["3 x 10m","3 x 15m","4 x 15m","4 x 20m"]},{"sec":"prep","id":"p_wall","wk":["3 x 10m","3 x 10m","3 x 10m","3 x 10m"]},{"sec":"main","id":"r_1560","wk":["8 reps","10 reps","10 reps","12 reps"]},{"sec":"main","id":"r_102030","wk":["4 efforts","5 efforts","6 efforts","6 efforts"]},{"sec":"fin","id":"f_numbers","wk":["2 x 2 min","3 x 2 min","3 x 2 min","3 x 2 min"]}]},{"name":"COND 1.4","phase":2,"weeks":4,"rows":[{"sec":"prep","id":"p_wall","wk":["3 x 10m","3 x 15m","4 x 15m","4 x 20m"]},{"sec":"prep","id":"p_build","wk":["3 x 20m","3 x 20m","3 x 20m","3 x 20m"]},{"sec":"main","id":"r_102030","wk":["8 reps","10 reps","10 reps","12 reps"]},{"sec":"main","id":"r_1560","wk":["4 efforts","5 efforts","6 efforts","6 efforts"]},{"sec":"fin","id":"f_ssg","wk":["3 x 90 sec","4 x 90 sec","4 x 90 sec","4 x 90 sec"]}]},{"name":"COND 1.5","phase":3,"weeks":4,"rows":[{"sec":"prep","id":"p_build","wk":["3 x 10m","3 x 15m","4 x 15m","4 x 20m"]},{"sec":"prep","id":"p_stick","wk":["4 x 10m","4 x 10m","4 x 10m","4 x 10m"]},{"sec":"main","id":"g_tube","wk":["4 bouts","5 bouts","6 bouts","6 bouts"]},{"sec":"main","id":"g_tshuttle","wk":["3 x 1 min","4 x 1 min","4 x 1 min","4 x 1 min"]},{"sec":"fin","id":"f_2pass","wk":["2 x 2 min","3 x 2 min","3 x 2 min","3 x 2 min"]}]},{"name":"COND 1.6","phase":3,"weeks":4,"rows":[{"sec":"prep","id":"p_stick","wk":["3 x 10m","3 x 15m","4 x 15m","4 x 20m"]},{"sec":"prep","id":"p_wall","wk":["3 x 10m","3 x 10m","3 x 10m","3 x 10m"]},{"sec":"main","id":"g_tshuttle","wk":["4 bouts","5 bouts","6 bouts","6 bouts"]},{"sec":"main","id":"g_tube","wk":["3 x 1 min","4 x 1 min","4 x 1 min","4 x 1 min"]},{"sec":"fin","id":"f_numbers","wk":["3 x 90 sec","4 x 90 sec","4 x 90 sec","4 x 90 sec"]}]},{"name":"COND 1.7","phase":4,"weeks":4,"rows":[{"sec":"prep","id":"p_wall","wk":["3 x 10m","3 x 15m","4 x 15m","4 x 20m"]},{"sec":"prep","id":"p_build","wk":["3 x 20m","3 x 20m","3 x 20m","3 x 20m"]},{"sec":"main","id":"s_short","wk":["5 reps","6 reps","6 reps","6 reps"]},{"sec":"main","id":"s_short","wk":["3 x 45 sec","4 x 45 sec","5 x 45 sec","5 x 45 sec"]},{"sec":"fin","id":"f_ssg","wk":["2 x 2 min","3 x 2 min","3 x 2 min","3 x 2 min"]}]},{"name":"COND 1.8","phase":4,"weeks":4,"rows":[{"sec":"prep","id":"p_build","wk":["3 x 10m","3 x 15m","4 x 15m","4 x 20m"]},{"sec":"prep","id":"p_stick","wk":["4 x 10m","4 x 10m","4 x 10m","4 x 10m"]},{"sec":"main","id":"s_short","wk":["5 reps","6 reps","6 reps","6 reps"]},{"sec":"main","id":"s_short","wk":["3 x 45 sec","4 x 45 sec","5 x 45 sec","5 x 45 sec"]},{"sec":"fin","id":"f_2pass","wk":["3 x 90 sec","4 x 90 sec","4 x 90 sec","4 x 90 sec"]}]}]},{"id":"Lvl 2","year":"Year 8","blocks":[{"name":"COND 2.1","phase":1,"weeks":4,"rows":[{"sec":"prep","id":"p_wall","wk":["3 x 10m","3 x 15m","4 x 15m","4 x 20m"]},{"sec":"prep","id":"p_build","wk":["3 x 20m","3 x 20m","3 x 20m","3 x 20m"]},{"sec":"main","id":"a_321","wk":["3 x 6 min","3 x 7 min","4 x 6 min","4 x 7 min"]},{"sec":"main","id":"a_ball","wk":["3 x 4 min","4 x 4 min","4 x 5 min","4 x 5 min"]},{"sec":"fin","id":"f_ssg","wk":["2 x 2 min","3 x 2 min","3 x 2 min","3 x 2 min"]}]},{"name":"COND 2.2","phase":1,"weeks":4,"rows":[{"sec":"prep","id":"p_build","wk":["3 x 10m","3 x 15m","4 x 15m","4 x 20m"]},{"sec":"prep","id":"p_stick","wk":["4 x 10m","4 x 10m","4 x 10m","4 x 10m"]},{"sec":"main","id":"a_ball","wk":["3 x 6 min","3 x 7 min","4 x 6 min","4 x 7 min"]},{"sec":"main","id":"a_tempo","wk":["3 x 4 min","4 x 4 min","4 x 5 min","4 x 5 min"]},{"sec":"fin","id":"f_2pass","wk":["3 x 90 sec","4 x 90 sec","4 x 90 sec","4 x 90 sec"]}]},{"name":"COND 2.3","phase":2,"weeks":4,"rows":[{"sec":"prep","id":"p_stick","wk":["3 x 10m","3 x 15m","4 x 15m","4 x 20m"]},{"sec":"prep","id":"p_idrill","wk":["3 runs @ 50%","3 runs @ 50%","3 runs @ 50%","3 runs @ 50%"]},{"sec":"main","id":"r_sled","wk":["8 reps","10 reps","10 reps","12 reps"]},{"sec":"main","id":"r_1560","wk":["4 efforts","5 efforts","6 efforts","6 efforts"]},{"sec":"fin","id":"f_kick","wk":["2 x 2 min","3 x 2 min","3 x 2 min","3 x 2 min"]}]},{"name":"COND 2.4","phase":2,"weeks":4,"rows":[{"sec":"prep","id":"p_idrill","wk":["3 x 10m","3 x 15m","4 x 15m","4 x 20m"]},{"sec":"prep","id":"p_wall","wk":["3 x 10m","3 x 10m","3 x 10m","3 x 10m"]},{"sec":"main","id":"r_1560","wk":["8 reps","10 reps","10 reps","12 reps"]},{"sec":"main","id":"r_102030","wk":["4 efforts","5 efforts","6 efforts","6 efforts"]},{"sec":"fin","id":"f_numbers","wk":["3 x 90 sec","4 x 90 sec","4 x 90 sec","4 x 90 sec"]}]},{"name":"COND 2.5","phase":3,"weeks":4,"rows":[{"sec":"prep","id":"p_wall","wk":["3 x 10m","3 x 15m","4 x 15m","4 x 20m"]},{"sec":"prep","id":"p_build","wk":["3 x 20m","3 x 20m","3 x 20m","3 x 20m"]},{"sec":"main","id":"g_rhie","wk":["4 bouts","5 bouts","6 bouts","6 bouts"]},{"sec":"main","id":"g_tube","wk":["3 x 1 min","4 x 1 min","4 x 1 min","4 x 1 min"]},{"sec":"fin","id":"f_ssg","wk":["2 x 2 min","3 x 2 min","3 x 2 min","3 x 2 min"]}]},{"name":"COND 2.6","phase":3,"weeks":4,"rows":[{"sec":"prep","id":"p_build","wk":["3 x 10m","3 x 15m","4 x 15m","4 x 20m"]},{"sec":"prep","id":"p_stick","wk":["4 x 10m","4 x 10m","4 x 10m","4 x 10m"]},{"sec":"main","id":"g_tube","wk":["4 bouts","5 bouts","6 bouts","6 bouts"]},{"sec":"main","id":"g_tshuttle","wk":["3 x 1 min","4 x 1 min","4 x 1 min","4 x 1 min"]},{"sec":"fin","id":"f_2pass","wk":["3 x 90 sec","4 x 90 sec","4 x 90 sec","4 x 90 sec"]}]},{"name":"COND 2.7","phase":4,"weeks":4,"rows":[{"sec":"prep","id":"p_stick","wk":["3 x 10m","3 x 15m","4 x 15m","4 x 20m"]},{"sec":"prep","id":"p_idrill","wk":["3 runs @ 50%","3 runs @ 50%","3 runs @ 50%","3 runs @ 50%"]},{"sec":"main","id":"s_short","wk":["5 reps","6 reps","6 reps","6 reps"]},{"sec":"main","id":"s_line","wk":["3 x 45 sec","4 x 45 sec","5 x 45 sec","5 x 45 sec"]},{"sec":"fin","id":"f_kick","wk":["2 x 2 min","3 x 2 min","3 x 2 min","3 x 2 min"]}]},{"name":"COND 2.8","phase":4,"weeks":4,"rows":[{"sec":"prep","id":"p_idrill","wk":["3 x 10m","3 x 15m","4 x 15m","4 x 20m"]},{"sec":"prep","id":"p_wall","wk":["3 x 10m","3 x 10m","3 x 10m","3 x 10m"]},{"sec":"main","id":"s_line","wk":["5 reps","6 reps","6 reps","6 reps"]},{"sec":"main","id":"s_sim","wk":["3 x 45 sec","4 x 45 sec","5 x 45 sec","5 x 45 sec"]},{"sec":"fin","id":"f_numbers","wk":["3 x 90 sec","4 x 90 sec","4 x 90 sec","4 x 90 sec"]}]}]},{"id":"Lvl 3","year":"Year 9","blocks":[{"name":"COND 3.1","phase":1,"weeks":4,"rows":[{"sec":"prep","id":"p_wall","wk":["3 x 10m","3 x 15m","4 x 15m","4 x 20m"]},{"sec":"prep","id":"p_build","wk":["3 x 20m","3 x 20m","3 x 20m","3 x 20m"]},{"sec":"main","id":"a_321","wk":["3 x 6 min","3 x 7 min","4 x 6 min","4 x 7 min"]},{"sec":"main","id":"a_ball","wk":["3 x 4 min","4 x 4 min","4 x 5 min","4 x 5 min"]},{"sec":"fin","id":"f_ssg","wk":["2 x 2 min","3 x 2 min","3 x 2 min","3 x 2 min"]}]},{"name":"COND 3.2","phase":1,"weeks":4,"rows":[{"sec":"prep","id":"p_build","wk":["3 x 10m","3 x 15m","4 x 15m","4 x 20m"]},{"sec":"prep","id":"p_stick","wk":["4 x 10m","4 x 10m","4 x 10m","4 x 10m"]},{"sec":"main","id":"a_ball","wk":["3 x 6 min","3 x 7 min","4 x 6 min","4 x 7 min"]},{"sec":"main","id":"a_tempo","wk":["3 x 4 min","4 x 4 min","4 x 5 min","4 x 5 min"]},{"sec":"fin","id":"f_2pass","wk":["3 x 90 sec","4 x 90 sec","4 x 90 sec","4 x 90 sec"]}]},{"name":"COND 3.3","phase":2,"weeks":4,"rows":[{"sec":"prep","id":"p_stick","wk":["3 x 10m","3 x 15m","4 x 15m","4 x 20m"]},{"sec":"prep","id":"p_idrill","wk":["3 runs @ 50%","3 runs @ 50%","3 runs @ 50%","3 runs @ 50%"]},{"sec":"main","id":"r_sled","wk":["8 reps","10 reps","10 reps","12 reps"]},{"sec":"main","id":"r_flying","wk":["4 efforts","5 efforts","6 efforts","6 efforts"]},{"sec":"fin","id":"f_kick","wk":["2 x 2 min","3 x 2 min","3 x 2 min","3 x 2 min"]}]},{"name":"COND 3.4","phase":2,"weeks":4,"rows":[{"sec":"prep","id":"p_idrill","wk":["3 x 10m","3 x 15m","4 x 15m","4 x 20m"]},{"sec":"prep","id":"p_mdrill","wk":["3 runs, build 50→75%","3 runs, build 50→75%","3 runs, build 50→75%","3 runs, build 50→75%"]},{"sec":"main","id":"r_flying","wk":["8 reps","10 reps","10 reps","12 reps"]},{"sec":"main","id":"r_1560","wk":["4 efforts","5 efforts","6 efforts","6 efforts"]},{"sec":"fin","id":"f_numbers","wk":["3 x 90 sec","4 x 90 sec","4 x 90 sec","4 x 90 sec"]}]},{"name":"COND 3.5","phase":3,"weeks":4,"rows":[{"sec":"prep","id":"p_mdrill","wk":["3 x 10m","3 x 15m","4 x 15m","4 x 20m"]},{"sec":"prep","id":"p_wall","wk":["3 x 10m","3 x 10m","3 x 10m","3 x 10m"]},{"sec":"main","id":"g_contact_ssg","wk":["4 bouts","5 bouts","6 bouts","6 bouts"]},{"sec":"main","id":"g_rhie","wk":["3 x 1 min","4 x 1 min","4 x 1 min","4 x 1 min"]},{"sec":"fin","id":"f_ssg","wk":["2 x 2 min","3 x 2 min","3 x 2 min","3 x 2 min"]}]},{"name":"COND 3.6","phase":3,"weeks":4,"rows":[{"sec":"prep","id":"p_wall","wk":["3 x 10m","3 x 15m","4 x 15m","4 x 20m"]},{"sec":"prep","id":"p_build","wk":["3 x 20m","3 x 20m","3 x 20m","3 x 20m"]},{"sec":"main","id":"g_rhie","wk":["4 bouts","5 bouts","6 bouts","6 bouts"]},{"sec":"main","id":"g_wrestle","wk":["3 x 1 min","4 x 1 min","4 x 1 min","4 x 1 min"]},{"sec":"fin","id":"f_2pass","wk":["3 x 90 sec","4 x 90 sec","4 x 90 sec","4 x 90 sec"]}]},{"name":"COND 3.7","phase":4,"weeks":4,"rows":[{"sec":"prep","id":"p_build","wk":["3 x 10m","3 x 15m","4 x 15m","4 x 20m"]},{"sec":"prep","id":"p_stick","wk":["4 x 10m","4 x 10m","4 x 10m","4 x 10m"]},{"sec":"main","id":"s_sim","wk":["5 reps","6 reps","6 reps","6 reps"]},{"sec":"main","id":"s_touch","wk":["3 x 45 sec","4 x 45 sec","5 x 45 sec","5 x 45 sec"]},{"sec":"fin","id":"f_kick","wk":["2 x 2 min","3 x 2 min","3 x 2 min","3 x 2 min"]}]},{"name":"COND 3.8","phase":4,"weeks":4,"rows":[{"sec":"prep","id":"p_stick","wk":["3 x 10m","3 x 15m","4 x 15m","4 x 20m"]},{"sec":"prep","id":"p_idrill","wk":["3 runs @ 50%","3 runs @ 50%","3 runs @ 50%","3 runs @ 50%"]},{"sec":"main","id":"s_touch","wk":["5 reps","6 reps","6 reps","6 reps"]},{"sec":"main","id":"s_short","wk":["3 x 45 sec","4 x 45 sec","5 x 45 sec","5 x 45 sec"]},{"sec":"fin","id":"f_numbers","wk":["3 x 90 sec","4 x 90 sec","4 x 90 sec","4 x 90 sec"]}]}]}],"nmc":{"raise":[["Skip / bike / 10m shuttles","60–90 sec","Just enough to warm, not to tire."],["Inch Worm","3 reps","Walk the hands out, hips stay level."],["Walking Lunge","5 e/s","Tall chest, back knee under the hip."]],"spine":[["Low Box Step-Down (15–35 cm)","2 x 6 e/s","Lower slowly, knee over the 2nd toe, touch light, return."],["Jump & Stick Landing","5 jumps","Land soft and quiet, hips back, HOLD 2 seconds."],["Neck Iso Holds — 4-way","1 x 10 sec e/way","Front, back, both sides. Brace before contact."]],"phases":[{"id":1,"name":"ESTABLISH","when":"Typically Lvl 1.1–1.3 · bodyweight, on the floor, slow","items":[["Supine Heel Slide Walkout","2 x 6 e/s","Push the heel into the floor, slide slow, hips do not drop."],["Single Leg Glute Bridge","2 x 8 e/s","Drive through the heel, squeeze at the top, hips level."],["Clamshell","2 x 10 e/s","Hips stacked, lift the top knee without rolling the pelvis back."],["Prone Hip Extension","2 x 8 e/s","Squeeze the glute BEFORE the leg lifts. Slow."],["Dead Bug","2 x 6 e/s","Lower back stays flat on the floor, breathe out on the effort."],["Single Leg Balance","2 x 30 sec e/s","Soft knee, eyes forward, adjust without looking at your feet."]],"weeks":"Weeks 1–5","overload":"Pattern and motor learning","theme":"Bodyweight, on the floor, slow and deliberate. Learn the movement and the firing sequence."},{"id":2,"name":"LOAD","when":"Typically Lvl 1.4–2.2 · bands, more reps, tempo","items":[["Banded Clamshell","2 x 12 e/s","Push against the band the whole way, no pelvis roll."],["Banded Glute Bridge","2 x 12","Knees press out against the band at the top."],["Lateral Band Walk","2 x 10 e/way","Push out against the band every step, knees do not cave."],["Banded Standing Hip Abduction","2 x 12 e/s","Stand tall, do not lean. Control the way back."],["Banded Monster Walk","2 x 8 e/way","Low athletic stance, knees out, short steps."],["Dead Bug with Band","2 x 8 e/s","Pull the band tight, ribs down, back flat."]],"weeks":"Weeks 6–10","overload":"Load and volume","theme":"Same patterns, now under resistance. Heavier bands, more reps and sets, tempo challenges."},{"id":3,"name":"INTEGRATE","when":"Typically Lvl 2.3–3.2 · single-leg demand, unstable surface","items":[["SL Glute Bridge, foot elevated","2 x 8 e/s","Hips stay square, no rotation through the pelvis."],["Lateral Band Walk — low stance","2 x 12 e/way","Stay low the whole set. Hips never rise."],["Single Leg Balance on foam pad","2 x 30 sec e/s","Quiet foot. Correct from the hip, not the ankle."],["SL RDL Reach (dowel)","2 x 6 e/s","Hinge from the hip, dowel stays on head/back/hips."],["Copenhagen Plank, bent knee","2 x 20 sec e/s","Adductor squeeze, hips high, do not sag."],["Pallof Press","2 x 8 e/s","Resist the twist. Slow out, slow back."]],"weeks":"Weeks 11–15","overload":"Instability and complexity","theme":"Functional positions, single-leg demand, unstable surfaces. The system holds under uncertainty."},{"id":4,"name":"EXPRESS","when":"Typically Lvl 3.3–3.8 · reactive, at speed, full intent","items":[["Lateral Band Walk — fast","2 x 15 e/way","Same quality, now at speed. Knees out under pace."],["Pallof Press (Perturbations)","2 x 8 e/s","Partner taps the band. Trunk does not move."],["Single Leg Balance + partner taps","2 x 20 sec e/s","Light contacts at chest and ankle. Hold the knee line."],["Depth Drop to Stick (low box)","2 x 5","Drop, absorb, freeze. Silent landing."],["Reactive SL Hop & Stick (coach call)","2 x 4 e/s","Coach calls the direction late. Stick and hold 2 sec."],["Pallof Press (Partner)","2 x 10 e/s","Partner varies the pull. Brace and breathe."]],"weeks":"Weeks 16–20","overload":"Velocity and reactive demand","theme":"Sport speed, reactive cues, maximum voluntary contraction. Move with full effort."}],"threads":[["Glute med · the Q-angle line",["Clamshell","Banded Clamshell","Lateral Band Walk — low stance","Lateral Band Walk — fast"]],["Glute max · hip extension",["Single Leg Glute Bridge","Banded Glute Bridge","SL Glute Bridge, foot elevated","Depth Drop to Stick"]],["Balance · proprioception",["Single Leg Balance","Banded Monster Walk","Single Leg Balance on foam pad","Single Leg Balance + partner taps"]],["Trunk · anti-extension to anti-rotation",["Dead Bug","Dead Bug with Band","Pallof Press","Pallof Press (Perturbations)"]]]}};
+
+const KEY='keebra-cond-yr79-v1';
+let S={lvl:0,blk:0,view:'block',len:'full',edits:{},notes:{}};
+try{Object.assign(S,JSON.parse(localStorage.getItem(KEY)||'{}'))}catch(e){}
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const lvl=()=>DATA.levels[S.lvl];
+const blk=(l=S.lvl,b=S.blk)=>DATA.levels[l].blocks[b];
+const DR=Object.fromEntries(DATA.drills.map(d=>[d.id,d]));
+const phaseOf=B=>DATA.phases.find(p=>p.id===B.phase);
+const ekey=(l,b,i,f)=>l+'|'+b+'|'+i+'|'+f;
+
+/* ═══ SESSION LENGTH ═══
+   The NMC block and one main conditioning drill are what survive. The
+   second main drill and the finisher game go first: the finisher is
+   enjoyable and skill-rich but it is the least controllable dose. */
+const PLANS={
+  full:{name:'Full',  nmc:'full',  keep:{prep:2,main:2,fin:1}},
+  m25 :{name:'25 min',nmc:'full',  keep:{prep:1,main:2,fin:0}},
+  m15 :{name:'15 min',nmc:'spine', keep:{prep:1,main:1,fin:0}}
+};
+const plan=()=>PLANS[S.len||'full'];
+function rowsFor(B){
+  const k=plan().keep, seen={prep:0,main:0,fin:0};
+  return B.rows.filter(r=>++seen[r.sec]<=k[r.sec]);
+}
+function estimate(B){
+  const r=rowsFor(B), p=plan();
+  return Math.round((p.nmc==='spine'?4.5:7.5)+r.filter(x=>x.sec==='prep').length*2
+                    +r.filter(x=>x.sec==='main').length*7+r.filter(x=>x.sec==='fin').length*7+2);
+}
+function cutNote(){
+  const p=plan(),b=[];
+  if(p.nmc==='spine') b.push('NMC short form');
+  if(p.keep.main<2) b.push('second conditioning drill dropped');
+  if(p.keep.fin<1) b.push('game finisher dropped');
+  if(p.keep.prep<2) b.push('prep trimmed to one drill');
+  return b.length?'Shortened to '+p.name+' — '+b.join(' · '):'';
+}
+const drillOf=(l,b,i,r)=>{const o=S.edits[ekey(l,b,i,'id')]; return DR[o]||DR[r.id];};
+const weekOf=(l,b,i,r,w)=>{const o=S.edits[ekey(l,b,i,'wk'+w)]; return o!=null?o:r.wk[w];};
+
+/* ═══ BLOCK SHEET — whole block, a column per week ═══ */
+function blockSheetHTML(l,b,editable){
+  const L=DATA.levels[l],B=L.blocks[b],ph=phaseOf(B),W=B.weeks;
+  const rows=rowsFor(B), mins=estimate(B), cut=cutNote();
+  const shortNMC=plan().nmc==='spine';
+  const ed=(t,i,f,c)=>editable?`<span class="cell-ed ${c||''}" data-i="${i}" data-f="${f}">${esc(t)}</span>`:esc(t);
+  const SEC={prep:'Movement prep',main:'Main conditioning',fin:'Game finisher'};
+  const band=(sec,label,secs,mins2)=>{
+    const rs=rows.map((r,i)=>[r,i]).filter(([r])=>r.sec===sec);
+    if(!rs.length) return '';
+    return `<div class="sec">
+      <div class="sec-h"><span class="sec-t">${esc(label)}</span><span class="sec-s">${esc(secs)}</span></div>
+      <table class="t wk"><thead><tr><th>Drill</th><th>Set-up &amp; coaching cue</th>
+        ${Array.from({length:W},(_,w)=>`<th class="wkh">Wk ${w+1}</th>`).join('')}</tr></thead>
+      <tbody>${rs.map(([r,i])=>{const D0=drillOf(l,b,i,r);return `<tr>
+        <td class="dn"><span class="exn">${ed(D0.name,i,'id')}</span>
+          <div class="kit">${esc(D0.kit)}${D0.contact?` · <b class="ct">contact</b>`:''}</div></td>
+        <td class="note-cell"><b>${esc(D0.setup)}</b><br>${esc(D0.cue)}
+          <div class="why">${esc(D0.why)}</div></td>
+        ${Array.from({length:W},(_,w)=>`<td class="reps wkc">${ed(weekOf(l,b,i,r,w),i,'wk'+w)}</td>`).join('')}
+      </tr>`;}).join('')}</tbody></table></div>`;
+  };
+  const col=(t,items)=>`<div class="nmc-col"><b>${esc(t)}</b>${items.map(
+     it=>`<div class="nmc-it"><i>${esc(it[0])}</i> <s>${esc(it[1])}</s></div>`).join('')}</div>`;
+
+  return `<div class="pg s-block" style="--s:1.02">
+   <div class="pg-head">
+     <div><div class="pg-h1">${esc(B.name)} &nbsp;·&nbsp; ${esc(ph.name)}</div>
+          <div class="pg-h2">Keebra Park GRLA — ${esc(L.year)} Conditioning</div></div>
+     <div class="pg-meta">
+       <span class="pill" style="background:#E8F4FB;color:#1A7FA8">${esc(ph.term)}</span><br>
+       ${W} weeks on this sheet · about ${mins} min a session
+     </div>
+   </div>
+
+   <div class="aim"><b>Block aim</b> ${esc(ph.aim)} <s>${esc(ph.note)}</s></div>
+
+   <div class="nmc">
+     <div class="nmc-h">NMC — ${shortNMC?'5 min short form':'8 min'} &nbsp;·&nbsp; opens every session, field or gym</div>
+     <div class="nmc-grid" style="${shortNMC?'grid-template-columns:1fr 1fr':''}">
+       ${col('Raise 90 sec',DATA.nmc.raise)}
+       ${col('Spine — every session',DATA.nmc.spine)}
+       ${shortNMC?'':col('Pick 3 from the gym sheet phase',DATA.nmc.phases[Math.min(3,Math.floor(b/2))].items.slice(0,3))}
+     </div>
+   </div>
+
+   ${band('prep','Movement prep','4 min · decel before accel, always')}
+   ${band('main','Main conditioning','14 min · this is the dose')}
+   ${band('fin','Game finisher','7 min · skill under fatigue')}
+
+   <div class="loadbar">${DATA.meta.intensity.map(x=>
+     `<div><b>${esc(x[0])} — ${esc(x[1])}</b><span>${esc(x[2])}</span></div>`).join('')}</div>
+   <div class="rule">${esc(DATA.meta.rule)}</div>
+
+   <div class="check">
+     <b>Check-in before you start</b>
+     <span class="cg">GREEN — full session</span>
+     <span class="ca">AMBER — cut a bout, keep the quality</span>
+     <span class="cr">RED — NMC and skills only</span>
+     <span class="cw">Hot day or luteal phase — fluids out, move it to the cool part of the day</span>
+   </div>
+   ${cut?`<div class="cutline">${esc(cut)}</div>`:''}
+   <div class="lines"><b>Coach notes — who faded, whose technique went, what to change next block</b>
+     ${'<div></div>'.repeat(2)}</div>
+   <div class="foot"><span>${esc(S.notes[l+'|'+b]||'')}</span>
+     <span>CARE · ACCOUNTABILITY · RESPECT · EXCELLENCE</span></div>
+  </div>`;
+}
+
+/* ═══ COACH BRIEFING — the female-specific why ═══ */
+function briefHTML(){
+  return `<div class="pg s-brief" style="--s:1.55">
+   <div class="pg-head">
+     <div><div class="pg-h1">Conditioning the female athlete</div>
+          <div class="pg-h2">Keebra Park GRLA — what changes, and what does not</div></div>
+     <div class="pg-meta">QRL Female Athlete<br>Physical Framework § 4</div>
+   </div>
+   <div class="aim"><b>The principle</b> The principles of training do not change for female athletes. The way they are applied must.
+     <s>Do not assume a conditioning program built for male athletes transfers across.</s></div>
+   <div class="sec">
+     <div class="sec-h"><span class="sec-t">Five differences that change the session</span></div>
+     <table class="t"><thead><tr><th style="width:230px">What is different</th><th>What you do about it</th></tr></thead>
+     <tbody>${DATA.meta.physio.map(p=>`<tr><td class="exn">${esc(p[0])}</td>
+       <td class="note-cell">${esc(p[1])}</td></tr>`).join('')}</tbody></table>
+   </div>
+   <div class="sec">
+     <div class="sec-h"><span class="sec-t">What the game asks for</span>
+       <span class="sec-s">women's rugby league, measured</span></div>
+     <table class="t"><thead><tr><th style="width:230px">Measure</th><th>Number</th></tr></thead><tbody>
+       <tr><td class="exn">Relative distance, NRLW match</td><td class="note-cell">About 79–80 m per minute. State of Origin runs higher at ~81.6, Trans-Tasman Tests lower at ~73.4.</td></tr>
+       <tr><td class="exn">Peak 30-second intensity</td><td class="note-cell">Backs ~189 m/min, forwards ~161 m/min. Over a 10-minute window both settle near 81–89.</td></tr>
+       <tr><td class="exn">A repeat high-intensity bout</td><td class="note-cell">Three or more efforts — sprints, tackles, rucks — inside 21 seconds. Longest bouts run 49–64 seconds.</td></tr>
+       <tr><td class="exn">When bouts happen</td><td class="note-cell">About 70% fall within five minutes of a try being scored. Condition for the critical periods, not the average.</td></tr>
+       <tr><td class="exn">Contact and running together</td><td class="note-cell">Running output drops as contact efforts rise. Training them separately trains neither.</td></tr>
+     </tbody></table>
+   </div>
+   <div class="nmc"><div class="nmc-h">The one rule that outranks the session plan</div>
+     <div class="blurb">${esc(DATA.meta.rule)} A missed bout costs one bout. A soft-tissue injury in week three costs the season.</div></div>
+   <div class="foot"><span>Sources: QRL Female Athlete Physical Framework §4 · Gabbett 2005, 2006 · Austin, Gabbett &amp; Jenkins 2011 · Johnston, Gabbett &amp; Jenkins 2014 · NRLW GPS 2018–19</span><span></span></div>
+  </div>`;
+}
+
+/* ═══ DRILL LIBRARY — the full bank, one page ═══ */
+function libraryHTML(l){
+  const CAT=[['prep','Movement prep'],['main1','Aerobic base'],['main2','Repeat effort'],
+             ['main3','Game speed & RHIE'],['main4','In-season'],['fin','Game finishers']];
+  return `<div class="pg s-lib" style="--s:1.06">
+   <div class="pg-head">
+     <div><div class="pg-h1">Conditioning drill bank</div>
+          <div class="pg-h2">Keebra Park GRLA — ${esc(DATA.levels[l].year)}</div></div>
+     <div class="pg-meta">Everything available to swap in<br><b>contact</b> marks a drill needing contact clearance</div>
+   </div>
+   ${CAT.map(([c,label])=>{
+     const ds=DATA.drills.filter(d=>d.cat===c&&d.lvl.includes(l+1));
+     if(!ds.length) return '';
+     return `<div class="sec"><div class="sec-h"><span class="sec-t">${esc(label)}</span>
+       <span class="sec-s">${ds.length} drill${ds.length>1?'s':''}</span></div>
+       <table class="t"><thead><tr><th style="width:150px">Drill</th><th style="width:94px">Dose</th>
+         <th>Set-up, cue and why</th></tr></thead><tbody>
+       ${ds.map(d=>`<tr><td class="exn">${esc(d.name)}
+          <div class="kit">${esc(d.kit)}${d.contact?' · <b class="ct">contact</b>':''}</div></td>
+         <td class="reps">${esc(d.work)}</td>
+         <td class="note-cell"><b>${esc(d.setup)}</b> ${esc(d.cue)}<div class="why">${esc(d.why)}</div></td></tr>`).join('')}
+       </tbody></table></div>`;}).join('')}
+   <div class="foot"><span>Contact drills follow QRL 5.3: neck and trunk bracing first, controlled positions demonstrated before load.</span><span></span></div>
+  </div>`;
+}
+
+/* ═══ PRINT ═══ */
+function printDoc(body,title){
+  const css=document.getElementById('sheetcss').outerHTML;
+  const w=window.open('','_blank');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(title)}</title>
+   <style>@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+   *{margin:0;padding:0;box-sizing:border-box}body{font-family:'Inter',-apple-system,sans-serif;background:#fff}
+   .pbar{position:fixed;top:0;left:0;right:0;background:#E95B9E;color:#fff;padding:9px;text-align:center;z-index:9}
+   .pbar button{font:700 12px Inter,sans-serif;background:#fff;color:#E95B9E;border:none;padding:7px 18px;border-radius:6px;cursor:pointer}
+   .pad{padding-top:44px}@media print{.pbar{display:none}.pad{padding-top:0}}
+   </style>${css}</head><body>
+   <div class="pbar no-print"><button onclick="window.print()">Print / Save as PDF</button></div>
+   <div class="pad">${body}</div></body></html>`);
+  w.document.close();
+}
+const printOne=()=>{const v=S.view||'block';
+  if(v==='brief') return printDoc(briefHTML(),'Conditioning the female athlete');
+  if(v==='lib')   return printDoc(libraryHTML(S.lvl),'Conditioning drill bank');
+  return printDoc(blockSheetHTML(S.lvl,S.blk,false),blk().name);};
+const printLevel=()=>printDoc(lvl().blocks.map((B,b)=>blockSheetHTML(S.lvl,b,false)).join('')
+  +briefHTML()+libraryHTML(S.lvl),lvl().year+' Conditioning');
+
+/* ═══ EDITING ═══ */
+function onSheetClick(e){
+  const t=e.target.closest('.cell-ed'); if(!t) return;
+  const i=+t.dataset.i,f=t.dataset.f,cur=t.textContent.trim();
+  const B=blk(), r=rowsFor(B)[i];
+  if(f==='id'){
+    const base=DR[r.id], same=DATA.drills.filter(d=>d.cat===base.cat&&d.lvl.includes(S.lvl+1));
+    const other=DATA.drills.filter(d=>d.cat!==base.cat&&d.lvl.includes(S.lvl+1)&&
+       (r.sec==='main'?d.cat.startsWith('main'):d.cat===r.sec));
+    const sel=document.createElement('select');
+    const g=(lab,ds)=>ds.length?`<optgroup label="${esc(lab)}">`+ds.map(d=>
+       `<option value="${esc(d.id)}">${esc(d.name)}</option>`).join('')+'</optgroup>':'';
+    sel.innerHTML=`<option value="${esc(base.id)}" selected>${esc(base.name)}</option>`
+      +g('Same type — '+base.cat.replace('main','phase '),same.filter(d=>d.id!==base.id))
+      +g('Other conditioning drills',other);
+    sel.style.cssText='font:700 11px Inter,sans-serif;max-width:230px';
+    t.replaceWith(sel); sel.focus();
+    let fired=false;
+    const done=()=>{if(fired)return;fired=true;
+      S.edits[ekey(S.lvl,S.blk,i,'id')]=sel.value; save(); render();};
+    sel.onchange=done; sel.onblur=done;
+  }else{
+    const inp=document.createElement('input');
+    inp.value=cur; inp.style.cssText='font:800 11px Inter,sans-serif;width:78px';
+    t.replaceWith(inp); inp.focus(); inp.select();
+    let fired=false;
+    const done=()=>{if(fired)return;fired=true;
+      S.edits[ekey(S.lvl,S.blk,i,f)]=inp.value.trim(); save(); render();};
+    inp.onblur=done;
+    inp.onkeydown=ev=>{if(ev.key==='Enter')inp.blur(); if(ev.key==='Escape'){fired=true;render();}};
+  }
+}
+
+/* ═══ SEND / DATA ═══ */
+function exportDocHTML(){
+  const L=lvl(),css=document.getElementById('sheetcss').outerHTML;
+  const when=new Date().toLocaleDateString('en-AU',{day:'numeric',month:'long',year:'numeric'});
+  const all=L.blocks.map((B,b)=>({name:B.name+' · '+phaseOf(B).name,html:blockSheetHTML(S.lvl,b,false)}))
+    .concat([{name:'Coach briefing',html:briefHTML()},{name:'Drill bank',html:libraryHTML(S.lvl)}]);
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Keebra Park GRLA — ${esc(L.year)} Conditioning</title>
+<style>@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',-apple-system,sans-serif;background:#f5f6f8;color:#1a1a2e}
+.bar{background:#fff;border-bottom:4px solid #E95B9E;position:relative;padding:16px 22px;display:flex;
+ justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+.bar::before{content:'';position:absolute;left:0;right:0;bottom:-4px;height:4px;
+ background:linear-gradient(90deg,#E95B9E 0 50%,#29BAE5 50% 100%)}
+.bar b{font-size:17px;font-weight:900;color:#29BAE5;display:block}
+.bar span{font-size:9.5px;font-weight:700;color:#E95B9E;letter-spacing:2px;text-transform:uppercase}
+.bar button{font:700 12px Inter,sans-serif;background:#E95B9E;color:#fff;border:none;padding:10px 20px;border-radius:7px;cursor:pointer}
+.toc{max-width:1000px;margin:18px auto 0;padding:0 18px;display:flex;flex-wrap:wrap;gap:7px}
+.toc a{font-size:11px;font-weight:700;color:#5e6278;background:#fff;border:1px solid #dfe1e6;border-radius:20px;padding:6px 13px;text-decoration:none}
+.doc{max-width:1000px;margin:18px auto 40px;padding:0 18px;display:flex;flex-direction:column;gap:16px}
+.doc > div{background:#fff;border:1px solid #dfe1e6;border-radius:10px;overflow:hidden}
+@media print{.bar,.toc{display:none!important}.doc{max-width:none;margin:0;padding:0;gap:0;display:block}
+ .doc > div{border:none;border-radius:0}body{background:#fff}}
+</style>${css}</head><body>
+<div class="bar"><div><b>Keebra Park GRLA</b><span>${esc(L.year)} Conditioning</span></div>
+<div style="font-size:11px;color:#8f95a8;font-weight:600">Issued ${esc(when)}</div>
+<button onclick="window.print()">Print / Save as PDF</button></div>
+<div class="toc">${all.map((s,i)=>`<a href="#s${i}">${esc(s.name)}</a>`).join('')}</div>
+<div class="doc">${all.map((s,i)=>`<div id="s${i}">${s.html}</div>`).join('')}</div>
+</body></html>`;
+}
+async function exportSheets(){
+  const name='keebra-conditioning-'+lvl().year.toLowerCase().replace(/\s+/g,'')+'.html';
+  const text=exportDocHTML();
+  let dl=null; try{dl=(window.claude&&claude.use)?await claude.use('downloads'):null;}catch(e){dl=null;}
+  if(dl){ try{await dl.save({filename:name,data:text});}
+    catch(err){ if(!err||err.code!=='declined') alert('Could not save: '+((err&&(err.message||err.code))||err)); }
+    return; }
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([text],{type:'text/html'}));
+  a.download=name; a.click(); URL.revokeObjectURL(a.href);
+}
+function resetAll(){ if(!confirm('Clear every drill swap and note?')) return;
+  S.edits={}; S.notes={}; save(); render(); }
+const setBlock=v=>{S.blk=+v;save();render();};
+const setNote=v=>{S.notes[S.lvl+'|'+S.blk]=v;save();};
+
+/* ═══ RENDER ═══ */
+function render(){
+  const L=lvl(),B=blk(),ph=phaseOf(B),view=S.view||'block';
+  document.getElementById('lvlSeg').innerHTML=DATA.levels.map((l,i)=>
+    `<button class="${i===S.lvl?'on':''}" onclick="S.lvl=${i};S.blk=0;save();render()">${esc(l.year.replace('Year','Yr'))}</button>`).join('');
+  document.getElementById('blkSel').innerHTML=L.blocks.map((b,i)=>
+    `<option value="${i}"${i===S.blk?' selected':''}>${esc(b.name)} — ${esc(phaseOf(b).name)}</option>`).join('');
+  document.getElementById('lenSeg').innerHTML=Object.entries(PLANS).map(([k,p])=>
+    `<button class="${(S.len||'full')===k?'on':''}" onclick="S.len='${k}';save();render()">${esc(p.name)}</button>`).join('');
+  document.getElementById('viewSeg').innerHTML=
+    [['block','Block sheet'],['brief','Coach briefing'],['lib','Drill bank']].map(([k,n])=>
+      `<button class="${view===k?'on':''}" onclick="S.view='${k}';save();render()">${esc(n)}</button>`).join('');
+  document.getElementById('phaseBox').innerHTML=DATA.phases.map(p=>
+    `<div class="phrow ${p.id===ph.id?'on':''}"><b>${esc(p.name)}</b><span>${esc(p.term)}</span></div>`).join('');
+  document.getElementById('timeBox').innerHTML=DATA.meta.time.map(t=>
+    `<div style="display:flex;justify-content:space-between;font-size:11.5px;font-weight:700">
+      <span style="color:var(--ink2)">${esc(t[0])}</span><span>${esc(t[1])}</span></div>`).join('')
+    +`<div style="display:flex;justify-content:space-between;font-size:12px;font-weight:900;
+       border-top:1px solid var(--border);padding-top:6px;margin-top:3px">
+      <span>About</span><span style="color:var(--pink)">${estimate(B)} min</span></div>`;
+  document.getElementById('cutHint').textContent=cutNote()||'Everything in. The NMC block is never dropped.';
+  document.getElementById('noteIn').value=S.notes[S.lvl+'|'+S.blk]||'';
+  document.getElementById('editnote').style.display=view==='block'?'':'none';
+  const sh=document.getElementById('sheet');
+  sh.innerHTML = view==='brief'?briefHTML() : view==='lib'?libraryHTML(S.lvl) : blockSheetHTML(S.lvl,S.blk,true);
+  sh.onclick = view==='block'?onSheetClick:null;
+}
+render();
+
+</script>
+</body>
+</html>
