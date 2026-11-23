@@ -1,0 +1,1042 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b1f3a">
+<title>Off-season Planner</title>
+<style>
+  :root {
+    --bg: #eef1f5;
+    --card: #ffffff;
+    --ink: #0d1422;
+    --ink-2: #39435a;
+    --line: #c9d0dc;
+    --navy: #0b1f3a;
+    --accent: #0a55c2;
+    --accent-ink: #ffffff;
+    --accent-soft: #e3edfc;
+    --good: #12733a;
+    --good-soft: #e2f4e8;
+    --warn: #9a3412;
+    --warn-soft: #fff1e6;
+    --bad: #b42318;
+    --bad-soft: #fdecea;
+    --today: #f5b301;
+    --radius: 14px;
+    --tap: 48px;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 17px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    overflow-x: hidden;
+  }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  :focus-visible { outline: 3px solid var(--today); outline-offset: 2px; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  /* Header */
+  header.top { background: var(--navy); color: #fff; padding: 14px 16px 0; position: sticky; top: 0; z-index: 20; }
+  .top-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; max-width: 1200px; margin: 0 auto; }
+  .brand { font-weight: 800; font-size: 19px; line-height: 1.2; }
+  .brand small { display: block; font-weight: 600; font-size: 13px; color: #b9c7de; letter-spacing: .02em; }
+  .save-status { font-size: 13px; font-weight: 700; color: #9ee6b5; white-space: nowrap; min-height: 1em; }
+  .save-status.off { color: #ffd28a; }
+  nav.tabs { display: flex; gap: 6px; max-width: 1200px; margin: 12px auto 0; }
+  nav.tabs button {
+    flex: 1; min-height: var(--tap); border: 0; border-radius: 12px 12px 0 0;
+    background: transparent; color: #d4deee; font-weight: 700; font-size: 16px;
+  }
+  nav.tabs button[aria-selected="true"] { background: var(--bg); color: var(--ink); }
+
+  main { max-width: 1200px; margin: 0 auto; padding: 14px 16px 90px; }
+  .banner { border-radius: var(--radius); padding: 12px 14px; margin-bottom: 14px; font-weight: 600; }
+  .banner.warn { background: var(--warn-soft); color: var(--warn); border: 2px solid #f3b989; }
+
+  /* Week selector */
+  .week-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; margin: 2px 0 8px; }
+  .week-head h1 { font-size: 24px; margin: 0; }
+  .week-head .week-note { color: var(--ink-2); font-size: 15px; font-weight: 600; }
+  .weeks { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-bottom: 14px; }
+  .weeks button {
+    min-height: var(--tap); border: 2px solid var(--line); background: var(--card); border-radius: 12px;
+    font-weight: 800; font-size: 18px; padding: 0; position: relative;
+  }
+  .weeks button span { display: block; font-size: 11px; font-weight: 700; color: var(--ink-2); line-height: 1; }
+  .weeks button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .weeks button[aria-pressed="true"] span { color: #dce8ff; }
+
+  /* Target panel */
+  .target-panel { background: var(--card); border: 2px solid var(--line); border-radius: var(--radius); padding: 14px; margin-bottom: 14px; }
+  .target-panel h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .06em; margin: 0 0 4px; color: var(--ink-2); }
+  .target-big { font-size: 24px; font-weight: 800; line-height: 1.2; }
+  .target-sub { color: var(--ink-2); font-size: 15px; margin-top: 2px; }
+  .lane-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+  .lane-row .lbl { font-size: 15px; font-weight: 600; color: var(--ink-2); width: 100%; }
+  .chip {
+    min-height: var(--tap); min-width: var(--tap); padding: 0 14px; border-radius: 999px;
+    border: 2px solid var(--line); background: #fff; font-weight: 800;
+  }
+  .chip[aria-pressed="true"] { background: var(--navy); border-color: var(--navy); color: #fff; }
+  .chip small { font-weight: 600; font-size: 13px; }
+
+  /* Today strip */
+  .today-strip { background: #fff8e0; border: 2px solid var(--today); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 14px; }
+  .today-strip h2 { margin: 0 0 6px; font-size: 18px; }
+  .today-strip ul { margin: 0; padding: 0; list-style: none; }
+  .today-strip li button { all: unset; cursor: pointer; display: block; padding: 6px 0; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+  .today-strip li button:focus-visible { outline: 3px solid var(--accent); }
+
+  /* Day cards */
+  .days { display: grid; grid-template-columns: 1fr; gap: 12px; }
+  @media (min-width: 760px) { .days { grid-template-columns: repeat(2, 1fr); } }
+  @media (min-width: 1100px) { .days { grid-template-columns: repeat(3, 1fr); } }
+  .day { background: var(--card); border: 2px solid var(--line); border-radius: var(--radius); padding: 12px; min-width: 0; }
+  .day.is-today { border-color: var(--today); box-shadow: 0 0 0 3px #ffe8a3; }
+  .day-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+  .day-head h3 { margin: 0; font-size: 20px; }
+  .badge { font-size: 12px; font-weight: 800; padding: 3px 9px; border-radius: 999px; background: var(--today); color: #241a00; text-transform: uppercase; letter-spacing: .04em; }
+  .day-count { font-size: 14px; color: var(--ink-2); font-weight: 600; }
+  .empty-day { color: var(--ink-2); font-size: 15px; margin: 2px 0 10px; }
+  .sessions { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 8px; }
+  .sess { display: flex; align-items: stretch; gap: 8px; border: 2px solid var(--line); border-radius: 12px; background: #fafbfd; min-width: 0; }
+  .sess.done { background: var(--good-soft); border-color: #9fd3b1; }
+  .tick {
+    flex: 0 0 auto; width: 52px; border: 0; border-right: 2px solid var(--line); background: transparent;
+    border-radius: 10px 0 0 10px; display: grid; place-items: center;
+  }
+  .tick .box { width: 30px; height: 30px; border: 3px solid var(--ink-2); border-radius: 8px; display: grid; place-items: center; background: #fff; }
+  .sess.done .tick { border-right-color: #9fd3b1; }
+  .sess.done .tick .box { background: var(--good); border-color: var(--good); }
+  .tick svg { width: 20px; height: 20px; visibility: hidden; }
+  .sess.done .tick svg { visibility: visible; }
+  .open { flex: 1; min-width: 0; text-align: left; background: transparent; border: 0; padding: 10px 10px 10px 2px; }
+  .open .t { display: block; font-weight: 800; font-size: 17px; line-height: 1.25; overflow-wrap: anywhere; }
+  .sess.done .open .t { text-decoration: line-through; text-decoration-thickness: 2px; }
+  .open .m { display: block; font-size: 15px; color: var(--ink-2); margin-top: 3px; overflow-wrap: anywhere; }
+  .open .m strong { color: var(--ink); }
+  .open .warnline { color: var(--warn); font-weight: 700; }
+  .tag { display: inline-block; font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; padding: 2px 7px; border-radius: 6px; margin-bottom: 4px; color: #fff; }
+  .tag.broncos { background: #a33a00; } .tag.mas { background: #0a55c2; } .tag.gym { background: #5b2a86; }
+  .tag.skills { background: #0f6e5b; } .tag.speed { background: #a1166a; } .tag.team { background: #1f2f4d; }
+  .tag.recovery { background: #3d6b12; } .tag.custom { background: #4a5468; }
+  .add-btn {
+    width: 100%; min-height: var(--tap); border: 2px dashed #8b97ad; border-radius: 12px; background: #fff;
+    font-weight: 800; color: var(--accent);
+  }
+
+  /* Buttons */
+  .btn { min-height: var(--tap); padding: 0 16px; border-radius: 12px; border: 2px solid var(--line); background: #fff; font-weight: 800; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.good { background: var(--good); border-color: var(--good); color: #fff; }
+  .btn.danger { color: var(--bad); border-color: #f0a29b; }
+  .btn[aria-pressed="true"] { background: var(--navy); border-color: var(--navy); color: #fff; }
+  .btn-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .btn-row .btn { flex: 1 1 140px; }
+  .linkish { background: none; border: 0; padding: 0; color: var(--accent); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; min-height: 0; }
+
+  /* Calculator */
+  .panel { background: var(--card); border: 2px solid var(--line); border-radius: var(--radius); padding: 16px; margin-bottom: 14px; }
+  .panel h1 { font-size: 24px; margin: 0 0 6px; }
+  .panel h2 { font-size: 19px; margin: 0 0 8px; }
+  .panel p { margin: 0 0 10px; }
+  fieldset { border: 0; padding: 0; margin: 0 0 14px; min-width: 0; }
+  legend { font-weight: 800; font-size: 18px; margin-bottom: 8px; padding: 0; }
+  .time-fields { display: flex; gap: 10px; }
+  .time-fields label { flex: 1; font-weight: 700; font-size: 15px; color: var(--ink-2); }
+  .time-fields input { display: block; width: 100%; margin-top: 4px; }
+  input[type="text"], input[type="number"], input[type="time"], select, textarea {
+    min-height: var(--tap); width: 100%; border: 2px solid #8b97ad; border-radius: 10px; padding: 8px 12px; background: #fff; font-size: 18px;
+  }
+  .time-fields input { font-size: 26px; font-weight: 800; text-align: center; }
+  input[aria-invalid="true"] { border-color: var(--bad); background: var(--bad-soft); }
+  textarea { min-height: 96px; resize: vertical; }
+  .radio-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .radio-row label { display: flex; align-items: center; gap: 10px; min-height: var(--tap); border: 2px solid var(--line); border-radius: 12px; padding: 8px 12px; font-weight: 700; }
+  .radio-row input { width: 22px; height: 22px; accent-color: var(--accent); flex: 0 0 auto; }
+  .radio-row label:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+  .hint { font-size: 15px; color: var(--ink-2); margin-top: 6px; }
+  .error { background: var(--bad-soft); color: var(--bad); border: 2px solid #f0a29b; border-radius: 12px; padding: 10px 12px; font-weight: 700; margin-top: 10px; }
+  .result { border: 3px solid var(--accent); border-radius: var(--radius); padding: 14px; background: var(--accent-soft); margin-top: 12px; }
+  .result .headline { font-size: 28px; font-weight: 900; line-height: 1.15; }
+  .result dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 10px 0 0; font-size: 16px; }
+  .result dt { color: var(--ink-2); font-weight: 600; }
+  .result dd { margin: 0; font-weight: 800; }
+  .placeholder { border: 2px dashed var(--line); border-radius: var(--radius); padding: 14px; color: var(--ink-2); margin-top: 12px; }
+  details { margin-top: 8px; }
+  summary { cursor: pointer; font-weight: 700; min-height: 40px; display: flex; align-items: center; }
+  .formula { font-size: 15px; color: var(--ink-2); }
+  .formula ol { padding-left: 20px; margin: 6px 0 0; }
+
+  /* Sheet (dialog) */
+  dialog.sheet {
+    border: 0; padding: 0; width: min(640px, 100%); max-width: 100%; max-height: 92vh;
+    border-radius: 18px 18px 0 0; margin: auto auto 0; background: var(--card); color: var(--ink);
+  }
+  @media (min-width: 700px) { dialog.sheet { border-radius: 18px; margin: auto; } }
+  dialog.sheet::backdrop { background: rgba(5, 12, 25, .55); }
+  .sheet-head { position: sticky; top: 0; background: var(--card); display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 14px 16px 10px; border-bottom: 2px solid var(--line); z-index: 1; }
+  .sheet-head h2 { margin: 0; font-size: 21px; line-height: 1.25; overflow-wrap: anywhere; }
+  .sheet-head .sub { font-size: 15px; color: var(--ink-2); font-weight: 600; }
+  .close-x { flex: 0 0 auto; width: var(--tap); height: var(--tap); border-radius: 12px; border: 2px solid var(--line); background: #fff; font-size: 26px; line-height: 1; font-weight: 700; }
+  .sheet-body { padding: 14px 16px 24px; }
+  .sheet-body section { margin-bottom: 16px; }
+  .sheet-body h3 { font-size: 15px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-2); margin: 0 0 6px; }
+  .sheet-body p, .sheet-body ul, .sheet-body ol { margin: 0 0 8px; }
+  .sheet-body ul, .sheet-body ol { padding-left: 22px; }
+  .facts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .fact { background: var(--bg); border-radius: 12px; padding: 10px 12px; }
+  .fact b { display: block; font-size: 20px; line-height: 1.2; }
+  .fact span { font-size: 13px; font-weight: 700; color: var(--ink-2); text-transform: uppercase; letter-spacing: .04em; }
+  .fact.wide { grid-column: 1 / -1; }
+  .seq { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; padding: 0 !important; }
+  .seq li { padding: 6px 10px; border-radius: 8px; font-weight: 800; font-size: 15px; }
+  .seq .run { background: #a33a00; color: #fff; }
+  .seq .rest { background: var(--bg); border: 2px solid var(--line); }
+  .seq .rest.long { background: #fff1e6; border-color: #f3b989; }
+  .field { margin-bottom: 14px; }
+  .field > label, .field > .lbl { display: block; font-weight: 800; margin-bottom: 6px; }
+  .field .opt { font-weight: 600; color: var(--ink-2); font-size: 14px; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .type-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .type-grid button { min-height: var(--tap); border: 2px solid var(--line); border-radius: 10px; background: #fff; font-weight: 700; font-size: 15px; padding: 4px; }
+  .type-grid button[aria-pressed="true"] { background: var(--navy); border-color: var(--navy); color: #fff; }
+  .check-row { display: flex; gap: 12px; align-items: flex-start; border: 2px solid var(--line); border-radius: 12px; padding: 12px; }
+  .check-row input { width: 26px; height: 26px; flex: 0 0 auto; accent-color: var(--accent); margin: 0; }
+  .check-row b { display: block; }
+  .check-row span { font-size: 15px; color: var(--ink-2); }
+  .notes-box { white-space: pre-wrap; background: var(--bg); border-radius: 12px; padding: 10px 12px; overflow-wrap: anywhere; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%) translateY(150%);
+    background: var(--navy); color: #fff; padding: 12px 18px; border-radius: 12px; font-weight: 700;
+    max-width: calc(100% - 32px); transition: transform .2s ease; z-index: 50; text-align: center;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  footer.foot { text-align: center; font-size: 13px; color: var(--ink-2); padding: 10px 16px 30px; }
+  @media (max-width: 380px) {
+    body { font-size: 16px; }
+    .type-grid { grid-template-columns: repeat(2, 1fr); }
+    .radio-row { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-row">
+    <div class="brand" id="brand">Off-season Planner<small>6-week program</small></div>
+    <div class="save-status" id="saveStatus" role="status" aria-live="polite"></div>
+  </div>
+  <nav class="tabs" role="tablist" aria-label="Sections">
+    <button role="tab" id="tab-week" aria-controls="view" aria-selected="true" data-view="week">My week</button>
+    <button role="tab" id="tab-calc" aria-controls="view" aria-selected="false" data-view="calc">Bronco calculator</button>
+  </nav>
+</header>
+
+<main id="main">
+  <div id="storageBanner"></div>
+  <div id="view" role="tabpanel"></div>
+</main>
+<footer class="foot" id="foot"></footer>
+
+<dialog class="sheet" id="sheet" aria-labelledby="sheetTitle"></dialog>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* =====================================================================
+   COACH CONFIGURATION — change these before sending the file to players
+   ---------------------------------------------------------------------
+   Everything a coach is likely to adjust lives in this one block:
+   weekly doses, default weekdays, squad lane distances, rest and
+   recovery timings, and the Bronco turn adjustments.
+   ===================================================================== */
+const CONFIG = {
+  // Shown in the header.
+  programName: "Off-season Planner",
+  programSubtitle: "Pathways · 6-week program",
+
+  // Where each player's data is saved on their own device. Change this text
+  // (e.g. "...-2027") when you send out a NEW program so players start fresh.
+  storageKey: "rl-offseason-planner-v1",
+
+  // Optional: the Monday that Week 1 starts, as "YYYY-MM-DD" (e.g. "2026-12-01").
+  // Leave as "" if players start whenever they like. When set, the planner
+  // marks "Today" only in the matching week and offers a "Go to this week" button.
+  programStartMonday: "",
+
+  // Default weekdays for the two conditioning sessions (Mon, Tue, Wed, Thu, Fri, Sat, Sun).
+  defaultDays: { broncos: "Tue", mas: "Fri" },
+
+  // Weekly doses. One row per week. Add or remove rows to change program length.
+  //   broncos: sets × reps of Broken Broncos
+  //   mas:     sets × runs of Straight-line MAS
+  //   note:    optional short line shown at the top of that week
+  weeks: [
+    { week: 1, broncos: { sets: 2, reps: 2 }, mas: { sets: 2, runs: 6 }, note: "Build in" },
+    { week: 2, broncos: { sets: 1, reps: 3 }, mas: { sets: 2, runs: 7 }, note: "" },
+    { week: 3, broncos: { sets: 1, reps: 4 }, mas: { sets: 2, runs: 8 }, note: "" },
+    { week: 4, broncos: { sets: 1, reps: 5 }, mas: { sets: 2, runs: 8 }, note: "Peak week" },
+    // Weeks 5–6: coach-editable extension — repeat Week 4, then ease back before team training.
+    { week: 5, broncos: { sets: 1, reps: 5 }, mas: { sets: 2, runs: 8 }, note: "Repeat Week 4 workload" },
+    { week: 6, broncos: { sets: 1, reps: 3 }, mas: { sets: 2, runs: 6 }, note: "Ease back before team training" }
+  ],
+
+  // Broken Broncos workout (training session, not the timed test).
+  broncos: {
+    legsM: [20, 40, 60],          // out-and-back distances in one rep (all from the same line)
+    repTargetSec: 60,             // aim to finish each rep within this time
+    restBetweenRepsSec: 60,
+    restBetweenSetsSec: 120       // used on its own at the set break
+  },
+
+  // Straight-line MAS runs.
+  mas: {
+    effortSec: 15,                // each run lasts this long
+    intensity: 1.20,              // 120% of estimated MAS
+    recoveryBetweenRunsSec: 15,
+    restBetweenSetsSec: 120,
+    recoveryConeM: 10             // recovery cone this far beyond each end
+  },
+
+  // Squad lanes (cone distance in metres for a 15-second run).
+  lanes: [
+    { id: "A", m: 62 },
+    { id: "B", m: 59 },
+    { id: "C", m: 55 },
+    { id: "D", m: 52 }
+  ],
+
+  // Bronco calculator.
+  calculator: {
+    testDistanceM: 1200,
+    turnAdjustSec: { under100: 20.3, over100: 29 }
+  },
+
+  warmupMinutes: "8–10"
+};
+/* ======================= END OF COACH CONFIGURATION ===================== */
+
+
+(function () {
+  "use strict";
+
+  const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+  const SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const TYPES = {
+    broncos:  { label: "Conditioning" },
+    mas:      { label: "Conditioning" },
+    gym:      { label: "Gym" },
+    skills:   { label: "Skills" },
+    speed:    { label: "Speed" },
+    team:     { label: "Team training" },
+    recovery: { label: "Recovery" },
+    custom:   { label: "Custom" }
+  };
+  const ADDABLE = ["gym", "skills", "speed", "team", "recovery", "custom"];
+  const WEEKS = CONFIG.weeks.map(w => w.week);
+  const LAST_WEEK = WEEKS[WEEKS.length - 1];
+  const STATE_VERSION = 1;
+
+  /* ---------- helpers ---------- */
+  const $ = (sel, root = document) => root.querySelector(sel);
+  const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const uid = () => "s" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  const dayIndex = short => Math.max(0, SHORT.indexOf(short));
+  const weekCfg = w => CONFIG.weeks.find(x => x.week === w) || CONFIG.weeks[0];
+  const repMetres = () => CONFIG.broncos.legsM.reduce((a, b) => a + b * 2, 0);
+  const plural = (n, one, many) => n + " " + (n === 1 ? one : (many || one + "s"));
+
+  function fmtDur(sec) {
+    if (sec < 60) return sec + " s";
+    const m = Math.floor(sec / 60), s = sec % 60;
+    return s ? `${m} min ${s} s` : `${m} min`;
+  }
+  function fmtDurLong(sec) {
+    if (sec < 60) return plural(sec, "second");
+    const m = Math.floor(sec / 60), s = sec % 60;
+    return s ? `${plural(m, "minute")} ${plural(s, "second")}` : plural(m, "minute");
+  }
+  function fmtTime(hhmm) {
+    if (!/^\d{2}:\d{2}$/.test(hhmm || "")) return "";
+    let [h, m] = hhmm.split(":").map(Number);
+    const ap = h >= 12 ? "pm" : "am";
+    h = h % 12 || 12;
+    return `${h}:${String(m).padStart(2, "0")} ${ap}`;
+  }
+  function todayIdx() { return (new Date().getDay() + 6) % 7; }
+  function programWeekNow() {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(CONFIG.programStartMonday)) return null;
+    const [y, mo, d] = CONFIG.programStartMonday.split("-").map(Number);
+    const start = new Date(y, mo - 1, d);
+    const now = new Date(); now.setHours(0, 0, 0, 0);
+    const diffDays = Math.round((now - start) / 86400000);
+    if (diffDays < 0) return null;
+    const wk = Math.floor(diffDays / 7) + 1;
+    return WEEKS.includes(wk) ? wk : null;
+  }
+
+  /* ---------- storage ---------- */
+  let storageOK = false;
+  try {
+    const k = CONFIG.storageKey + "__test";
+    window.localStorage.setItem(k, "1");
+    window.localStorage.removeItem(k);
+    storageOK = true;
+  } catch (e) { storageOK = false; }
+
+  function seedSessions() {
+    const list = [];
+    let order = 0;
+    CONFIG.weeks.forEach(w => {
+      list.push({ id: uid(), week: w.week, day: dayIndex(CONFIG.defaultDays.broncos), type: "broncos", title: "Broken Broncos", start: "", duration: "", notes: "", done: false, order: order++ });
+      list.push({ id: uid(), week: w.week, day: dayIndex(CONFIG.defaultDays.mas), type: "mas", title: "Straight-line MAS", start: "", duration: "", notes: "", done: false, order: order++ });
+    });
+    return list;
+  }
+  function freshState() {
+    const now = programWeekNow();
+    return {
+      version: STATE_VERSION,
+      seeded: true,
+      week: now || WEEKS[0],
+      view: "week",
+      calc: { min: "", sec: "", weight: "under100", mode: "individual", lane: null },
+      sessions: seedSessions(),
+      nextOrder: CONFIG.weeks.length * 2
+    };
+  }
+  function loadState() {
+    if (!storageOK) return { state: freshState(), isNew: true };
+    let raw = null;
+    try { raw = window.localStorage.getItem(CONFIG.storageKey); } catch (e) { raw = null; }
+    if (!raw) return { state: freshState(), isNew: true };
+    try {
+      const s = JSON.parse(raw);
+      if (!s || !Array.isArray(s.sessions) || !s.seeded) throw new Error("bad");
+      // fill any gaps defensively — never re-seed an existing planner
+      s.calc = Object.assign({ min: "", sec: "", weight: "under100", mode: "individual", lane: null }, s.calc || {});
+      if (!WEEKS.includes(s.week)) s.week = WEEKS[0];
+      if (s.view !== "calc") s.view = "week";
+      if (typeof s.nextOrder !== "number") s.nextOrder = s.sessions.reduce((m, x) => Math.max(m, (x.order || 0) + 1), 0);
+      return { state: s, isNew: false };
+    } catch (e) {
+      return { state: freshState(), isNew: true };
+    }
+  }
+
+  const loaded = loadState();
+  const state = loaded.state;
+
+  let toastTimer = null;
+  function save() {
+    const el = $("#saveStatus");
+    if (!storageOK) { el.textContent = "Not saving"; el.className = "save-status off"; return false; }
+    try {
+      window.localStorage.setItem(CONFIG.storageKey, JSON.stringify(state));
+      el.textContent = "✓ Saved on this device";
+      el.className = "save-status";
+      return true;
+    } catch (e) {
+      storageOK = false;
+      renderStorageBanner();
+      el.textContent = "Not saving"; el.className = "save-status off";
+      return false;
+    }
+  }
+  function toast(msg) {
+    const t = $("#toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove("show"), 2200);
+  }
+  function renderStorageBanner() {
+    $("#storageBanner").innerHTML = storageOK ? "" :
+      `<div class="banner warn" role="alert">This browser isn’t letting the planner save (private browsing or storage turned off). You can still use it now, but your changes will be lost when you close this page. Open the file in a normal browser tab to keep your plan.</div>`;
+  }
+
+  /* ---------- Bronco calculator ---------- */
+  function calcResult(c) {
+    const mRaw = String(c.min || "").trim(), sRaw = String(c.sec || "").trim();
+    const errs = { min: false, sec: false, msg: "" };
+    if (mRaw !== "" && !/^\d+$/.test(mRaw)) { errs.min = true; errs.msg = "Minutes must be a whole number, like 6."; }
+    if (sRaw !== "") {
+      if (!/^\d+$/.test(sRaw)) { errs.sec = true; errs.msg = errs.msg || "Seconds must be a whole number from 0 to 59."; }
+      else if (Number(sRaw) > 59) {
+        errs.sec = true;
+        let tip = "";
+        if (/^\d+$/.test(mRaw)) {
+          const tot = Number(mRaw) * 60 + Number(sRaw);
+          tip = ` Did you mean ${Math.floor(tot / 60)} min ${tot % 60} sec?`;
+        }
+        errs.msg = errs.msg || `Seconds must be from 0 to 59.${tip}`;
+      }
+    }
+    if (errs.min || errs.sec) return { status: "error", errs };
+    if (mRaw === "" || sRaw === "") return { status: "empty", errs };
+    const total = Number(mRaw) * 60 + Number(sRaw);
+    const adj = c.weight === "over100" ? CONFIG.calculator.turnAdjustSec.over100 : CONFIG.calculator.turnAdjustSec.under100;
+    if (total <= adj) {
+      return { status: "error", errs: { min: true, sec: true, msg: `That time is too fast for a full 1.2 km Bronco. Check your minutes and seconds.` } };
+    }
+    const mas = CONFIG.calculator.testDistanceM / (total - adj);
+    const dist = mas * CONFIG.mas.intensity * CONFIG.mas.effortSec;
+    const rounded = Math.round(dist);
+    const nearest = CONFIG.lanes.slice().sort((a, b) => {
+      const d = Math.abs(a.m - dist) - Math.abs(b.m - dist);
+      return Math.abs(d) < 1e-9 ? a.m - b.m : d; // exact tie → shorter lane
+    })[0];
+    return { status: "ok", total, adj, mas, dist, rounded, nearest };
+  }
+  function laneById(id) { return CONFIG.lanes.find(l => l.id === id) || null; }
+
+  // The active running target used on every MAS card.
+  function currentTarget() {
+    const r = calcResult(state.calc);
+    if (state.calc.mode === "lane") {
+      const lane = laneById(state.calc.lane);
+      if (lane) return { m: lane.m, kind: "lane", label: `Squad lane ${lane.id}`, short: `Lane ${lane.id}` };
+      return null;
+    }
+    if (r.status === "ok") {
+      return { m: r.rounded, kind: "individual", label: `My distance (Bronco ${Number(state.calc.min)}:${String(Number(state.calc.sec)).padStart(2, "0")})`, short: "My distance" };
+    }
+    return null;
+  }
+
+  /* ---------- session helpers ---------- */
+  function sessionsFor(week, day) {
+    return state.sessions
+      .filter(s => s.week === week && s.day === day)
+      .sort((a, b) => {
+        const at = a.start || "", bt = b.start || "";
+        if (at && bt && at !== bt) return at < bt ? -1 : 1;
+        if (at && !bt) return -1;
+        if (!at && bt) return 1;
+        return (a.order || 0) - (b.order || 0);
+      });
+  }
+  const findSession = id => state.sessions.find(s => s.id === id);
+
+  function doseText(s) {
+    const w = weekCfg(s.week);
+    if (s.type === "broncos") return `${plural(w.broncos.sets, "set")} of ${w.broncos.reps}`;
+    if (s.type === "mas") return `${plural(w.mas.sets, "set")} of ${plural(w.mas.runs, "run")}`;
+    return "";
+  }
+  function timeMeta(s) {
+    const bits = [];
+    if (s.start) bits.push(fmtTime(s.start));
+    if (s.duration) bits.push(`${s.duration} min`);
+    return bits.join(" · ");
+  }
+  function broncosSequence(sets, reps) {
+    const seq = [];
+    for (let i = 0; i < sets; i++) {
+      for (let j = 0; j < reps; j++) {
+        seq.push({ k: "run" });
+        if (j < reps - 1) seq.push({ k: "rest", sec: CONFIG.broncos.restBetweenRepsSec });
+      }
+      if (i < sets - 1) seq.push({ k: "rest", sec: CONFIG.broncos.restBetweenSetsSec, long: true });
+    }
+    return seq;
+  }
+
+  /* ---------- rendering: header / tabs ---------- */
+  function renderChrome() {
+    $("#brand").innerHTML = `${esc(CONFIG.programName)}<small>${esc(CONFIG.programSubtitle)}</small>`;
+    document.querySelectorAll("nav.tabs button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.view === state.view)));
+    $("#view").setAttribute("aria-labelledby", state.view === "calc" ? "tab-calc" : "tab-week");
+    $("#foot").textContent = storageOK ? "Your plan is saved only on this device and browser." : "";
+  }
+  function render() {
+    renderChrome();
+    if (state.view === "calc") renderCalc(); else renderWeek();
+  }
+
+  /* ---------- My week ---------- */
+  function targetPanelHTML() {
+    const t = currentTarget();
+    const r = calcResult(state.calc);
+    let big, sub;
+    if (t) {
+      big = `Run ${t.m} m in ${CONFIG.mas.effortSec} seconds`;
+      sub = `Using: <strong>${esc(t.label)}</strong>`;
+      if (t.kind === "lane" && r.status === "ok") sub += ` · your own distance is ${r.rounded} m`;
+    } else {
+      big = "No running target yet";
+      sub = state.calc.mode === "lane"
+        ? "Pick your squad lane below."
+        : "Enter your Bronco time, or pick the lane your coach gave you.";
+    }
+    return `
+      <section class="target-panel" aria-labelledby="tpH">
+        <h2 id="tpH">MAS running target</h2>
+        <div class="target-big">${big}</div>
+        <div class="target-sub">${sub}</div>
+        <div class="lane-row">
+          <span class="lbl">Squad lane:</span>
+          ${CONFIG.lanes.map(l => `<button class="chip" data-act="lane" data-lane="${l.id}" aria-pressed="${state.calc.mode === "lane" && state.calc.lane === l.id}" aria-label="Lane ${l.id}, ${l.m} metres">${l.id} <small>${l.m} m</small></button>`).join("")}
+          ${r.status === "ok" ? `<button class="chip" data-act="mode-ind" aria-pressed="${state.calc.mode === "individual"}">Mine <small>${r.rounded} m</small></button>` : ""}
+        </div>
+        <p class="hint" style="margin:8px 0 0"><button class="linkish" data-act="go-calc">${r.status === "ok" ? "Change my Bronco time" : "Enter my Bronco time"}</button></p>
+      </section>`;
+  }
+
+  function sessionRowHTML(s) {
+    const t = currentTarget();
+    let tagCls = s.type, tagLbl = TYPES[s.type] ? TYPES[s.type].label : "Session";
+    if (s.type === "broncos" || s.type === "mas") tagLbl = "Conditioning";
+    let title = esc(s.title), lines = [];
+    if (s.type === "broncos") {
+      title = `${esc(s.title)} · ${doseText(s)}`;
+      lines.push(`${repMetres()} m reps · ${fmtDur(CONFIG.broncos.restBetweenRepsSec)} rest between reps${weekCfg(s.week).broncos.sets > 1 ? `, ${fmtDur(CONFIG.broncos.restBetweenSetsSec)} between sets` : ""}`);
+    } else if (s.type === "mas") {
+      title = `${esc(s.title)} · ${doseText(s)}`;
+      if (t) lines.push(`<strong>${t.m} m in ${CONFIG.mas.effortSec} s</strong> · ${esc(t.short)}`);
+      else lines.push(`<span class="warnline">Set your target: Bronco time or lane</span>`);
+      lines.push(`${fmtDur(CONFIG.mas.recoveryBetweenRunsSec)} recovery between runs · ${fmtDur(CONFIG.mas.restBetweenSetsSec)} between sets`);
+    }
+    const tm = timeMeta(s);
+    if (tm) lines.unshift(tm);
+    if (s.notes) lines.push(`📝 ${esc(s.notes.length > 70 ? s.notes.slice(0, 70) + "…" : s.notes)}`);
+    return `
+      <li class="sess${s.done ? " done" : ""}">
+        <button class="tick" data-act="tick" data-id="${s.id}" aria-pressed="${!!s.done}" aria-label="${s.done ? "Completed" : "Mark complete"}: ${esc(s.title)}">
+          <span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg></span>
+        </button>
+        <button class="open" data-act="open" data-id="${s.id}">
+          <span class="tag ${tagCls}">${esc(tagLbl)}</span>
+          <span class="t">${title}</span>
+          ${lines.map(l => `<span class="m">${l}</span>`).join("")}
+        </button>
+      </li>`;
+  }
+
+  function renderWeek() {
+    const wk = state.week;
+    const wc = weekCfg(wk);
+    const nowWeek = programWeekNow();
+    const showToday = CONFIG.programStartMonday ? nowWeek === wk : true;
+    const tIdx = todayIdx();
+    const weekSessions = state.sessions.filter(s => s.week === wk);
+    const doneCount = weekSessions.filter(s => s.done).length;
+
+    let html = "";
+    html += `<div class="week-head"><h1>Week ${wk} <span class="sr">of ${WEEKS.length}</span></h1>
+      <span class="week-note">${wc.note ? esc(wc.note) + " · " : ""}${doneCount}/${weekSessions.length} done</span></div>`;
+    html += `<div class="weeks" role="group" aria-label="Choose week">${WEEKS.map(w => {
+      const ws = state.sessions.filter(s => s.week === w);
+      const all = ws.length && ws.every(s => s.done);
+      return `<button data-act="week" data-week="${w}" aria-pressed="${w === wk}" aria-label="Week ${w}${all ? ", all done" : ""}"><span>WK</span>${w}${all ? " ✓" : ""}</button>`;
+    }).join("")}</div>`;
+    if (nowWeek && nowWeek !== wk) {
+      html += `<p style="margin:-4px 0 12px"><button class="btn" data-act="week" data-week="${nowWeek}">Go to this week (Week ${nowWeek})</button></p>`;
+    }
+
+    if (showToday) {
+      const todays = sessionsFor(wk, tIdx);
+      html += `<section class="today-strip" aria-labelledby="todayH"><h2 id="todayH">Today · ${DAYS[tIdx]}</h2>${
+        todays.length
+          ? `<ul>${todays.map(s => `<li><button data-act="open" data-id="${s.id}">${s.done ? "✓ " : ""}${esc(s.title)}${doseText(s) ? " · " + doseText(s) : ""}${s.start ? " · " + fmtTime(s.start) : ""}</button></li>`).join("")}</ul>`
+          : `<p style="margin:0">Nothing planned. Rest day, or <button class="linkish" data-act="add" data-day="${tIdx}">add a session</button>.</p>`
+      }</section>`;
+    }
+
+    html += targetPanelHTML();
+
+    html += `<div class="days">`;
+    for (let d = 0; d < 7; d++) {
+      const list = sessionsFor(wk, d);
+      const isToday = showToday && d === tIdx;
+      const dn = list.filter(s => s.done).length;
+      html += `
+        <section class="day${isToday ? " is-today" : ""}" aria-labelledby="dayH${d}">
+          <div class="day-head">
+            <h3 id="dayH${d}">${DAYS[d]} ${isToday ? `<span class="badge">Today</span>` : ""}</h3>
+            ${list.length ? `<span class="day-count">${dn}/${list.length} done</span>` : ""}
+          </div>
+          ${list.length ? `<ul class="sessions">${list.map(sessionRowHTML).join("")}</ul>` : `<p class="empty-day">No sessions planned.</p>`}
+          <button class="add-btn" data-act="add" data-day="${d}" aria-label="Add session on ${DAYS[d]}">+ Add session</button>
+        </section>`;
+    }
+    html += `</div>`;
+    $("#view").innerHTML = html;
+  }
+
+  /* ---------- Calculator ---------- */
+  function renderCalc() {
+    const c = state.calc;
+    $("#view").innerHTML = `
+      <section class="panel">
+        <h1>Bronco calculator</h1>
+        <p>Find your running distance for the Straight-line MAS sessions.</p>
+        <p class="hint" style="margin:0">The 1.2 km Bronco test is <strong>five continuous rounds</strong> of 20 m, 40 m and 60 m out and back, all from the same line. The timed test has <strong>no rest breaks</strong>. Enter your full test time, not your Broken Broncos training reps.</p>
+      </section>
+
+      <section class="panel">
+        <fieldset>
+          <legend>Full 1.2 km Bronco time</legend>
+          <div class="time-fields">
+            <label for="bMin">Minutes
+              <input id="bMin" type="text" inputmode="numeric" autocomplete="off" maxlength="3" value="${esc(c.min)}" aria-describedby="calcErr">
+            </label>
+            <label for="bSec">Seconds
+              <input id="bSec" type="text" inputmode="numeric" autocomplete="off" maxlength="3" value="${esc(c.sec)}" aria-describedby="calcErr">
+            </label>
+          </div>
+          <div id="calcErr" aria-live="polite"></div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Body weight</legend>
+          <div class="radio-row">
+            <label><input type="radio" name="wt" value="under100" ${c.weight !== "over100" ? "checked" : ""}> Under 100 kg</label>
+            <label><input type="radio" name="wt" value="over100" ${c.weight === "over100" ? "checked" : ""}> 100 kg or over</label>
+          </div>
+          <p class="hint">Bigger bodies lose more time on the turns, so the estimate adjusts for it. You don’t need your exact weight.</p>
+        </fieldset>
+
+        <div id="calcOut" aria-live="polite"></div>
+      </section>
+
+      <section class="panel" id="modePanel"></section>
+
+      <section class="panel">
+        <details>
+          <summary>How this is worked out</summary>
+          <div class="formula">
+            <ol>
+              <li>Total seconds = minutes × 60 + seconds.</li>
+              <li>Turn adjustment: ${CONFIG.calculator.turnAdjustSec.under100} s (under 100 kg) or ${CONFIG.calculator.turnAdjustSec.over100} s (100 kg or over).</li>
+              <li>Estimated MAS (m/s) = ${CONFIG.calculator.testDistanceM} ÷ (total seconds − turn adjustment).</li>
+              <li>Cone distance = MAS × ${CONFIG.mas.intensity.toFixed(2)} × ${CONFIG.mas.effortSec} s (${Math.round(CONFIG.mas.intensity * 100)}% of MAS), rounded to the nearest metre.</li>
+              <li>Nearest squad lane: ${CONFIG.lanes.map(l => `${l.id} ${l.m} m`).join(", ")}. A tie goes to the shorter lane.</li>
+            </ol>
+          </div>
+        </details>
+      </section>`;
+    updateCalcOutput();
+
+    const onInput = () => {
+      state.calc.min = $("#bMin").value;
+      state.calc.sec = $("#bSec").value;
+      updateCalcOutput();
+      save();
+    };
+    $("#bMin").addEventListener("input", onInput);
+    $("#bSec").addEventListener("input", onInput);
+    document.querySelectorAll('input[name="wt"]').forEach(r => r.addEventListener("change", () => {
+      state.calc.weight = r.value;
+      updateCalcOutput();
+      save();
+    }));
+  }
+
+  function updateCalcOutput() {
+    const r = calcResult(state.calc);
+    const minEl = $("#bMin"), secEl = $("#bSec");
+    if (minEl) minEl.setAttribute("aria-invalid", String(r.status === "error" && r.errs.min));
+    if (secEl) secEl.setAttribute("aria-invalid", String(r.status === "error" && r.errs.sec));
+    $("#calcErr").innerHTML = r.status === "error" ? `<div class="error" role="alert">${esc(r.errs.msg)}</div>` : "";
+    if (r.status === "ok") {
+      $("#calcOut").innerHTML = `
+        <div class="result">
+          <div class="headline">Run ${r.rounded} m in ${CONFIG.mas.effortSec} seconds.</div>
+          <dl>
+            <dt>Estimated MAS</dt><dd>${r.mas.toFixed(2)} m/s</dd>
+            <dt>Closest squad lane</dt><dd>Lane ${r.nearest.id} (${r.nearest.m} m)</dd>
+          </dl>
+        </div>`;
+    } else if (r.status === "empty") {
+      $("#calcOut").innerHTML = `<div class="placeholder">Your target will show here once both minutes and seconds are filled in.</div>`;
+    } else {
+      $("#calcOut").innerHTML = ""; // invalid input: clear any stale result
+    }
+    renderModePanel(r);
+  }
+
+  function renderModePanel(r) {
+    const c = state.calc;
+    const t = currentTarget();
+    const ok = r.status === "ok";
+    $("#modePanel").innerHTML = `
+      <h2>What should my MAS cards use?</h2>
+      <div class="btn-row" role="group" aria-label="Target choice">
+        <button class="btn" data-act="mode-ind" aria-pressed="${c.mode === "individual"}" ${ok ? "" : "aria-disabled=\"true\""}>Use my distance${ok ? ` (${r.rounded} m)` : ""}</button>
+        <button class="btn" data-act="mode-lane" aria-pressed="${c.mode === "lane"}">Use squad lane${c.mode === "lane" && laneById(c.lane) ? ` (${c.lane})` : ""}</button>
+      </div>
+      <div class="lane-row">
+        <span class="lbl">Coach already gave you a lane? Pick it:</span>
+        ${CONFIG.lanes.map(l => `<button class="chip" data-act="lane" data-lane="${l.id}" aria-pressed="${c.mode === "lane" && c.lane === l.id}" aria-label="Lane ${l.id}, ${l.m} metres">${l.id} <small>${l.m} m</small></button>`).join("")}
+      </div>
+      <p class="hint" style="margin-top:12px"><strong>Now on your MAS cards:</strong> ${t ? `${t.m} m in ${CONFIG.mas.effortSec} s — ${esc(t.label)}` : (c.mode === "lane" ? "pick a lane above." : "enter a valid Bronco time above, or pick a lane.")}</p>
+      <p style="margin:10px 0 0"><button class="btn primary" data-act="go-week" style="width:100%">Back to My week</button></p>`;
+  }
+
+  /* ---------- Sheet (dialog) ---------- */
+  const sheet = $("#sheet");
+  function openSheet(html) {
+    sheet.innerHTML = html;
+    if (!sheet.open) {
+      if (typeof sheet.showModal === "function") sheet.showModal(); else sheet.setAttribute("open", "");
+    }
+    const first = sheet.querySelector("[autofocus]") || sheet.querySelector(".close-x");
+    if (first) first.focus();
+  }
+  function closeSheet() {
+    if (typeof sheet.close === "function" && sheet.open) sheet.close(); else sheet.removeAttribute("open");
+    sheet.innerHTML = "";
+  }
+  sheet.addEventListener("click", e => { if (e.target === sheet) closeSheet(); }); // tap backdrop
+  sheet.addEventListener("cancel", e => { e.preventDefault(); closeSheet(); });
+
+  function sheetHead(title, sub) {
+    return `<div class="sheet-head"><div><h2 id="sheetTitle">${title}</h2>${sub ? `<div class="sub">${sub}</div>` : ""}</div>
+      <button class="close-x" data-act="close" aria-label="Close">×</button></div>`;
+  }
+
+  function warmupHTML(type) {
+    return `<section><h3>Warm-up · ${esc(CONFIG.warmupMinutes)} minutes</h3>
+      <ul><li>Easy jog</li><li>Dynamic movement (leg swings, lunges, skips)</li><li>Three gradually quicker runs</li>
+      ${type === "broncos" ? "<li><strong>Rehearse the turns</strong> at 20 m, 40 m and 60 m</li>" : ""}</ul></section>`;
+  }
+
+  function openDetail(id) {
+    const s = findSession(id);
+    if (!s) return;
+    const w = weekCfg(s.week);
+    let body = "";
+
+    if (s.type === "broncos") {
+      const { sets, reps } = w.broncos;
+      const seq = broncosSequence(sets, reps);
+      const total = sets * reps * repMetres();
+      const legs = CONFIG.broncos.legsM;
+      body += `<section><div class="facts">
+          <div class="fact"><span>This week</span><b>${plural(sets, "set")} of ${reps}</b></div>
+          <div class="fact"><span>Total</span><b>${total} m</b></div>
+          <div class="fact"><span>Each rep</span><b>${repMetres()} m · under ${fmtDur(CONFIG.broncos.repTargetSec)}</b></div>
+          <div class="fact"><span>Rest</span><b>${fmtDur(CONFIG.broncos.restBetweenRepsSec)} reps${sets > 1 ? ` · ${fmtDur(CONFIG.broncos.restBetweenSetsSec)} sets` : ""}</b></div>
+        </div></section>`;
+      body += warmupHTML("broncos");
+      body += `<section><h3>One rep</h3>
+        <p>From the same line: ${legs.map(m => `${m} m out and back`).join(", then ")} (${repMetres()} m). Aim to finish each rep within ${fmtDurLong(CONFIG.broncos.repTargetSec)}.</p>
+        <p>Rest ${fmtDurLong(CONFIG.broncos.restBetweenRepsSec)} between reps${sets > 1 ? ` and ${fmtDurLong(CONFIG.broncos.restBetweenSetsSec)} between sets. At the set break, take the ${fmtDurLong(CONFIG.broncos.restBetweenSetsSec)} on its own (not added to the rep rest)` : ""}.</p></section>`;
+      body += `<section><h3>Your sequence</h3><ol class="seq" aria-label="Session sequence">${seq.map(x => x.k === "run"
+        ? `<li class="run">Run ${repMetres()} m</li>`
+        : `<li class="rest${x.long ? " long" : ""}">${fmtDur(x.sec)} rest</li>`).join("")}</ol>
+        <p class="hint">This is a training workout, not the timed 1.2 km Bronco test.</p></section>`;
+    } else if (s.type === "mas") {
+      const t = currentTarget();
+      const r = calcResult(state.calc);
+      const { sets, runs } = w.mas;
+      body += `<section><div class="fact wide" style="background:${t ? "var(--accent-soft)" : "var(--warn-soft)"};border:2px solid ${t ? "var(--accent)" : "#f3b989"}">
+          <span>Your cone distance</span>
+          <b style="font-size:26px">${t ? `Run ${t.m} m in ${CONFIG.mas.effortSec} seconds` : "Not set yet"}</b>
+          <div style="font-weight:700;margin-top:4px">${t ? `Using: ${esc(t.label)}` : "Enter your Bronco time or pick your lane below."}</div>
+        </div>
+        <div class="lane-row">
+          ${r.status === "ok" ? `<button class="chip" data-act="mode-ind" data-reopen="${s.id}" aria-pressed="${state.calc.mode === "individual"}">My distance <small>${r.rounded} m</small></button>` : ""}
+          ${CONFIG.lanes.map(l => `<button class="chip" data-act="lane" data-lane="${l.id}" data-reopen="${s.id}" aria-pressed="${state.calc.mode === "lane" && state.calc.lane === l.id}" aria-label="Lane ${l.id}, ${l.m} metres">${l.id} <small>${l.m} m</small></button>`).join("")}
+        </div></section>`;
+      body += `<section><div class="facts">
+          <div class="fact"><span>This week</span><b>${plural(sets, "set")} of ${plural(runs, "run")}</b></div>
+          <div class="fact"><span>Run time</span><b>${CONFIG.mas.effortSec} s each</b></div>
+          <div class="fact"><span>Between runs</span><b>${fmtDur(CONFIG.mas.recoveryBetweenRunsSec)} recovery</b></div>
+          <div class="fact"><span>Between sets</span><b>${fmtDur(CONFIG.mas.restBetweenSetsSec)} rest</b></div>
+        </div></section>`;
+      body += warmupHTML("mas");
+      body += `<section><h3>Set up</h3><ul>
+          <li>Start line and target cone <strong>${t ? t.m + " m" : "your distance"}</strong> apart.</li>
+          <li>A recovery cone ${CONFIG.mas.recoveryConeM} m beyond each end.</li></ul></section>
+        <section><h3>How to run it</h3><ol>
+          <li>Run to the target cone in ${CONFIG.mas.effortSec} seconds (${Math.round(CONFIG.mas.intensity * 100)}% of your estimated MAS).</li>
+          <li>Jog forward ${CONFIG.mas.recoveryConeM} m to the recovery cone and back to the finish line, ready to run the opposite direction.</li>
+          <li>Go again when the ${fmtDur(CONFIG.mas.recoveryBetweenRunsSec)} recovery is up. Each ${CONFIG.mas.effortSec}-second effort counts as one run.</li>
+          <li>After ${plural(runs, "run")}, rest ${fmtDurLong(CONFIG.mas.restBetweenSetsSec)}, then do the next set.</li></ol></section>`;
+    }
+
+    const tm = timeMeta(s);
+    if (tm && s.type !== "broncos" && s.type !== "mas") body += `<section><h3>When</h3><p>${esc(tm)}</p></section>`;
+    else if (tm) body = `<section><h3>When</h3><p>${esc(tm)}</p></section>` + body;
+    if (s.notes) body += `<section><h3>My notes</h3><div class="notes-box">${esc(s.notes)}</div></section>`;
+    else if (s.type !== "broncos" && s.type !== "mas") body += `<section><p class="hint">No notes yet. Tap Edit to add some.</p></section>`;
+
+    body += `<section>
+        <button class="btn ${s.done ? "" : "good"}" data-act="tick" data-id="${s.id}" data-reopen="${s.id}" style="width:100%;margin-bottom:10px" aria-pressed="${!!s.done}">${s.done ? "✓ Completed — tap to undo" : "Mark complete"}</button>
+        <div class="field"><label for="moveSel">Move to another day (Week ${s.week})</label>
+          <select id="moveSel" data-id="${s.id}">${DAYS.map((d, i) => `<option value="${i}" ${i === s.day ? "selected" : ""}>${d}${i === s.day ? " (current)" : ""}</option>`).join("")}</select></div>
+        <div class="btn-row">
+          <button class="btn" data-act="edit" data-id="${s.id}">Edit</button>
+          <button class="btn danger" data-act="remove" data-id="${s.id}">Remove</button>
+        </div></section>`;
+
+    const sub = `Week ${s.week} · ${DAYS[s.day]}${doseText(s) ? " · " + doseText(s) : ""}`;
+    openSheet(sheetHead(esc(s.title), esc(sub)) + `<div class="sheet-body">${body}</div>`);
+    $("#moveSel").addEventListener("change", e => {
+      const to = Number(e.target.value);
+      const ss = findSession(e.target.dataset.id);
+      if (!ss || ss.day === to) return;
+      ss.day = to;
+      save();
+      render();
+      toast(`Moved to ${DAYS[to]}`);
+      openDetail(ss.id);
+    });
+  }
+
+  /* Add / edit form */
+  function openForm(opts) {
+    const editing = opts.id ? findSession(opts.id) : null;
+    const isCond = editing && (editing.type === "broncos" || editing.type === "mas");
+    let type = editing ? editing.type : "gym";
+    const day = editing ? editing.day : opts.day;
+    const wk = editing ? editing.week : state.week;
+    const v = editing || { title: "", start: "", duration: "", notes: "" };
+    const remaining = WEEKS.filter(w => w >= wk);
+
+    const html = sheetHead(editing ? "Edit session" : "Add session", `Week ${wk}`) + `
+      <form class="sheet-body" id="sessForm" novalidate>
+        ${isCond ? "" : `<div class="field"><span class="lbl" id="typeLbl">Type</span>
+          <div class="type-grid" role="group" aria-labelledby="typeLbl">
+            ${ADDABLE.map(k => `<button type="button" data-type="${k}" aria-pressed="${k === type}">${TYPES[k].label}</button>`).join("")}
+          </div></div>`}
+        <div class="field"><label for="fTitle">Title</label>
+          <input id="fTitle" type="text" maxlength="80" value="${esc(v.title)}" placeholder="e.g. Lower-body gym" ${editing ? "" : "autofocus"} required>
+          <div id="titleErr"></div></div>
+        <div class="field"><label for="fDay">Day</label>
+          <select id="fDay">${DAYS.map((d, i) => `<option value="${i}" ${i === day ? "selected" : ""}>${d}</option>`).join("")}</select></div>
+        <div class="two">
+          <div class="field"><label for="fStart">Start time <span class="opt">(optional)</span></label>
+            <input id="fStart" type="time" value="${esc(v.start)}"></div>
+          <div class="field"><label for="fDur">Minutes <span class="opt">(optional)</span></label>
+            <input id="fDur" type="number" inputmode="numeric" min="1" max="600" step="1" value="${esc(v.duration)}"></div>
+        </div>
+        <div id="durErr"></div>
+        <div class="field"><label for="fNotes">Notes <span class="opt">(optional)</span></label>
+          <textarea id="fNotes" maxlength="1000" placeholder="e.g. Squats 4×5, focus on catch-pass both sides">${esc(v.notes)}</textarea></div>
+        ${editing ? `<p class="hint">Changes apply to this session only (Week ${wk}).</p>` : `
+        <div class="field"><label class="check-row"><input type="checkbox" id="fRepeat" ${remaining.length < 2 ? "disabled" : ""}>
+          <span><b>Repeat in remaining weeks</b><span>${remaining.length < 2 ? "This is the last week." : `Adds this session on the same day in Weeks ${wk}–${LAST_WEEK}. Each copy can be edited on its own later.`}</span></span></label></div>`}
+        <div class="btn-row">
+          <button type="button" class="btn" data-act="close">Cancel</button>
+          <button type="submit" class="btn primary">${editing ? "Save changes" : "Add session"}</button>
+        </div>
+      </form>`;
+    openSheet(html);
+
+    sheet.querySelectorAll(".type-grid button").forEach(b => b.addEventListener("click", () => {
+      type = b.dataset.type;
+      sheet.querySelectorAll(".type-grid button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+      const ti = $("#fTitle");
+      if (!ti.value.trim()) ti.placeholder = type === "custom" ? "Session name" : `e.g. ${TYPES[type].label}`;
+    }));
+
+    $("#sessForm").addEventListener("submit", e => {
+      e.preventDefault();
+      const title = $("#fTitle").value.trim();
+      const durRaw = $("#fDur").value.trim();
+      let bad = false;
+      $("#titleErr").innerHTML = ""; $("#durErr").innerHTML = "";
+      $("#fTitle").setAttribute("aria-invalid", "false"); $("#fDur").setAttribute("aria-invalid", "false");
+      if (!title) { $("#titleErr").innerHTML = `<div class="error" role="alert">Give the session a title.</div>`; $("#fTitle").setAttribute("aria-invalid", "true"); bad = true; }
+      if (durRaw && !(/^\d+$/.test(durRaw) && +durRaw >= 1 && +durRaw <= 600)) { $("#durErr").innerHTML = `<div class="error" role="alert">Minutes must be a whole number from 1 to 600.</div>`; $("#fDur").setAttribute("aria-invalid", "true"); bad = true; }
+      if (bad) { (title ? $("#fDur") : $("#fTitle")).focus(); return; }
+      const data = {
+        title, day: Number($("#fDay").value), start: $("#fStart").value || "",
+        duration: durRaw ? Number(durRaw) : "", notes: $("#fNotes").value.trim()
+      };
+      if (editing) {
+        Object.assign(editing, data);
+        save(); closeSheet(); render(); toast("Session updated");
+      } else {
+        const repeat = $("#fRepeat") && $("#fRepeat").checked;
+        const weeks = repeat ? remaining : [wk];
+        weeks.forEach(w => state.sessions.push(Object.assign({ id: uid(), week: w, type, done: false, order: state.nextOrder++ }, data)));
+        save(); closeSheet(); render();
+        toast(repeat ? `Added to ${DAYS[data.day]} in Weeks ${wk}–${LAST_WEEK}` : `Added to ${DAYS[data.day]}`);
+      }
+    });
+  }
+
+  /* ---------- events ---------- */
+  document.addEventListener("click", e => {
+    const tab = e.target.closest("nav.tabs button");
+    if (tab) { state.view = tab.dataset.view; save(); render(); window.scrollTo(0, 0); return; }
+    const el = e.target.closest("[data-act]");
+    if (!el) return;
+    const act = el.dataset.act;
+    const reopen = el.dataset.reopen;
+    switch (act) {
+      case "week":
+        state.week = Number(el.dataset.week); save(); render(); break;
+      case "open":
+        openDetail(el.dataset.id); break;
+      case "tick": {
+        const s = findSession(el.dataset.id);
+        if (!s) break;
+        s.done = !s.done; save(); render();
+        toast(s.done ? "Nice work — marked complete" : "Marked not done");
+        if (reopen) openDetail(reopen);
+        break;
+      }
+      case "add":
+        openForm({ day: Number(el.dataset.day) }); break;
+      case "edit":
+        openForm({ id: el.dataset.id }); break;
+      case "remove": {
+        const s = findSession(el.dataset.id);
+        if (!s) break;
+        if (!window.confirm(`Remove “${s.title}” from ${DAYS[s.day]}, Week ${s.week}?`)) break;
+        state.sessions = state.sessions.filter(x => x.id !== s.id);
+        save(); closeSheet(); render(); toast("Session removed");
+        break;
+      }
+      case "close":
+        closeSheet(); break;
+      case "lane":
+        state.calc.lane = el.dataset.lane; state.calc.mode = "lane"; save();
+        render(); if (reopen) openDetail(reopen);
+        toast(`Using squad lane ${el.dataset.lane}`);
+        break;
+      case "mode-ind": {
+        const r = calcResult(state.calc);
+        if (r.status !== "ok") { toast("Enter a valid Bronco time first"); break; }
+        state.calc.mode = "individual"; save();
+        if (state.view === "calc") updateCalcOutput(); else render();
+        if (reopen) openDetail(reopen);
+        toast(`Using my distance: ${r.rounded} m`);
+        break;
+      }
+      case "mode-lane": {
+        const r = calcResult(state.calc);
+        if (!laneById(state.calc.lane)) {
+          if (r.status === "ok") state.calc.lane = r.nearest.id;
+          else { toast("Pick a lane below"); state.calc.mode = "lane"; save(); updateCalcOutput(); break; }
+        }
+        state.calc.mode = "lane"; save(); updateCalcOutput();
+        toast(`Using squad lane ${state.calc.lane}`);
+        break;
+      }
+      case "go-calc":
+        state.view = "calc"; save(); render(); window.scrollTo(0, 0); break;
+      case "go-week":
+        state.view = "week"; save(); render(); window.scrollTo(0, 0); break;
+    }
+  });
+
+  /* ---------- start ---------- */
+  renderStorageBanner();
+  render();
+  // First use stores the seeded plan once; later visits re-save the loaded plan.
+  // The "Saved on this device" label only appears if this write succeeds.
+  save();
+})();
+</script>
+</body>
+</html>
