@@ -3,26 +3,30 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0b1f3a">
-<title>Off-season Planner</title>
+<meta name="theme-color" content="#6B1C3A">
+<title>Keebra Off-season Planner</title>
 <style>
   :root {
-    --bg: #eef1f5;
+    /* Keebra Park colours */
+    --kp-pink: #E95B9E;
+    --kp-cyan: #29BAE5;
+    --kp-maroon: #6B1C3A;
+    --pink-dk: #B12F6E;      /* pink deep enough for white text */
+    --cyan-dk: #0A6A8A;      /* cyan deep enough for white text */
+
+    --bg: #f3f1f4;
     --card: #ffffff;
-    --ink: #0d1422;
-    --ink-2: #39435a;
-    --line: #c9d0dc;
-    --navy: #0b1f3a;
-    --accent: #0a55c2;
-    --accent-ink: #ffffff;
-    --accent-soft: #e3edfc;
+    --ink: #16121c;
+    --ink-2: #4a4352;
+    --line: #d6cfd9;
+    --accent-soft: #fdedf5;
     --good: #12733a;
     --good-soft: #e2f4e8;
     --warn: #9a3412;
     --warn-soft: #fff1e6;
     --bad: #b42318;
     --bad-soft: #fdecea;
-    --today: #f5b301;
+    --today-soft: #e5f7fd;
     --radius: 14px;
     --tap: 48px;
   }
@@ -35,22 +39,23 @@
   }
   button, input, select, textarea { font: inherit; color: inherit; }
   button { cursor: pointer; }
-  :focus-visible { outline: 3px solid var(--today); outline-offset: 2px; }
+  :focus-visible { outline: 3px solid var(--kp-cyan); outline-offset: 2px; }
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
   /* Header */
-  header.top { background: var(--navy); color: #fff; padding: 14px 16px 0; position: sticky; top: 0; z-index: 20; }
+  header.top { background: var(--kp-maroon); color: #fff; padding: 14px 16px 0; position: sticky; top: 0; z-index: 20; }
+  header.top::after { content: ""; display: block; height: 5px; margin: 0 -16px; background: linear-gradient(90deg, var(--kp-pink) 0 50%, var(--kp-cyan) 50% 100%); }
   .top-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; max-width: 1200px; margin: 0 auto; }
-  .brand { font-weight: 800; font-size: 19px; line-height: 1.2; }
-  .brand small { display: block; font-weight: 600; font-size: 13px; color: #b9c7de; letter-spacing: .02em; }
-  .save-status { font-size: 13px; font-weight: 700; color: #9ee6b5; white-space: nowrap; min-height: 1em; }
+  .brand { font-weight: 900; font-size: 19px; line-height: 1.2; letter-spacing: -.01em; }
+  .brand small { display: block; font-weight: 700; font-size: 12px; color: #ffc4e0; letter-spacing: .12em; text-transform: uppercase; margin-top: 2px; }
+  .save-status { font-size: 13px; font-weight: 700; color: #a6f0c0; white-space: nowrap; min-height: 1em; }
   .save-status.off { color: #ffd28a; }
   nav.tabs { display: flex; gap: 6px; max-width: 1200px; margin: 12px auto 0; }
   nav.tabs button {
     flex: 1; min-height: var(--tap); border: 0; border-radius: 12px 12px 0 0;
-    background: transparent; color: #d4deee; font-weight: 700; font-size: 16px;
+    background: transparent; color: #f2dbe6; font-weight: 800; font-size: 16px;
   }
-  nav.tabs button[aria-selected="true"] { background: var(--bg); color: var(--ink); }
+  nav.tabs button[aria-selected="true"] { background: var(--bg); color: var(--kp-maroon); }
 
   main { max-width: 1200px; margin: 0 auto; padding: 14px 16px 90px; }
   .banner { border-radius: var(--radius); padding: 12px 14px; margin-bottom: 14px; font-weight: 600; }
@@ -58,21 +63,22 @@
 
   /* Week selector */
   .week-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; margin: 2px 0 8px; }
-  .week-head h1 { font-size: 24px; margin: 0; }
+  .week-head h1 { font-size: 24px; margin: 0; color: var(--kp-maroon); }
   .week-head .week-note { color: var(--ink-2); font-size: 15px; font-weight: 600; }
   .weeks { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-bottom: 14px; }
   .weeks button {
     min-height: var(--tap); border: 2px solid var(--line); background: var(--card); border-radius: 12px;
-    font-weight: 800; font-size: 18px; padding: 0; position: relative;
+    font-weight: 800; font-size: 18px; padding: 0;
   }
   .weeks button span { display: block; font-size: 11px; font-weight: 700; color: var(--ink-2); line-height: 1; }
-  .weeks button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
-  .weeks button[aria-pressed="true"] span { color: #dce8ff; }
+  .weeks button[aria-pressed="true"] { background: var(--pink-dk); border-color: var(--pink-dk); color: #fff; }
+  .weeks button[aria-pressed="true"] span { color: #ffd9ea; }
 
-  /* Target panel */
-  .target-panel { background: var(--card); border: 2px solid var(--line); border-radius: var(--radius); padding: 14px; margin-bottom: 14px; }
-  .target-panel h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .06em; margin: 0 0 4px; color: var(--ink-2); }
-  .target-big { font-size: 24px; font-weight: 800; line-height: 1.2; }
+  /* Panels on My week */
+  .panel-card { background: var(--card); border: 2px solid var(--line); border-radius: var(--radius); padding: 14px; margin-bottom: 14px; }
+  .panel-card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; margin: 0 0 6px; color: var(--pink-dk); }
+  .panel-card.need { border-color: var(--kp-pink); box-shadow: 0 0 0 3px #fbd3e6; }
+  .target-big { font-size: 24px; font-weight: 900; line-height: 1.2; }
   .target-sub { color: var(--ink-2); font-size: 15px; margin-top: 2px; }
   .lane-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
   .lane-row .lbl { font-size: 15px; font-weight: 600; color: var(--ink-2); width: 100%; }
@@ -80,29 +86,34 @@
     min-height: var(--tap); min-width: var(--tap); padding: 0 14px; border-radius: 999px;
     border: 2px solid var(--line); background: #fff; font-weight: 800;
   }
-  .chip[aria-pressed="true"] { background: var(--navy); border-color: var(--navy); color: #fff; }
+  .chip[aria-pressed="true"] { background: var(--kp-maroon); border-color: var(--kp-maroon); color: #fff; }
   .chip small { font-weight: 600; font-size: 13px; }
+  .prog-grid { display: grid; gap: 10px; }
+  @media (min-width: 560px) { .prog-grid { grid-template-columns: 1fr 1fr; } }
+  .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .seg button { min-height: var(--tap); border: 2px solid var(--line); border-radius: 12px; background: #fff; font-weight: 800; font-size: 15px; padding: 4px 8px; }
+  .seg button[aria-pressed="true"] { background: var(--kp-maroon); border-color: var(--kp-maroon); color: #fff; }
 
   /* Today strip */
-  .today-strip { background: #fff8e0; border: 2px solid var(--today); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 14px; }
-  .today-strip h2 { margin: 0 0 6px; font-size: 18px; }
+  .today-strip { background: var(--today-soft); border: 2px solid var(--kp-cyan); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 14px; }
+  .today-strip h2 { margin: 0 0 6px; font-size: 18px; color: var(--cyan-dk); }
   .today-strip ul { margin: 0; padding: 0; list-style: none; }
   .today-strip li button { all: unset; cursor: pointer; display: block; padding: 6px 0; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
-  .today-strip li button:focus-visible { outline: 3px solid var(--accent); }
+  .today-strip li button:focus-visible { outline: 3px solid var(--pink-dk); }
 
   /* Day cards */
   .days { display: grid; grid-template-columns: 1fr; gap: 12px; }
   @media (min-width: 760px) { .days { grid-template-columns: repeat(2, 1fr); } }
   @media (min-width: 1100px) { .days { grid-template-columns: repeat(3, 1fr); } }
   .day { background: var(--card); border: 2px solid var(--line); border-radius: var(--radius); padding: 12px; min-width: 0; }
-  .day.is-today { border-color: var(--today); box-shadow: 0 0 0 3px #ffe8a3; }
+  .day.is-today { border-color: var(--kp-cyan); box-shadow: 0 0 0 3px #bfeaf8; }
   .day-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
   .day-head h3 { margin: 0; font-size: 20px; }
-  .badge { font-size: 12px; font-weight: 800; padding: 3px 9px; border-radius: 999px; background: var(--today); color: #241a00; text-transform: uppercase; letter-spacing: .04em; }
+  .badge { font-size: 12px; font-weight: 800; padding: 3px 9px; border-radius: 999px; background: var(--kp-cyan); color: #06222e; text-transform: uppercase; letter-spacing: .04em; }
   .day-count { font-size: 14px; color: var(--ink-2); font-weight: 600; }
   .empty-day { color: var(--ink-2); font-size: 15px; margin: 2px 0 10px; }
   .sessions { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 8px; }
-  .sess { display: flex; align-items: stretch; gap: 8px; border: 2px solid var(--line); border-radius: 12px; background: #fafbfd; min-width: 0; }
+  .sess { display: flex; align-items: stretch; gap: 8px; border: 2px solid var(--line); border-radius: 12px; background: #fcfbfd; min-width: 0; }
   .sess.done { background: var(--good-soft); border-color: #9fd3b1; }
   .tick {
     flex: 0 0 auto; width: 52px; border: 0; border-right: 2px solid var(--line); background: transparent;
@@ -118,29 +129,30 @@
   .sess.done .open .t { text-decoration: line-through; text-decoration-thickness: 2px; }
   .open .m { display: block; font-size: 15px; color: var(--ink-2); margin-top: 3px; overflow-wrap: anywhere; }
   .open .m strong { color: var(--ink); }
-  .open .warnline { color: var(--warn); font-weight: 700; }
+  .open .warnline { color: var(--pink-dk); font-weight: 800; }
   .tag { display: inline-block; font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; padding: 2px 7px; border-radius: 6px; margin-bottom: 4px; color: #fff; }
-  .tag.broncos { background: #a33a00; } .tag.mas { background: #0a55c2; } .tag.gym { background: #5b2a86; }
-  .tag.skills { background: #0f6e5b; } .tag.speed { background: #a1166a; } .tag.team { background: #1f2f4d; }
-  .tag.recovery { background: #3d6b12; } .tag.custom { background: #4a5468; }
+  .tag.broncos { background: var(--kp-maroon); } .tag.mas { background: var(--cyan-dk); }
+  .tag.gymprog { background: var(--pink-dk); } .tag.zone2 { background: #1d6b3a; }
+  .tag.gym { background: #5b2a86; } .tag.skills { background: #0f6e5b; } .tag.speed { background: #8a1c5c; }
+  .tag.team { background: #1f2f4d; } .tag.recovery { background: #3d6b12; } .tag.custom { background: #4a5468; }
   .add-btn {
-    width: 100%; min-height: var(--tap); border: 2px dashed #8b97ad; border-radius: 12px; background: #fff;
-    font-weight: 800; color: var(--accent);
+    width: 100%; min-height: var(--tap); border: 2px dashed #a796ad; border-radius: 12px; background: #fff;
+    font-weight: 800; color: var(--pink-dk);
   }
 
   /* Buttons */
   .btn { min-height: var(--tap); padding: 0 16px; border-radius: 12px; border: 2px solid var(--line); background: #fff; font-weight: 800; }
-  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary { background: var(--pink-dk); border-color: var(--pink-dk); color: #fff; }
   .btn.good { background: var(--good); border-color: var(--good); color: #fff; }
   .btn.danger { color: var(--bad); border-color: #f0a29b; }
-  .btn[aria-pressed="true"] { background: var(--navy); border-color: var(--navy); color: #fff; }
+  .btn[aria-pressed="true"] { background: var(--kp-maroon); border-color: var(--kp-maroon); color: #fff; }
   .btn-row { display: flex; flex-wrap: wrap; gap: 8px; }
   .btn-row .btn { flex: 1 1 140px; }
-  .linkish { background: none; border: 0; padding: 0; color: var(--accent); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; min-height: 0; }
+  .linkish { background: none; border: 0; padding: 0; color: var(--cyan-dk); font-weight: 800; text-decoration: underline; text-underline-offset: 3px; min-height: 0; }
 
   /* Calculator */
   .panel { background: var(--card); border: 2px solid var(--line); border-radius: var(--radius); padding: 16px; margin-bottom: 14px; }
-  .panel h1 { font-size: 24px; margin: 0 0 6px; }
+  .panel h1 { font-size: 24px; margin: 0 0 6px; color: var(--kp-maroon); }
   .panel h2 { font-size: 19px; margin: 0 0 8px; }
   .panel p { margin: 0 0 10px; }
   fieldset { border: 0; padding: 0; margin: 0 0 14px; min-width: 0; }
@@ -149,18 +161,18 @@
   .time-fields label { flex: 1; font-weight: 700; font-size: 15px; color: var(--ink-2); }
   .time-fields input { display: block; width: 100%; margin-top: 4px; }
   input[type="text"], input[type="number"], input[type="time"], select, textarea {
-    min-height: var(--tap); width: 100%; border: 2px solid #8b97ad; border-radius: 10px; padding: 8px 12px; background: #fff; font-size: 18px;
+    min-height: var(--tap); width: 100%; border: 2px solid #9a8ca0; border-radius: 10px; padding: 8px 12px; background: #fff; font-size: 18px;
   }
   .time-fields input { font-size: 26px; font-weight: 800; text-align: center; }
   input[aria-invalid="true"] { border-color: var(--bad); background: var(--bad-soft); }
   textarea { min-height: 96px; resize: vertical; }
   .radio-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .radio-row label { display: flex; align-items: center; gap: 10px; min-height: var(--tap); border: 2px solid var(--line); border-radius: 12px; padding: 8px 12px; font-weight: 700; }
-  .radio-row input { width: 22px; height: 22px; accent-color: var(--accent); flex: 0 0 auto; }
-  .radio-row label:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+  .radio-row input { width: 22px; height: 22px; accent-color: var(--pink-dk); flex: 0 0 auto; }
+  .radio-row label:has(input:checked) { border-color: var(--pink-dk); background: var(--accent-soft); }
   .hint { font-size: 15px; color: var(--ink-2); margin-top: 6px; }
   .error { background: var(--bad-soft); color: var(--bad); border: 2px solid #f0a29b; border-radius: 12px; padding: 10px 12px; font-weight: 700; margin-top: 10px; }
-  .result { border: 3px solid var(--accent); border-radius: var(--radius); padding: 14px; background: var(--accent-soft); margin-top: 12px; }
+  .result { border: 3px solid var(--pink-dk); border-radius: var(--radius); padding: 14px; background: var(--accent-soft); margin-top: 12px; }
   .result .headline { font-size: 28px; font-weight: 900; line-height: 1.15; }
   .result dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 10px 0 0; font-size: 16px; }
   .result dt { color: var(--ink-2); font-weight: 600; }
@@ -177,42 +189,54 @@
     border-radius: 18px 18px 0 0; margin: auto auto 0; background: var(--card); color: var(--ink);
   }
   @media (min-width: 700px) { dialog.sheet { border-radius: 18px; margin: auto; } }
-  dialog.sheet::backdrop { background: rgba(5, 12, 25, .55); }
-  .sheet-head { position: sticky; top: 0; background: var(--card); display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 14px 16px 10px; border-bottom: 2px solid var(--line); z-index: 1; }
-  .sheet-head h2 { margin: 0; font-size: 21px; line-height: 1.25; overflow-wrap: anywhere; }
+  dialog.sheet::backdrop { background: rgba(30, 8, 18, .55); }
+  .sheet-head { position: sticky; top: 0; background: var(--card); display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 14px 16px 10px; border-bottom: 4px solid var(--kp-pink); z-index: 1; }
+  .sheet-head h2 { margin: 0; font-size: 21px; line-height: 1.25; overflow-wrap: anywhere; color: var(--kp-maroon); }
   .sheet-head .sub { font-size: 15px; color: var(--ink-2); font-weight: 600; }
   .close-x { flex: 0 0 auto; width: var(--tap); height: var(--tap); border-radius: 12px; border: 2px solid var(--line); background: #fff; font-size: 26px; line-height: 1; font-weight: 700; }
   .sheet-body { padding: 14px 16px 24px; }
   .sheet-body section { margin-bottom: 16px; }
-  .sheet-body h3 { font-size: 15px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-2); margin: 0 0 6px; }
+  .sheet-body h3 { font-size: 14px; text-transform: uppercase; letter-spacing: .07em; color: var(--pink-dk); margin: 0 0 6px; }
   .sheet-body p, .sheet-body ul, .sheet-body ol { margin: 0 0 8px; }
   .sheet-body ul, .sheet-body ol { padding-left: 22px; }
   .facts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .fact { background: var(--bg); border-radius: 12px; padding: 10px 12px; }
-  .fact b { display: block; font-size: 20px; line-height: 1.2; }
-  .fact span { font-size: 13px; font-weight: 700; color: var(--ink-2); text-transform: uppercase; letter-spacing: .04em; }
+  .fact { background: var(--bg); border-radius: 12px; padding: 10px 12px; min-width: 0; }
+  .fact b { display: block; font-size: 19px; line-height: 1.2; overflow-wrap: anywhere; }
+  .fact span { font-size: 12px; font-weight: 800; color: var(--ink-2); text-transform: uppercase; letter-spacing: .05em; }
   .fact.wide { grid-column: 1 / -1; }
   .seq { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; padding: 0 !important; }
   .seq li { padding: 6px 10px; border-radius: 8px; font-weight: 800; font-size: 15px; }
-  .seq .run { background: #a33a00; color: #fff; }
+  .seq .run { background: var(--kp-maroon); color: #fff; }
   .seq .rest { background: var(--bg); border: 2px solid var(--line); }
-  .seq .rest.long { background: #fff1e6; border-color: #f3b989; }
+  .seq .rest.long { background: var(--today-soft); border-color: var(--kp-cyan); }
+  .ex-list { list-style: none; padding: 0 !important; margin: 0; border: 2px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .ex-list li { padding: 10px 12px; border-top: 1px solid var(--line); display: grid; grid-template-columns: 30px 1fr auto; gap: 2px 10px; align-items: baseline; }
+  .ex-list li:first-child { border-top: 0; }
+  .ex-list .slot { font-weight: 900; color: var(--pink-dk); }
+  .ex-list .nm { font-weight: 800; min-width: 0; overflow-wrap: anywhere; }
+  .ex-list .dose { font-weight: 900; text-align: right; max-width: 9.5em; }
+  .ex-list .sub2 { grid-column: 2 / -1; font-size: 14px; color: var(--ink-2); }
+  .ex-list .cue { grid-column: 2 / -1; font-size: 14px; color: var(--good); font-weight: 600; }
+  .group-h { font-weight: 800; margin: 12px 0 6px; font-size: 16px; }
+  .group-h small { font-weight: 600; color: var(--ink-2); font-size: 14px; }
+  .callout { border-left: 5px solid var(--kp-cyan); background: var(--today-soft); padding: 10px 12px; border-radius: 0 12px 12px 0; font-size: 15px; }
+  .callout.pink { border-left-color: var(--kp-pink); background: var(--accent-soft); }
   .field { margin-bottom: 14px; }
   .field > label, .field > .lbl { display: block; font-weight: 800; margin-bottom: 6px; }
   .field .opt { font-weight: 600; color: var(--ink-2); font-size: 14px; }
   .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .type-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
   .type-grid button { min-height: var(--tap); border: 2px solid var(--line); border-radius: 10px; background: #fff; font-weight: 700; font-size: 15px; padding: 4px; }
-  .type-grid button[aria-pressed="true"] { background: var(--navy); border-color: var(--navy); color: #fff; }
+  .type-grid button[aria-pressed="true"] { background: var(--kp-maroon); border-color: var(--kp-maroon); color: #fff; }
   .check-row { display: flex; gap: 12px; align-items: flex-start; border: 2px solid var(--line); border-radius: 12px; padding: 12px; }
-  .check-row input { width: 26px; height: 26px; flex: 0 0 auto; accent-color: var(--accent); margin: 0; }
+  .check-row input { width: 26px; height: 26px; flex: 0 0 auto; accent-color: var(--pink-dk); margin: 0; }
   .check-row b { display: block; }
   .check-row span { font-size: 15px; color: var(--ink-2); }
   .notes-box { white-space: pre-wrap; background: var(--bg); border-radius: 12px; padding: 10px 12px; overflow-wrap: anywhere; }
 
   .toast {
     position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%) translateY(150%);
-    background: var(--navy); color: #fff; padding: 12px 18px; border-radius: 12px; font-weight: 700;
+    background: var(--kp-maroon); color: #fff; padding: 12px 18px; border-radius: 12px; font-weight: 700;
     max-width: calc(100% - 32px); transition: transform .2s ease; z-index: 50; text-align: center;
   }
   .toast.show { transform: translateX(-50%) translateY(0); }
@@ -228,7 +252,7 @@
 
 <header class="top">
   <div class="top-row">
-    <div class="brand" id="brand">Off-season Planner<small>6-week program</small></div>
+    <div class="brand" id="brand">Keebra Park GRLA<small>Off-season planner</small></div>
     <div class="save-status" id="saveStatus" role="status" aria-live="polite"></div>
   </div>
   <nav class="tabs" role="tablist" aria-label="Sections">
@@ -250,39 +274,42 @@
 /* =====================================================================
    COACH CONFIGURATION — change these before sending the file to players
    ---------------------------------------------------------------------
-   Everything a coach is likely to adjust lives in this one block:
-   weekly doses, default weekdays, squad lane distances, rest and
-   recovery timings, and the Bronco turn adjustments.
+   Everything a coach is likely to adjust lives in this block: weekly
+   doses, default weekdays, squad lanes, rest and recovery timings,
+   Bronco turn adjustments, the Zone 2 run, and the gym programs.
    ===================================================================== */
 const CONFIG = {
   // Shown in the header.
-  programName: "Off-season Planner",
-  programSubtitle: "Pathways · 6-week program",
+  programName: "Keebra Park GRLA",
+  programSubtitle: "Off-season planner · 6 weeks",
 
   // Where each player's data is saved on their own device. Change this text
   // (e.g. "...-2027") when you send out a NEW program so players start fresh.
-  storageKey: "rl-offseason-planner-v1",
+  storageKey: "kp-grla-offseason-v1",
 
   // Optional: the Monday that Week 1 starts, as "YYYY-MM-DD" (e.g. "2026-12-01").
-  // Leave as "" if players start whenever they like. When set, the planner
-  // marks "Today" only in the matching week and offers a "Go to this week" button.
+  // Leave as "" if players start whenever they like. When set, "Today" only shows
+  // in the matching week and a "Go to this week" button appears.
   programStartMonday: "",
 
-  // Default weekdays for the two conditioning sessions (Mon, Tue, Wed, Thu, Fri, Sat, Sun).
-  defaultDays: { broncos: "Tue", mas: "Fri" },
+  // Default weekdays for the preloaded sessions (Mon, Tue, Wed, Thu, Fri, Sat, Sun).
+  // Rule used: no gym the day before a conditioning session.
+  defaultDays: { broncos: "Tue", mas: "Fri", gym1: "Wed", gym2: "Sat", zone2: "Sun" },
 
-  // Weekly doses. One row per week. Add or remove rows to change program length.
+  // Weekly doses. One row per week.
   //   broncos: sets × reps of Broken Broncos
   //   mas:     sets × runs of Straight-line MAS
+  //   zone2:   minutes of easy running (0 = no Zone 2 session that week)
+  //   effort:  how hard the gym sets should feel that week
   //   note:    optional short line shown at the top of that week
   weeks: [
-    { week: 1, broncos: { sets: 2, reps: 2 }, mas: { sets: 2, runs: 6 }, note: "Build in" },
-    { week: 2, broncos: { sets: 1, reps: 3 }, mas: { sets: 2, runs: 7 }, note: "" },
-    { week: 3, broncos: { sets: 1, reps: 4 }, mas: { sets: 2, runs: 8 }, note: "" },
-    { week: 4, broncos: { sets: 1, reps: 5 }, mas: { sets: 2, runs: 8 }, note: "Peak week" },
+    { week: 1, broncos: { sets: 2, reps: 2 }, mas: { sets: 2, runs: 6 }, zone2: 20, effort: "Learn it: body weight, or the lightest load that holds the tempo", note: "Build in" },
+    { week: 2, broncos: { sets: 1, reps: 3 }, mas: { sets: 2, runs: 7 }, zone2: 20, effort: "“I could have done 4 or 5 more reps”", note: "" },
+    { week: 3, broncos: { sets: 1, reps: 4 }, mas: { sets: 2, runs: 8 }, zone2: 25, effort: "“I could have done 2 or 3 more reps”", note: "" },
+    { week: 4, broncos: { sets: 1, reps: 5 }, mas: { sets: 2, runs: 8 }, zone2: 25, effort: "“I could have done 1 or 2 more reps”", note: "Peak week" },
     // Weeks 5–6: coach-editable extension — repeat Week 4, then ease back before team training.
-    { week: 5, broncos: { sets: 1, reps: 5 }, mas: { sets: 2, runs: 8 }, note: "Repeat Week 4 workload" },
-    { week: 6, broncos: { sets: 1, reps: 3 }, mas: { sets: 2, runs: 6 }, note: "Ease back before team training" }
+    { week: 5, broncos: { sets: 1, reps: 5 }, mas: { sets: 2, runs: 8 }, zone2: 30, effort: "“I could have done 1 or 2 more reps”", note: "Repeat Week 4 workload" },
+    { week: 6, broncos: { sets: 1, reps: 3 }, mas: { sets: 2, runs: 6 }, zone2: 20, effort: "“I could have done 2 or 3 more reps”, ease off", note: "Ease back before team training" }
   ],
 
   // Broken Broncos workout (training session, not the timed test).
@@ -302,6 +329,9 @@ const CONFIG = {
     recoveryConeM: 10             // recovery cone this far beyond each end
   },
 
+  // Zone 2 easy run (aerobic base + recovery). Pace shown = these % of the player's MAS.
+  zone2: { paceLow: 0.60, paceHigh: 0.70 },
+
   // Squad lanes (cone distance in metres for a 15-second run).
   lanes: [
     { id: "A", m: 62 },
@@ -316,7 +346,286 @@ const CONFIG = {
     turnAdjustSec: { under100: 20.3, over100: 29 }
   },
 
-  warmupMinutes: "8–10"
+  warmupMinutes: "8–10",
+
+  // Which gym program each year level gets. "gym" = has weights, "home" = no gym.
+  // Program names refer to GYM_PROGRAMS below. gym: null means home program only.
+  yearLevels: [
+    { year: 7,  gym: null,             home: "L1-home" },
+    { year: 8,  gym: "L2-weights",     home: "L2-home" },
+    { year: 9,  gym: "L3-weights",     home: "L3-home" },
+    { year: 10, gym: "senior-weights", home: "L3-home" },
+    { year: 11, gym: "senior-weights", home: "L3-home" },
+    { year: 12, gym: "senior-weights", home: "L3-home" }
+  ],
+
+  gym: {
+    minutes: 35,
+    rule: "Add weight only when the tempo holds and the knee tracks over the 2nd toe. Movement first, weight second. No max (1RM/3RM) testing before Year 10. Barbell work only with an adult or coach there.",
+    slotNames: { A1: "Squat", A2: "Push", A3: "Core: brace", B1: "Hinge", B2: "Pull", B3: "Single leg / lateral", C1: "Eccentric hamstring", C2: "Upper: 2nd", C3: "Carry: finish" },
+    // Warm-up (NMC) — same every gym session.
+    warmup: [
+      ["Skip / bike / 10m shuttles", "60–90 sec", "Just enough to warm, not to tire."],
+      ["Inch Worm", "3 reps", "Walk the hands out, hips stay level."],
+      ["Walking Lunge", "5 each side", "Tall chest, back knee under the hip."],
+      ["Low Box Step-Down (15–35 cm)", "2 × 6 each side", "Lower slowly, knee over the 2nd toe, touch light, return."],
+      ["Jump & Stick Landing", "5 jumps", "Land soft and quiet, hips back, HOLD 2 seconds."],
+      ["Neck Iso Holds, 4-way", "10 sec each way", "Front, back, both sides. Brace before contact."]
+    ],
+    // Technique cues. Shown under any exercise whose name contains one of the words.
+    cues: [
+      { match: ["Nordic", "Razor Curl", "GHR"], say: "Shoulder, hip and knee in one line. Lower slowly, five seconds down." },
+      { match: ["RDL", "Hinge", "Rack Pull", "Deadlift"], say: "Hips travel backwards. Back stays flat. Weight stays close to the leg." },
+      { match: ["Split Squat", "SL Squat"], say: "Knee tracks over the 2nd toe. Lower slowly, stay tall." },
+      { match: ["Squat"], say: "Chest up. Knees track out over the toes. Drive the floor away evenly." },
+      { match: ["Broad Jump", "Skater", "Box Jump"], say: "Land soft and quiet. Hips back, knees bent. HOLD two seconds." },
+      { match: ["Suitcase Carry"], say: "Stand tall. Shoulders level. The far side of your trunk does the work." },
+      { match: ["Deadbug", "Dead Bug"], say: "Low back stays flat on the floor. Breathe out as the arm and leg move." },
+      { match: ["Lateral Cut", "Depth Drop"], say: "Short braking steps. Foot planted close to the body. The hip drives the turn." }
+    ]
+  }
+};
+
+/* Gym programs: 6 weeks, two days a week. Each exercise is
+   [slot, name, tempo, [Week 1, Week 2, ... Week 6]]. An empty "" means
+   "not this week". Tempo "321" = 3 sec lowering, 2 sec pause, 1 sec up.
+   Levels 1–3 come from the Keebra Junior Gym Generator holiday blocks.
+   "senior-weights" (Years 10–12) is a research-based draft: please review. */
+const GYM_PROGRAMS = {
+  "L1-home": {
+    label: "Level 1 · At home", // from Keebra Junior Gym Generator
+    day1: {
+      power: [
+        ["A1", "Continuous Broad Jump - stick & hold 2sec", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"]],
+        ["B1", "Plyometric Push Up", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"]],
+        ["S1", "Acceleration Wall Drill", "Fast", ["3 x 10m", "3 x 15m", "4 x 15m", "4 x 20m", "", ""]],
+      ],
+      strength: [
+        ["A1", "Heel Elevated Squat", "321", ["3 x 15", "3 x 15", "3 x 18", "3 x 18", "3 x 20", "3 x 20"]],
+        ["A2", "Bench Dips", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"]],
+        ["A3", "Side Plank Hip Drop", "Slow", ["2 x 10 es", "2 x 10 es", "2 x 12 es", "2 x 12 es", "2 x 15 es", "2 x 15 es"]],
+        ["B1", "Single Leg RDL", "221", ["3 x 5 es", "3 x 5 es", "3 x 6 es", "3 x 6 es", "3 x 7 es", "3 x 7 es"]],
+        ["B2", "Fat Man Chins", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"]],
+        ["B3", "Lateral Lunge", "221", ["3 x 10 es", "3 x 10 es", "3 x 12 es", "3 x 12 es", "3 x 15 es", "3 x 15 es"]],
+        ["C1", "Razor Curl", "511", ["1 x 5", "2 x 5", "2 x 6", "2 x 6", "", ""]],
+        ["C2", "Push Up to Toe Touch", "221", ["3 x 5 es", "3 x 5 es", "3 x 6 es", "3 x 6 es", "3 x 7 es", "3 x 7 es"]],
+        ["C3", "Suitcase Carry", "Slow", ["2 Laps", "2 Laps", "3 Laps", "3 Laps", "4 Laps", "4 Laps"]],
+      ],
+    },
+    day2: {
+      power: [
+        ["A1", "Continuous Broad Jump - stick & hold 2sec", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"]],
+        ["B1", "Plyometric Push Up", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"]],
+        ["S1", "Wall Drive March", "Fast", ["2 x 8e.s", "2 x 10e.s", "3 x 8e.s", "3 x 10e.s", "", ""]],
+      ],
+      strength: [
+        ["A1", "BW Squat", "321", ["1 x 20", "2 x 10", "2 x 12", "2 x 15", "", ""]],
+        ["A2", "Scap Push Up", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"]],
+        ["A3", "Deadbug", "211", ["2 x 10", "2 x 10", "2 x 12", "2 x 12", "2 x 15", "2 x 15"]],
+        ["B1", "Kneeling Hip Hinge", "211", ["1 x 20", "2 x 10", "2 x 12", "2 x 15", "", ""]],
+        ["B2", "Fat Man Chins", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"]],
+        ["B3", "High Box Step Up", "321", ["3 x 5 es", "3 x 5 es", "3 x 6 es", "3 x 6 es", "3 x 7 es", "3 x 7 es"]],
+        ["C1", "Razor Curl", "511", ["1 x 5", "2 x 5", "2 x 6", "2 x 6", "2 x 40sec", "2 x 40sec"]],
+        ["C2", "Hands Off Push Up", "321", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"]],
+        ["C3", "Farmers Carry", "Slow", ["2 Laps", "2 Laps", "3 Laps", "3 Laps", "4 Laps", "4 Laps"]],
+      ],
+    },
+  },
+  "L2-weights": {
+    label: "Level 2 · Weights", // from Keebra Junior Gym Generator
+    day1: {
+      power: [
+        ["A1", "Continuous Broad Jump - stick & hold 2sec", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"]],
+        ["B1", "Plyometric Push Up", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"]],
+        ["S1", "Sled March Accel 10m", "Fast", ["3 x 10m", "3 x 12m", "4 x 12m", "4 x 15m", "", ""]],
+      ],
+      strength: [
+        ["A1", "Goblet Squat Heels Raised", "321", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 7 es", "3 x 7 es"]],
+        ["A2", "Hands Off Push Up", "321", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"]],
+        ["A3", "Plank Down", "111", ["2 x 10", "2 x 10", "2 x 12", "2 x 12", "", ""]],
+        ["B1", "DB RDL", "321", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 7 es", "3 x 7 es"]],
+        ["B2", "Chin Up", "211", ["3 x 5", "3 x 6", "3 x 7", "3 x 8", "3 x 15", "3 x 15"]],
+        ["B3", "DB Lateral Lunge", "221", ["3 x 5 es", "3 x 5 es", "3 x 6 es", "3 x 6 es", "2 x 15", "2 x 15"]],
+        ["C1", "Band Assisted GHR", "511", ["1 x 5", "2 x 5", "2 x 6", "2 x 6", "", ""]],
+        ["C2", "Kneeling Single Arm DB Press", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "2 x 15 es", "2 x 15 es"]],
+        ["C3", "Farmers Carry", "Slow", ["2 Laps", "2 Laps", "3 Laps", "3 Laps", "", ""]],
+      ],
+    },
+    day2: {
+      power: [
+        ["A1", "Continuous Broad Jump - stick & hold 2sec", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"]],
+        ["B1", "Plyometric Push Up", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"]],
+        ["S1", "Box Drop to Lateral Jump", "Fast", ["2 x 4e.s", "2 x 5e.s", "2 x 6e.s", "2 x 6e.s", "", ""]],
+      ],
+      strength: [
+        ["A1", "Goblet Squat", "311", ["1 x 20", "2 x 10", "2 x 12", "2 x 15", "", ""]],
+        ["A2", "Dips", "321", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"]],
+        ["A3", "Chinese Plank", "Slow", ["2 x 30sec", "2 x 30sec", "2 x 35sec", "2 x 35sec", "", ""]],
+        ["B1", "KB Resistance Band RDL", "321", ["1 x 20", "2 x 10", "2 x 12", "2 x 15", "", ""]],
+        ["B2", "Feet Elevated TRX Row", "321", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "2 x 15", "2 x 15"]],
+        ["B3", "DB High Box Step Up", "111", ["3 x 5 es", "3 x 5 es", "3 x 6 es", "3 x 6 es", "3 x 15", "3 x 15"]],
+        ["C1", "Band Assisted GHR", "511", ["1 x 5", "2 x 5", "2 x 6", "2 x 6", "", ""]],
+        ["C2", "Resistance Band Push Up", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"]],
+        ["C3", "Suitcase Carry", "Slow", ["2 Laps", "2 Laps", "3 Laps", "3 Laps", "", ""]],
+      ],
+    },
+  },
+  "L2-home": {
+    label: "Level 2 · Body weight", // from Keebra Junior Gym Generator
+    day1: {
+      power: [
+        ["A1", "Continuous Broad Jump - stick & hold 2sec", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"]],
+        ["B1", "Plyometric Push Up", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"]],
+        ["S1", "Acceleration Wall Drill", "Fast", ["3 x 10m", "3 x 15m", "4 x 15m", "4 x 20m", "", ""]],
+      ],
+      strength: [
+        ["A1", "Heel Elevated Squat", "321", ["3 x 15", "3 x 15", "3 x 18", "3 x 18", "3 x 15 es", "3 x 15 es"]],
+        ["A2", "Bench Dips", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"]],
+        ["A3", "Side Plank Hip Drop", "Slow", ["2 x 10 es", "2 x 10 es", "2 x 12 es", "2 x 12 es", "", ""]],
+        ["B1", "Single Leg RDL", "221", ["3 x 5 es", "3 x 5 es", "3 x 6 es", "3 x 6 es", "3 x 7 es", "3 x 7 es"]],
+        ["B2", "Fat Man Chins", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "2 x 30sec", "2 x 30sec"]],
+        ["B3", "Lateral Lunge", "221", ["3 x 10 es", "3 x 10 es", "3 x 12 es", "3 x 12 es", "2 x 15 es", "2 x 15 es"]],
+        ["C1", "Band Assisted GHR", "511", ["1 x 5", "2 x 5", "2 x 6", "2 x 6", "", ""]],
+        ["C2", "Push Up to Toe Touch", "221", ["3 x 5 es", "3 x 5 es", "3 x 6 es", "3 x 6 es", "3 x 9", "3 x 10"]],
+        ["C3", "Suitcase Carry", "Slow", ["2 Laps", "2 Laps", "3 Laps", "3 Laps", "", ""]],
+      ],
+    },
+    day2: {
+      power: [
+        ["A1", "Continuous Broad Jump - stick & hold 2sec", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"]],
+        ["B1", "Plyometric Push Up", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"]],
+        ["S1", "Sled March Accel 10m", "Fast", ["3 x 10m", "3 x 12m", "4 x 12m", "4 x 15m", "", ""]],
+      ],
+      strength: [
+        ["A1", "Goblet Squat", "311", ["1 x 20", "2 x 10", "2 x 12", "2 x 15", "", ""]],
+        ["A2", "Scap Push Up", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "2 x 40sec", "2 x 40sec"]],
+        ["A3", "Deadbug", "111", ["2 x 10 es", "2 x 10 es", "2 x 12 es", "2 x 12 es", "", ""]],
+        ["B1", "KB Resistance Band RDL", "321", ["1 x 20", "2 x 10", "2 x 12", "2 x 15", "", ""]],
+        ["B2", "Chin Up", "211", ["3 x 5", "3 x 6", "3 x 7", "3 x 8", "3 x 15", "3 x 15"]],
+        ["B3", "High Box Step Up", "321", ["3 x 5 es", "3 x 5 es", "3 x 6 es", "3 x 6 es", "3 x 20", "3 x 20"]],
+        ["C1", "Band Assisted GHR", "511", ["1 x 5", "2 x 5", "2 x 6", "2 x 6", "", ""]],
+        ["C2", "Hands Off Push Up", "321", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 9", "3 x 10"]],
+        ["C3", "Farmers Carry", "Slow", ["2 Laps", "2 Laps", "3 Laps", "3 Laps", "", ""]],
+      ],
+    },
+  },
+  "L3-weights": {
+    label: "Level 3 · Weights", // from Keebra Junior Gym Generator
+    day1: {
+      power: [
+        ["A1", "Continuous Broad Jump - stick & hold 2sec", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"]],
+        ["B1", "Plyometric Push Up", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"]],
+        ["S1", "Build-up Sprint 20m", "Fast", ["3 x 20m", "4 x 20m", "4 x 25m", "5 x 25m", "", ""]],
+      ],
+      strength: [
+        ["A1", "DB Goblet Squat", "311", ["2 x 10", "3 x 10", "3 x 12", "3 x 15", "", ""]],
+        ["A2", "Military Press", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"]],
+        ["A3", "Shoulder Taps", "111", ["2 x 10 es", "2 x 10 es", "2 x 15 es", "2 x 15 es", "2 x 20 es", "2 x 20 es"]],
+        ["B1", "BB RDL", "321", ["3 x 6", "3 x 5", "4 x 5", "4 x 4", "3 x 12", "3 x 12"]],
+        ["B2", "KB Upright Row", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"]],
+        ["B3", "DB Walking Lunge", "221", ["3 x 6 es", "3 x 6 es", "3 x 8 es", "3 x 8 es", "3 x 10 es", "3 x 10 es"]],
+        ["C1", "Eccentric Nordic", "511", ["1 x 5", "2 x 5", "2 x 6", "2 x 6", "", ""]],
+        ["C2", "Single Arm DB Row", "321", ["3 x 10 es", "3 x 10 es", "3 x 12 es", "3 x 12 es", "3 x 15 es", "3 x 15 es"]],
+        ["C3", "Farmers Carry", "Slow", ["2 Laps", "2 Laps", "3 Laps", "3 Laps", "4 Laps", "4 Laps"]],
+      ],
+    },
+    day2: {
+      power: [
+        ["A1", "Continuous Broad Jump - stick & hold 2sec", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"]],
+        ["B1", "Plyometric Push Up", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"]],
+        ["S1", "Sled Accel Sprint 15m", "Fast", ["3 x 15m", "4 x 15m", "4 x 20m", "5 x 20m", "", ""]],
+      ],
+      strength: [
+        ["A1", "BB Front Squat", "311", ["3 x 6", "3 x 5", "4 x 5", "4 x 4", "3 x 15", "3 x 15"]],
+        ["A2", "BB Bench Press", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"]],
+        ["A3", "Weighted Deadbug", "211", ["2 x 10", "2 x 10", "2 x 12", "2 x 12", "2 x 15", "2 x 15"]],
+        ["B1", "BB RDL", "321", ["3 x 6", "3 x 5", "4 x 5", "4 x 4", "", ""]],
+        ["B2", "Chin Up", "211", ["3 x 5", "3 x 6", "3 x 7", "3 x 8", "3 x 9", "3 x 10"]],
+        ["B3", "DB Lateral Lunge", "221", ["3 x 6 es", "3 x 6 es", "3 x 7 es", "3 x 7 es", "3 x 8 es", "3 x 8 es"]],
+        ["C1", "Eccentric Nordic", "511", ["1 x 5", "2 x 5", "2 x 6", "2 x 6", "", ""]],
+        ["C2", "Trap 3 Raise", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"]],
+        ["C3", "Suitcase Carry", "Slow", ["2 Laps", "2 Laps", "3 Laps", "3 Laps", "4 Laps", "4 Laps"]],
+      ],
+    },
+  },
+  "L3-home": {
+    label: "Level 3 · Body weight", // from Keebra Junior Gym Generator
+    day1: {
+      power: [
+        ["A1", "Continuous Broad Jump - stick & hold 2sec", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"]],
+        ["B1", "Plyometric Push Up", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"]],
+        ["S1", "Depth Drop to Lateral Cut", "Fast", ["2 x 4e.s", "2 x 5e.s", "2 x 5e.s", "2 x 6e.s", "", ""]],
+      ],
+      strength: [
+        ["A1", "Heel Elevated Squat", "321", ["3 x 15", "3 x 15", "3 x 18", "3 x 18", "3 x 20", "3 x 20"]],
+        ["A2", "Bench Dips", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"]],
+        ["A3", "Side Plank Hip Drop", "Slow", ["2 x 10 es", "2 x 10 es", "2 x 12 es", "2 x 12 es", "2 x 15 es", "2 x 15 es"]],
+        ["B1", "Single Leg RDL", "221", ["3 x 5 es", "3 x 5 es", "3 x 6 es", "3 x 6 es", "3 x 7 es", "3 x 7 es"]],
+        ["B2", "Fat Man Chins", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"]],
+        ["B3", "Lateral Lunge", "221", ["3 x 10 es", "3 x 10 es", "3 x 12 es", "3 x 12 es", "3 x 15 es", "3 x 15 es"]],
+        ["C1", "Eccentric Nordic", "511", ["1 x 5", "2 x 5", "2 x 6", "2 x 6", "", ""]],
+        ["C2", "Push Up to Toe Touch", "221", ["3 x 5 es", "3 x 5 es", "3 x 6 es", "3 x 6 es", "3 x 7 es", "3 x 7 es"]],
+        ["C3", "Suitcase Carry", "Slow", ["2 Laps", "2 Laps", "3 Laps", "3 Laps", "4 Laps", "4 Laps"]],
+      ],
+    },
+    day2: {
+      power: [
+        ["A1", "Continuous Broad Jump - stick & hold 2sec", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"]],
+        ["B1", "Plyometric Push Up", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"]],
+        ["S1", "Acceleration Wall Drill", "Fast", ["3 x 10m", "3 x 15m", "4 x 15m", "4 x 20m", "", ""]],
+      ],
+      strength: [
+        ["A1", "DB Goblet Squat", "311", ["2 x 10", "3 x 10", "3 x 12", "3 x 15", "", ""]],
+        ["A2", "Scap Push Up", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"]],
+        ["A3", "Deadbug", "111", ["2 x 10 es", "2 x 10 es", "2 x 12 es", "2 x 12 es", "2 x 15 es", "2 x 15 es"]],
+        ["B1", "BB RDL", "321", ["3 x 6", "3 x 5", "4 x 5", "4 x 4", "", ""]],
+        ["B2", "Chin Up", "211", ["3 x 5", "3 x 6", "3 x 7", "3 x 8", "3 x 9", "3 x 10"]],
+        ["B3", "High Box Step Up", "321", ["3 x 5 es", "3 x 5 es", "3 x 6 es", "3 x 6 es", "3 x 7 es", "3 x 7 es"]],
+        ["C1", "Eccentric Nordic", "511", ["1 x 5", "2 x 5", "2 x 6", "2 x 6", "2 x 40sec", "2 x 40sec"]],
+        ["C2", "Hands Off Push Up", "321", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"]],
+        ["C3", "Farmers Carry", "Slow", ["2 Laps", "2 Laps", "3 Laps", "3 Laps", "4 Laps", "4 Laps"]],
+      ],
+    },
+  },
+  "senior-weights": {
+    label: "Senior · Weights", // DRAFT from research: coach to review
+    day1: {
+      power: [
+        ["A1", "Box Jump - stick & hold 2sec", "Fast", ["2 x 3", "3 x 3", "3 x 3", "3 x 4", "3 x 4", "2 x 3"]],
+        ["B1", "Med Ball Chest Pass", "Fast", ["2 x 5", "3 x 5", "3 x 5", "3 x 6", "3 x 6", "2 x 5"]],
+        ["S1", "Build-up Sprint 20m", "Fast", ["3 x 20m", "4 x 20m", "4 x 25m", "5 x 25m", "5 x 25m", "3 x 20m"]],
+      ],
+      strength: [
+        ["A1", "BB Back Squat", "311", ["3 x 8", "3 x 6", "4 x 6", "4 x 5", "4 x 5", "2 x 6"]],
+        ["A2", "BB Bench Press", "221", ["3 x 8", "3 x 6", "4 x 6", "4 x 5", "4 x 5", "2 x 6"]],
+        ["A3", "Pallof Press", "Slow", ["2 x 8 es", "2 x 8 es", "2 x 10 es", "2 x 10 es", "2 x 12 es", "2 x 8 es"]],
+        ["B1", "Trap Bar Deadlift", "211", ["3 x 8", "3 x 6", "3 x 6", "3 x 5", "3 x 5", "2 x 5"]],
+        ["B2", "Chin Up", "211", ["3 x 5", "3 x 6", "3 x 6", "3 x 7", "3 x 8", "2 x 6"]],
+        ["B3", "Rear Foot Elevated Split Squat", "221", ["3 x 8 es", "3 x 8 es", "3 x 6 es", "3 x 6 es", "3 x 6 es", "2 x 6 es"]],
+        ["C1", "Eccentric Nordic", "511", ["2 x 3", "2 x 4", "3 x 4", "3 x 5", "3 x 5", "2 x 3"]],
+        ["C2", "Half Kneeling Landmine Press", "221", ["3 x 8 es", "3 x 8 es", "3 x 10 es", "3 x 10 es", "3 x 10 es", "2 x 8 es"]],
+        ["C3", "Farmers Carry", "Slow", ["2 Laps", "2 Laps", "3 Laps", "3 Laps", "4 Laps", "2 Laps"]],
+      ],
+    },
+    day2: {
+      power: [
+        ["A1", "Continuous Broad Jump - stick & hold 2sec", "Fast", ["2 x 3", "2 x 4", "3 x 4", "3 x 5", "3 x 5", "2 x 3"]],
+        ["B1", "Rotational Med Ball Throw", "Fast", ["2 x 4 es", "2 x 5 es", "3 x 5 es", "3 x 5 es", "3 x 6 es", "2 x 4 es"]],
+        ["S1", "Sled Accel Sprint 15m", "Fast", ["3 x 15m", "4 x 15m", "4 x 20m", "5 x 20m", "5 x 20m", "3 x 15m"]],
+      ],
+      strength: [
+        ["A1", "BB Front Squat", "311", ["3 x 8", "3 x 6", "4 x 6", "4 x 5", "4 x 5", "2 x 6"]],
+        ["A2", "DB Shoulder Press", "221", ["3 x 10", "3 x 8", "3 x 8", "3 x 6", "3 x 6", "2 x 8"]],
+        ["A3", "Copenhagen Plank", "Hold", ["2 x 15sec es", "2 x 20sec es", "2 x 20sec es", "2 x 25sec es", "2 x 30sec es", "2 x 15sec es"]],
+        ["B1", "BB RDL", "321", ["3 x 8", "3 x 6", "4 x 6", "4 x 5", "4 x 5", "2 x 6"]],
+        ["B2", "Bent Over BB Row", "221", ["3 x 10", "3 x 8", "4 x 8", "4 x 6", "4 x 6", "2 x 8"]],
+        ["B3", "DB Walking Lunge", "221", ["3 x 6 es", "3 x 6 es", "3 x 8 es", "3 x 8 es", "3 x 8 es", "2 x 6 es"]],
+        ["C1", "Eccentric Nordic", "511", ["2 x 3", "2 x 4", "3 x 4", "3 x 5", "3 x 5", "2 x 3"]],
+        ["C2", "Weighted Push Up", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 12", "2 x 10"]],
+        ["C3", "Suitcase Carry", "Slow", ["2 Laps", "2 Laps", "3 Laps", "3 Laps", "4 Laps", "2 Laps"]],
+      ],
+    },
+  },
 };
 /* ======================= END OF COACH CONFIGURATION ===================== */
 
@@ -329,6 +638,8 @@ const CONFIG = {
   const TYPES = {
     broncos:  { label: "Conditioning" },
     mas:      { label: "Conditioning" },
+    gymprog:  { label: "Gym program" },
+    zone2:    { label: "Easy aerobic" },
     gym:      { label: "Gym" },
     skills:   { label: "Skills" },
     speed:    { label: "Speed" },
@@ -336,10 +647,11 @@ const CONFIG = {
     recovery: { label: "Recovery" },
     custom:   { label: "Custom" }
   };
+  const PRESET = ["broncos", "mas", "gymprog", "zone2"];
   const ADDABLE = ["gym", "skills", "speed", "team", "recovery", "custom"];
   const WEEKS = CONFIG.weeks.map(w => w.week);
   const LAST_WEEK = WEEKS[WEEKS.length - 1];
-  const STATE_VERSION = 1;
+  const STATE_VERSION = 2;
 
   /* ---------- helpers ---------- */
   const $ = (sel, root = document) => root.querySelector(sel);
@@ -347,6 +659,7 @@ const CONFIG = {
   const uid = () => "s" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   const dayIndex = short => Math.max(0, SHORT.indexOf(short));
   const weekCfg = w => CONFIG.weeks.find(x => x.week === w) || CONFIG.weeks[0];
+  const weekPos = w => Math.max(0, WEEKS.indexOf(w));
   const repMetres = () => CONFIG.broncos.legsM.reduce((a, b) => a + b * 2, 0);
   const plural = (n, one, many) => n + " " + (n === 1 ? one : (many || one + "s"));
 
@@ -366,6 +679,10 @@ const CONFIG = {
     const ap = h >= 12 ? "pm" : "am";
     h = h % 12 || 12;
     return `${h}:${String(m).padStart(2, "0")} ${ap}`;
+  }
+  function fmtPace(secPerKm) {
+    const s = Math.round(secPerKm);
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
   }
   function todayIdx() { return (new Date().getDay() + 6) % 7; }
   function programWeekNow() {
@@ -391,22 +708,29 @@ const CONFIG = {
   function seedSessions() {
     const list = [];
     let order = 0;
+    const add = (w, key, type, title, extra) => list.push(Object.assign(
+      { id: uid(), week: w, day: dayIndex(CONFIG.defaultDays[key]), type, title, start: "", duration: "", notes: "", done: false, order: order++ }, extra || {}));
     CONFIG.weeks.forEach(w => {
-      list.push({ id: uid(), week: w.week, day: dayIndex(CONFIG.defaultDays.broncos), type: "broncos", title: "Broken Broncos", start: "", duration: "", notes: "", done: false, order: order++ });
-      list.push({ id: uid(), week: w.week, day: dayIndex(CONFIG.defaultDays.mas), type: "mas", title: "Straight-line MAS", start: "", duration: "", notes: "", done: false, order: order++ });
+      add(w.week, "broncos", "broncos", "Broken Broncos");
+      add(w.week, "mas", "mas", "Straight-line MAS");
+      add(w.week, "gym1", "gymprog", "Gym Day 1", { gymDay: 1 });
+      add(w.week, "gym2", "gymprog", "Gym Day 2", { gymDay: 2 });
+      if (w.zone2) add(w.week, "zone2", "zone2", "Zone 2 easy run");
     });
     return list;
   }
+  const DEFAULT_CALC = { min: "", sec: "", weight: "under100", mode: "individual", lane: null };
+  const DEFAULT_PROFILE = { year: null, access: "gym" };
   function freshState() {
-    const now = programWeekNow();
+    const list = seedSessions();
     return {
-      version: STATE_VERSION,
-      seeded: true,
-      week: now || WEEKS[0],
+      version: STATE_VERSION, seeded: true,
+      week: programWeekNow() || WEEKS[0],
       view: "week",
-      calc: { min: "", sec: "", weight: "under100", mode: "individual", lane: null },
-      sessions: seedSessions(),
-      nextOrder: CONFIG.weeks.length * 2
+      profile: Object.assign({}, DEFAULT_PROFILE),
+      calc: Object.assign({}, DEFAULT_CALC),
+      sessions: list,
+      nextOrder: list.length
     };
   }
   function loadState() {
@@ -418,7 +742,8 @@ const CONFIG = {
       const s = JSON.parse(raw);
       if (!s || !Array.isArray(s.sessions) || !s.seeded) throw new Error("bad");
       // fill any gaps defensively — never re-seed an existing planner
-      s.calc = Object.assign({ min: "", sec: "", weight: "under100", mode: "individual", lane: null }, s.calc || {});
+      s.calc = Object.assign({}, DEFAULT_CALC, s.calc || {});
+      s.profile = Object.assign({}, DEFAULT_PROFILE, s.profile || {});
       if (!WEEKS.includes(s.week)) s.week = WEEKS[0];
       if (s.view !== "calc") s.view = "week";
       if (typeof s.nextOrder !== "number") s.nextOrder = s.sessions.reduce((m, x) => Math.max(m, (x.order || 0) + 1), 0);
@@ -499,13 +824,55 @@ const CONFIG = {
     const r = calcResult(state.calc);
     if (state.calc.mode === "lane") {
       const lane = laneById(state.calc.lane);
-      if (lane) return { m: lane.m, kind: "lane", label: `Squad lane ${lane.id}`, short: `Lane ${lane.id}` };
+      if (lane) return { m: lane.m, kind: "lane", label: `Squad lane ${lane.id}`, short: `Lane ${lane.id}`, mas: lane.m / (CONFIG.mas.intensity * CONFIG.mas.effortSec) };
       return null;
     }
     if (r.status === "ok") {
-      return { m: r.rounded, kind: "individual", label: `My distance (Bronco ${Number(state.calc.min)}:${String(Number(state.calc.sec)).padStart(2, "0")})`, short: "My distance" };
+      return { m: r.rounded, kind: "individual", label: `My distance (Bronco ${Number(state.calc.min)}:${String(Number(state.calc.sec)).padStart(2, "0")})`, short: "My distance", mas: r.mas };
     }
     return null;
+  }
+  function zone2Pace() {
+    const t = currentTarget();
+    if (!t) return null;
+    return { slow: fmtPace(1000 / (t.mas * CONFIG.zone2.paceLow)), fast: fmtPace(1000 / (t.mas * CONFIG.zone2.paceHigh)) };
+  }
+
+  /* ---------- gym program ---------- */
+  function yearCfg() { return CONFIG.yearLevels.find(y => y.year === state.profile.year) || null; }
+  function gymProgram() {
+    const yc = yearCfg();
+    if (!yc) return null;
+    const useGym = state.profile.access !== "home" && yc.gym;
+    const key = useGym ? yc.gym : yc.home;
+    const prog = (typeof GYM_PROGRAMS !== "undefined") && GYM_PROGRAMS[key];
+    if (!prog) return null;
+    return { key, prog, label: prog.label, where: useGym ? "Weights" : "At home" };
+  }
+  function exercisesFor(list, week) {
+    const i = weekPos(week);
+    return (list || []).map(([slot, name, tempo, wk]) => ({ slot, name, tempo, dose: (wk && wk[i]) || "" })).filter(e => e.dose);
+  }
+  function fmtDose(d) {
+    return String(d)
+      .replace(/(\d)\s*e\s*[.\/]?\s*s\b\.?/gi, "$1 each side")
+      .replace(/\s+e\s*[.\/]?\s*s\b\.?/gi, " each side")
+      .replace(/(\d)\s*x\s*/gi, "$1 × ")
+      .replace(/(\d)\s*sec\b/g, "$1 sec")
+      .replace(/(\d)\s*laps\b/gi, "$1 laps")
+      .replace(/\s+/g, " ").trim();
+  }
+  function fmtTempo(t) {
+    t = String(t || "");
+    if (/^\d{3}$/.test(t)) return `Tempo ${t[0]}-${t[1]}-${t[2]}`;
+    if (/^fast$/i.test(t)) return "Fast and explosive";
+    if (/^slow$/i.test(t)) return "Slow and controlled";
+    if (/^hold$/i.test(t)) return "Hold";
+    return t;
+  }
+  function cueFor(name) {
+    const n = name.toLowerCase();
+    return CONFIG.gym.cues.find(c => c.match.some(m => n.includes(m.toLowerCase()))) || null;
   }
 
   /* ---------- session helpers ---------- */
@@ -526,6 +893,8 @@ const CONFIG = {
     const w = weekCfg(s.week);
     if (s.type === "broncos") return `${plural(w.broncos.sets, "set")} of ${w.broncos.reps}`;
     if (s.type === "mas") return `${plural(w.mas.sets, "set")} of ${plural(w.mas.runs, "run")}`;
+    if (s.type === "zone2") return `${w.zone2 || 20} min`;
+    if (s.type === "gymprog") { const g = gymProgram(); return g ? g.label : ""; }
     return "";
   }
   function timeMeta(s) {
@@ -559,6 +928,33 @@ const CONFIG = {
   }
 
   /* ---------- My week ---------- */
+  function profilePanelHTML() {
+    const p = state.profile, yc = yearCfg(), g = gymProgram();
+    return `
+      <section class="panel-card${p.year ? "" : " need"}" aria-labelledby="profH">
+        <h2 id="profH">My gym program</h2>
+        <div class="prog-grid">
+          <div class="field" style="margin:0">
+            <label for="yearSel">My year level</label>
+            <select id="yearSel">
+              <option value="">Choose your year…</option>
+              ${CONFIG.yearLevels.map(y => `<option value="${y.year}" ${p.year === y.year ? "selected" : ""}>Year ${y.year}</option>`).join("")}
+            </select>
+          </div>
+          <div class="field" style="margin:0">
+            <span class="lbl">Where I train</span>
+            ${yc && !yc.gym
+              ? `<p class="hint" style="margin:4px 0 0">Year ${yc.year} uses the at-home program. No gym needed.</p>`
+              : `<div class="seg" role="group" aria-label="Where I train">
+                  <button data-act="access" data-access="gym" aria-pressed="${p.access !== "home"}">Gym (weights)</button>
+                  <button data-act="access" data-access="home" aria-pressed="${p.access === "home"}">Home (no gym)</button>
+                </div>`}
+          </div>
+        </div>
+        <p class="hint" style="margin-top:10px">${g ? `Your gym sessions use <strong>${esc(g.label)}</strong>. Change your year any time. Your schedule and notes stay the same.` : "Pick your year so your Gym Day 1 and Gym Day 2 show the right exercises."}</p>
+      </section>`;
+  }
+
   function targetPanelHTML() {
     const t = currentTarget();
     const r = calcResult(state.calc);
@@ -574,7 +970,7 @@ const CONFIG = {
         : "Enter your Bronco time, or pick the lane your coach gave you.";
     }
     return `
-      <section class="target-panel" aria-labelledby="tpH">
+      <section class="panel-card" aria-labelledby="tpH">
         <h2 id="tpH">MAS running target</h2>
         <div class="target-big">${big}</div>
         <div class="target-sub">${sub}</div>
@@ -589,9 +985,9 @@ const CONFIG = {
 
   function sessionRowHTML(s) {
     const t = currentTarget();
-    let tagCls = s.type, tagLbl = TYPES[s.type] ? TYPES[s.type].label : "Session";
-    if (s.type === "broncos" || s.type === "mas") tagLbl = "Conditioning";
-    let title = esc(s.title), lines = [];
+    const tagLbl = TYPES[s.type] ? TYPES[s.type].label : "Session";
+    let title = esc(s.title);
+    const lines = [];
     if (s.type === "broncos") {
       title = `${esc(s.title)} · ${doseText(s)}`;
       lines.push(`${repMetres()} m reps · ${fmtDur(CONFIG.broncos.restBetweenRepsSec)} rest between reps${weekCfg(s.week).broncos.sets > 1 ? `, ${fmtDur(CONFIG.broncos.restBetweenSetsSec)} between sets` : ""}`);
@@ -600,6 +996,21 @@ const CONFIG = {
       if (t) lines.push(`<strong>${t.m} m in ${CONFIG.mas.effortSec} s</strong> · ${esc(t.short)}`);
       else lines.push(`<span class="warnline">Set your target: Bronco time or lane</span>`);
       lines.push(`${fmtDur(CONFIG.mas.recoveryBetweenRunsSec)} recovery between runs · ${fmtDur(CONFIG.mas.restBetweenSetsSec)} between sets`);
+    } else if (s.type === "zone2") {
+      title = `${esc(s.title)} · ${doseText(s)}`;
+      const p = zone2Pace();
+      lines.push(`Easy: you can talk in full sentences${p ? ` · about <strong>${p.fast}–${p.slow} per km</strong>` : ""}`);
+    } else if (s.type === "gymprog") {
+      const g = gymProgram();
+      if (g) {
+        const day = g.prog["day" + (s.gymDay || 1)];
+        const main = exercisesFor(day.strength, s.week).filter(e => /^(A1|B1|B2)$/.test(e.slot)).map(e => e.name);
+        title = `${esc(s.title)} · ${esc(g.where)}`;
+        lines.push(`${esc(g.label)} · about ${CONFIG.gym.minutes} min`);
+        if (main.length) lines.push(esc(main.join(" · ")));
+      } else {
+        lines.push(`<span class="warnline">Choose your year level to see your program</span>`);
+      }
     }
     const tm = timeMeta(s);
     if (tm) lines.unshift(tm);
@@ -610,7 +1021,7 @@ const CONFIG = {
           <span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg></span>
         </button>
         <button class="open" data-act="open" data-id="${s.id}">
-          <span class="tag ${tagCls}">${esc(tagLbl)}</span>
+          <span class="tag ${s.type}">${esc(tagLbl)}</span>
           <span class="t">${title}</span>
           ${lines.map(l => `<span class="m">${l}</span>`).join("")}
         </button>
@@ -642,11 +1053,12 @@ const CONFIG = {
       const todays = sessionsFor(wk, tIdx);
       html += `<section class="today-strip" aria-labelledby="todayH"><h2 id="todayH">Today · ${DAYS[tIdx]}</h2>${
         todays.length
-          ? `<ul>${todays.map(s => `<li><button data-act="open" data-id="${s.id}">${s.done ? "✓ " : ""}${esc(s.title)}${doseText(s) ? " · " + doseText(s) : ""}${s.start ? " · " + fmtTime(s.start) : ""}</button></li>`).join("")}</ul>`
+          ? `<ul>${todays.map(s => `<li><button data-act="open" data-id="${s.id}">${s.done ? "✓ " : ""}${esc(s.title)}${doseText(s) ? " · " + esc(doseText(s)) : ""}${s.start ? " · " + fmtTime(s.start) : ""}</button></li>`).join("")}</ul>`
           : `<p style="margin:0">Nothing planned. Rest day, or <button class="linkish" data-act="add" data-day="${tIdx}">add a session</button>.</p>`
       }</section>`;
     }
 
+    html += profilePanelHTML();
     html += targetPanelHTML();
 
     html += `<div class="days">`;
@@ -666,6 +1078,15 @@ const CONFIG = {
     }
     html += `</div>`;
     $("#view").innerHTML = html;
+
+    const ys = $("#yearSel");
+    if (ys) ys.addEventListener("change", () => {
+      state.profile.year = ys.value ? Number(ys.value) : null;
+      save(); render();
+      const g = gymProgram();
+      toast(g ? `Gym sessions now use ${g.label}` : "Year level cleared");
+      const again = $("#yearSel"); if (again) again.focus();
+    });
   }
 
   /* ---------- Calculator ---------- */
@@ -716,6 +1137,7 @@ const CONFIG = {
               <li>Estimated MAS (m/s) = ${CONFIG.calculator.testDistanceM} ÷ (total seconds − turn adjustment).</li>
               <li>Cone distance = MAS × ${CONFIG.mas.intensity.toFixed(2)} × ${CONFIG.mas.effortSec} s (${Math.round(CONFIG.mas.intensity * 100)}% of MAS), rounded to the nearest metre.</li>
               <li>Nearest squad lane: ${CONFIG.lanes.map(l => `${l.id} ${l.m} m`).join(", ")}. A tie goes to the shorter lane.</li>
+              <li>Zone 2 pace = ${Math.round(CONFIG.zone2.paceLow * 100)}–${Math.round(CONFIG.zone2.paceHigh * 100)}% of MAS.</li>
             </ol>
           </div>
         </details>
@@ -806,6 +1228,67 @@ const CONFIG = {
       ${type === "broncos" ? "<li><strong>Rehearse the turns</strong> at 20 m, 40 m and 60 m</li>" : ""}</ul></section>`;
   }
 
+  function exListHTML(items, withCues) {
+    return `<ul class="ex-list">${items.map(e => {
+      const cue = withCues ? cueFor(e.name) : null;
+      const slotName = CONFIG.gym.slotNames[e.slot];
+      return `<li><span class="slot">${esc(e.slot)}</span><span class="nm">${esc(e.name)}</span><span class="dose">${esc(fmtDose(e.dose))}</span>
+        <span class="sub2">${slotName && e.slot.length === 2 && !/^S/.test(e.slot) && withCues === "strength" ? esc(slotName) + " · " : ""}${esc(fmtTempo(e.tempo))}</span>
+        ${cue ? `<span class="cue">✓ ${esc(cue.say)}</span>` : ""}</li>`;
+    }).join("")}</ul>`;
+  }
+
+  function gymDetailHTML(s) {
+    const g = gymProgram();
+    if (!g) {
+      return `<section><div class="callout pink"><strong>Choose your year level first.</strong> Your gym program depends on your year.</div>
+        <div class="field" style="margin-top:12px"><label for="yearSel2">My year level</label>
+        <select id="yearSel2" data-reopen="${s.id}"><option value="">Choose your year…</option>
+        ${CONFIG.yearLevels.map(y => `<option value="${y.year}">Year ${y.year}</option>`).join("")}</select></div></section>`;
+    }
+    const day = g.prog["day" + (s.gymDay || 1)];
+    const w = weekCfg(s.week);
+    const power = exercisesFor(day.power, s.week);
+    const strength = exercisesFor(day.strength, s.week);
+    const groups = ["A", "B", "C"].map(L => ({ L, items: strength.filter(e => e.slot[0] === L) })).filter(x => x.items.length);
+    const anyTempo = strength.some(e => /^\d{3}$/.test(String(e.tempo)));
+    let html = `<section><div class="facts">
+        <div class="fact"><span>Program</span><b>${esc(g.label)}</b></div>
+        <div class="fact"><span>Time</span><b>About ${CONFIG.gym.minutes} min</b></div>
+        <div class="fact wide"><span>How hard this week</span><b style="font-size:17px">${esc(w.effort || "")}</b></div>
+      </div></section>`;
+    html += `<section><h3>Warm-up · do every session</h3>
+      <ul class="ex-list">${CONFIG.gym.warmup.map(([n, d, c]) => `<li><span class="slot">•</span><span class="nm">${esc(n)}</span><span class="dose">${esc(d)}</span><span class="sub2">${esc(c)}</span></li>`).join("")}</ul></section>`;
+    if (power.length) html += `<section><h3>Power &amp; speed</h3><p class="hint" style="margin-top:0">Fresh and fast. Full rest between sets.</p>${exListHTML(power, "power")}</section>`;
+    html += `<section><h3>Strength</h3>
+      <p class="hint" style="margin-top:0">Do each group as a circuit: one set of each exercise back-to-back, rest 60–90 seconds, then repeat until all sets are done.${anyTempo ? " Tempo 3-2-1 means 3 seconds lowering, 2 seconds pause, 1 second up." : ""} “Each side” means both legs or arms.</p>
+      ${groups.map(gr => `<div class="group-h">Group ${gr.L} <small>(${gr.items.map(e => e.slot).join(", ")})</small></div>${exListHTML(gr.items, "strength")}`).join("")}
+    </section>`;
+    html += `<section><div class="callout">${esc(CONFIG.gym.rule)} Stop if something hurts sharply or in a joint. Normal muscle soreness is OK.</div></section>`;
+    return html;
+  }
+
+  function zone2DetailHTML(s) {
+    const w = weekCfg(s.week);
+    const p = zone2Pace();
+    return `<section><div class="facts">
+        <div class="fact"><span>This week</span><b>${w.zone2 || 20} minutes</b></div>
+        <div class="fact"><span>Effort</span><b>Easy · 3–4 out of 10</b></div>
+        <div class="fact wide"><span>Pace guide</span><b>${p ? `About ${p.fast}–${p.slow} per km` : "Set your Bronco time or lane to see a pace"}</b></div>
+      </div></section>
+      <section><h3>Why</h3><p>Easy running builds your aerobic base, so you recover faster between hard efforts and handle the Broncos and MAS sessions better. It is meant to feel easy. Don’t turn it into a third hard session.</p></section>
+      <section><h3>How easy is easy?</h3><ul>
+        <li><strong>Talk test:</strong> you can talk in full sentences, just.</li>
+        <li><strong>Effort:</strong> 3–4 out of 10. You feel like you could keep going for ages.</li>
+        <li>If you can only get out a few words, slow down or walk for a bit.</li></ul></section>
+      <section><h3>Swap it if you need to</h3><ul>
+        <li>Bike, swim or pool session at the same easy effort for the same time.</li>
+        <li>Swap if you have sore knees, heels or shins, you’ve had a recent growth spurt, or you’re carrying an injury.</li>
+        <li>Run on grass or trails where you can.</li>
+        <li>Got club or team training this week? You can skip this one.</li></ul></section>
+      <section><div class="callout pink">Eat enough to fuel your training, especially in the holidays. Feeling flat all the time, getting sick a lot, or missing periods? Tell your coach or a parent.</div></section>`;
+  }
+
   function openDetail(id) {
     const s = findSession(id);
     if (!s) return;
@@ -835,7 +1318,7 @@ const CONFIG = {
       const t = currentTarget();
       const r = calcResult(state.calc);
       const { sets, runs } = w.mas;
-      body += `<section><div class="fact wide" style="background:${t ? "var(--accent-soft)" : "var(--warn-soft)"};border:2px solid ${t ? "var(--accent)" : "#f3b989"}">
+      body += `<section><div class="fact wide" style="background:${t ? "var(--accent-soft)" : "var(--warn-soft)"};border:2px solid ${t ? "var(--pink-dk)" : "#f3b989"}">
           <span>Your cone distance</span>
           <b style="font-size:26px">${t ? `Run ${t.m} m in ${CONFIG.mas.effortSec} seconds` : "Not set yet"}</b>
           <div style="font-weight:700;margin-top:4px">${t ? `Using: ${esc(t.label)}` : "Enter your Bronco time or pick your lane below."}</div>
@@ -859,16 +1342,19 @@ const CONFIG = {
           <li>Jog forward ${CONFIG.mas.recoveryConeM} m to the recovery cone and back to the finish line, ready to run the opposite direction.</li>
           <li>Go again when the ${fmtDur(CONFIG.mas.recoveryBetweenRunsSec)} recovery is up. Each ${CONFIG.mas.effortSec}-second effort counts as one run.</li>
           <li>After ${plural(runs, "run")}, rest ${fmtDurLong(CONFIG.mas.restBetweenSetsSec)}, then do the next set.</li></ol></section>`;
+    } else if (s.type === "gymprog") {
+      body += gymDetailHTML(s);
+    } else if (s.type === "zone2") {
+      body += zone2DetailHTML(s);
     }
 
     const tm = timeMeta(s);
-    if (tm && s.type !== "broncos" && s.type !== "mas") body += `<section><h3>When</h3><p>${esc(tm)}</p></section>`;
-    else if (tm) body = `<section><h3>When</h3><p>${esc(tm)}</p></section>` + body;
+    if (tm) body = `<section><h3>When</h3><p>${esc(tm)}</p></section>` + body;
     if (s.notes) body += `<section><h3>My notes</h3><div class="notes-box">${esc(s.notes)}</div></section>`;
-    else if (s.type !== "broncos" && s.type !== "mas") body += `<section><p class="hint">No notes yet. Tap Edit to add some.</p></section>`;
+    else if (!PRESET.includes(s.type)) body += `<section><p class="hint">No notes yet. Tap Edit to add some.</p></section>`;
 
     body += `<section>
-        <button class="btn ${s.done ? "" : "good"}" data-act="tick" data-id="${s.id}" data-reopen="${s.id}" style="width:100%;margin-bottom:10px" aria-pressed="${!!s.done}">${s.done ? "✓ Completed — tap to undo" : "Mark complete"}</button>
+        <button class="btn ${s.done ? "" : "good"}" data-act="tick" data-id="${s.id}" data-reopen="${s.id}" style="width:100%;margin-bottom:10px" aria-pressed="${!!s.done}">${s.done ? "✓ Completed, tap to undo" : "Mark complete"}</button>
         <div class="field"><label for="moveSel">Move to another day (Week ${s.week})</label>
           <select id="moveSel" data-id="${s.id}">${DAYS.map((d, i) => `<option value="${i}" ${i === s.day ? "selected" : ""}>${d}${i === s.day ? " (current)" : ""}</option>`).join("")}</select></div>
         <div class="btn-row">
@@ -888,12 +1374,18 @@ const CONFIG = {
       toast(`Moved to ${DAYS[to]}`);
       openDetail(ss.id);
     });
+    const ys2 = $("#yearSel2");
+    if (ys2) ys2.addEventListener("change", () => {
+      if (!ys2.value) return;
+      state.profile.year = Number(ys2.value);
+      save(); render(); openDetail(ys2.dataset.reopen);
+    });
   }
 
   /* Add / edit form */
   function openForm(opts) {
     const editing = opts.id ? findSession(opts.id) : null;
-    const isCond = editing && (editing.type === "broncos" || editing.type === "mas");
+    const isPreset = editing && PRESET.includes(editing.type);
     let type = editing ? editing.type : "gym";
     const day = editing ? editing.day : opts.day;
     const wk = editing ? editing.week : state.week;
@@ -902,12 +1394,12 @@ const CONFIG = {
 
     const html = sheetHead(editing ? "Edit session" : "Add session", `Week ${wk}`) + `
       <form class="sheet-body" id="sessForm" novalidate>
-        ${isCond ? "" : `<div class="field"><span class="lbl" id="typeLbl">Type</span>
+        ${isPreset ? "" : `<div class="field"><span class="lbl" id="typeLbl">Type</span>
           <div class="type-grid" role="group" aria-labelledby="typeLbl">
             ${ADDABLE.map(k => `<button type="button" data-type="${k}" aria-pressed="${k === type}">${TYPES[k].label}</button>`).join("")}
           </div></div>`}
         <div class="field"><label for="fTitle">Title</label>
-          <input id="fTitle" type="text" maxlength="80" value="${esc(v.title)}" placeholder="e.g. Lower-body gym" ${editing ? "" : "autofocus"} required>
+          <input id="fTitle" type="text" maxlength="80" value="${esc(v.title)}" placeholder="e.g. Passing both sides" ${editing ? "" : "autofocus"} required>
           <div id="titleErr"></div></div>
         <div class="field"><label for="fDay">Day</label>
           <select id="fDay">${DAYS.map((d, i) => `<option value="${i}" ${i === day ? "selected" : ""}>${d}</option>`).join("")}</select></div>
@@ -919,7 +1411,7 @@ const CONFIG = {
         </div>
         <div id="durErr"></div>
         <div class="field"><label for="fNotes">Notes <span class="opt">(optional)</span></label>
-          <textarea id="fNotes" maxlength="1000" placeholder="e.g. Squats 4×5, focus on catch-pass both sides">${esc(v.notes)}</textarea></div>
+          <textarea id="fNotes" maxlength="1000" placeholder="e.g. Skill I’m working on, weights I lifted, how it felt">${esc(v.notes)}</textarea></div>
         ${editing ? `<p class="hint">Changes apply to this session only (Week ${wk}).</p>` : `
         <div class="field"><label class="check-row"><input type="checkbox" id="fRepeat" ${remaining.length < 2 ? "disabled" : ""}>
           <span><b>Repeat in remaining weeks</b><span>${remaining.length < 2 ? "This is the last week." : `Adds this session on the same day in Weeks ${wk}–${LAST_WEEK}. Each copy can be edited on its own later.`}</span></span></label></div>`}
@@ -981,7 +1473,7 @@ const CONFIG = {
         const s = findSession(el.dataset.id);
         if (!s) break;
         s.done = !s.done; save(); render();
-        toast(s.done ? "Nice work — marked complete" : "Marked not done");
+        toast(s.done ? "Nice work, marked complete" : "Marked not done");
         if (reopen) openDetail(reopen);
         break;
       }
@@ -999,6 +1491,10 @@ const CONFIG = {
       }
       case "close":
         closeSheet(); break;
+      case "access":
+        state.profile.access = el.dataset.access; save(); render();
+        { const g = gymProgram(); if (g) toast(`Gym sessions now use ${g.label}`); }
+        break;
       case "lane":
         state.calc.lane = el.dataset.lane; state.calc.mode = "lane"; save();
         render(); if (reopen) openDetail(reopen);
