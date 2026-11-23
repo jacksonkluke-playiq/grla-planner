@@ -223,6 +223,19 @@
   .ex-list .sub2 { grid-column: 2 / -1; font-size: 14px; color: var(--ink-2); }
   .ex-list .cue { grid-column: 2 / -1; font-size: 14px; color: var(--good); font-weight: 600; }
   .ex-list .vid { grid-column: 2 / -1; justify-self: start; display: inline-flex; align-items: center; min-height: 40px; font-size: 15px; font-weight: 800; color: var(--cyan-dk); text-decoration: underline; text-underline-offset: 3px; }
+  .skills-panel > summary { list-style: none; min-height: var(--tap); cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .skills-panel > summary::-webkit-details-marker { display: none; }
+  .skills-panel > summary::after { content: "▾"; font-size: 20px; color: var(--pink-dk); transition: transform .15s; }
+  .skills-panel[open] > summary::after { transform: rotate(180deg); }
+  .skills-panel .kicker { display: block; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; font-weight: 800; color: var(--pink-dk); }
+  .skills-panel .sum-line { display: block; font-weight: 800; font-size: 16px; margin-top: 2px; }
+  .skill-chips { display: grid; gap: 6px; }
+  .skill-chip { text-align: left; min-height: var(--tap); border: 2px solid var(--line); border-radius: 12px; background: #fff; padding: 8px 12px 8px 40px; position: relative; }
+  .skill-chip::before { content: ""; position: absolute; left: 12px; top: 12px; width: 18px; height: 18px; border: 3px solid var(--ink-2); border-radius: 5px; background: #fff; }
+  .skill-chip[aria-pressed="true"] { border-color: var(--cyan-dk); background: var(--today-soft); }
+  .skill-chip[aria-pressed="true"]::before { background: var(--cyan-dk); border-color: var(--cyan-dk); box-shadow: inset 0 0 0 3px #fff; }
+  .skill-chip b { display: block; font-size: 16px; }
+  .skill-chip span { display: block; font-size: 14px; color: var(--ink-2); font-weight: 500; }
   .group-h { font-weight: 800; margin: 12px 0 6px; font-size: 16px; }
   .group-h small { font-weight: 600; color: var(--ink-2); font-size: 14px; }
   .callout { border-left: 5px solid var(--kp-cyan); background: var(--today-soft); padding: 10px 12px; border-radius: 0 12px 12px 0; font-size: 15px; }
@@ -358,6 +371,53 @@ const CONFIG = {
   },
 
   warmupMinutes: "8–10",
+
+  // Skills from the GRLA player feedback reports (defence and attack only).
+  // Players pick their position group, tick the skills their coach flagged,
+  // and choose one when they add a Skills session. Edit look-fors here.
+  skillGroups: [
+    { id: "y910-backs", name: "Years 9–10 · Backs", skills: [
+      {"id": "tackle", "area": "Defence", "name": "Tackle technique", "about": "Technically sound tackles adapting to fast footwork and wider spaces.", "lookFors": ["Adjusts angle to track attacking hips", "Effective tackle selection", "Finishes in controlled position"]},
+      {"id": "ruck", "area": "Defence", "name": "Ruck awareness", "about": "Marker role and ruck speed control.", "lookFors": ["Moves into marker position effectively", "Communicates marker role and process", "Transitions into defensive line efficiently"]},
+      {"id": "line", "area": "Defence", "name": "Defensive line movement", "about": "Line position and adjustment to attacking threats.", "lookFors": ["Stays connected to inside defender", "Communicates edge alignment", "Maps defensive decisions to attacking threats"]},
+      {"id": "catch", "area": "Attack", "name": "Catch & catch position", "about": "Catching cleanly under pressure from various passes.", "lookFors": ["Eyes track ball early", "Adjusts footwork and stance", "Controls catch and transfers to carry position"]},
+      {"id": "support", "area": "Attack", "name": "Support play", "about": "Anticipating play and positioning early for line breaks or offloads.", "lookFors": ["Reads ball carrier cues", "Times run to stay connected", "Communicates availability"]},
+      {"id": "passing", "area": "Attack", "name": "Passing (short & long)", "about": "Accurate passing over both ranges on both sides.", "lookFors": ["Passes in stride from both sides", "Adjusts length based on space", "Maintains control under pressure"]},
+    ] },
+    { id: "y910-forwards", name: "Years 9–10 · Forwards", skills: [
+      {"id": "tackle", "area": "Defence", "name": "Tackle technique", "about": "Technically sound tackles across varied contact situations.", "lookFors": ["Approaches contact with effective footwork", "Body height and shoulder contact", "Adjusts technique to player speed and size"]},
+      {"id": "ruck", "area": "Defence", "name": "Ruck awareness", "about": "Marker role recognition and ruck speed control using multiple strategies.", "lookFors": ["Moves into marker position effectively", "Communicates marker role and process", "Transitions into defensive line efficiently"]},
+      {"id": "line", "area": "Defence", "name": "Defensive line movement", "about": "Line position maintenance and depth or spacing adjustment to attacking threats.", "lookFors": ["Maintains spacing between inside and outside defenders", "Adjusts line speed to attacking threats", "Communicates with the defensive line"]},
+      {"id": "carry", "area": "Attack", "name": "Ball carry into contact", "about": "Ball security in contact and body position to win the ruck.", "lookFors": ["Runs hard and leads with bumpers", "Drives legs through contact", "Controls ball security through contact"]},
+      {"id": "ptb", "area": "Attack", "name": "Play-the-ball speed", "about": "Fast play-the-balls adapting to defensive pressure.", "lookFors": ["Adjusts body position to win the tackle", "Lands short to generate ruck speed", "Plays ball cleanly"]},
+      {"id": "catch", "area": "Attack", "name": "Catch & catch position", "about": "Catching cleanly under pressure with adjusted body position for best advantage.", "lookFors": ["Eyes track ball early", "Adjusts footwork and stance", "Controls catch and transfers to carry position"]},
+    ] },
+    { id: "y910-service", name: "Years 9–10 · Service (halves & hooker)", skills: [
+      {"id": "tackle", "area": "Defence", "name": "Tackle technique", "about": "Tackle control around the ruck area and recovery into A/B defence.", "lookFors": ["Adjusts angle to track attacking hips", "Effective tackle selection in ruck area", "Recovers into A/B defence"]},
+      {"id": "ruck", "area": "Defence", "name": "Ruck awareness", "about": "Reading dummy-half intentions and directing A-line coverage.", "lookFors": ["Reads dummy-half cues early", "Communicates A-defence shape", "Transitions into defensive line efficiently"]},
+      {"id": "line", "area": "Defence", "name": "Defensive line movement", "about": "Short-side organisation and line integrity.", "lookFors": ["Commands short-side organisation", "Adjusts line speed to ruck speed", "Maintains line integrity"]},
+      {"id": "passing", "area": "Attack", "name": "Passing (short & long)", "about": "Clean passing off both sides under pressure.", "lookFors": ["Passes in stride from both sides", "Adjusts pass by defensive shape", "Finds the target under pressure"]},
+      {"id": "catch", "area": "Attack", "name": "Catch & catch position", "about": "Early hand presentation at the ruck base and pre-read of markers.", "lookFors": ["Eyes track ball early", "Adjusts footwork at the base of the ruck", "Reads markers before engaging"]},
+      {"id": "decisions", "area": "Attack", "name": "Attacking decision-making", "about": "Defensive scan before each ruck and vocal direction of teammates.", "lookFors": ["Scans and selects the correct option", "Varies tempo to unbalance defence", "Directs teammates vocally"]},
+    ] },
+    { id: "y1112-middles", name: "Years 11–12 · Middles", skills: [
+      {"id": "tackle", "area": "Defence", "name": "Tackle technique", "about": "Contact zone dominance through body height control and deliberate tackle tempo.", "lookFors": ["Adjusts angle to track attacking hips", "Effective tackle selection: dominant, neutral or surrender", "Controls transition to ground and play-the-ball speed"]},
+      {"id": "ruck", "area": "Defence", "name": "Ruck awareness", "about": "A/B alignment command and ruck tempo adaptation under pressure.", "lookFors": ["Sets slab defence (A/B/C)", "Adapts ruck control strategy through pressure", "Communicates with edge defenders"]},
+      {"id": "line", "area": "Defence", "name": "Defensive line movement", "about": "Defensive integrity and defensive spacing in attacking situations.", "lookFors": ["Leads inside shoulder integrity", "Sets spacing to attacking threats", "Directs cover defence rotations"]},
+      {"id": "carry", "area": "Attack", "name": "Ball carry into contact", "about": "Late line change and consistent post-contact metres.", "lookFors": ["Changes line late to beat contact", "Wins post-contact metres consistently", "Maintains ball control under heavy pressure"]},
+      {"id": "ptb", "area": "Attack", "name": "Play-the-ball speed", "about": "Landing forward and rolling quickly to maintain a fast play-the-ball.", "lookFors": ["Controls body through ground phase", "Lands short to maintain a fast play-the-ball", "Plays ball cleanly under pressure"]},
+      {"id": "catch", "area": "Attack", "name": "Catch & catch position", "about": "Early target presentation and instant transfer to carry or offload.", "lookFors": ["Presents target and uses body cues", "Transfers to carry or offload instantly", "Maintains control under heavy pressure"]},
+    ] },
+    { id: "y1112-edge", name: "Years 11–12 · Edge back-row", skills: [
+      {"id": "tackle", "area": "Defence", "name": "Tackle technique", "about": "Shoulder battle dominance in the edge channel and adaptation to wide attackers.", "lookFors": ["Wins the shoulder battle in the edge channel", "Adapts body height to wide attackers", "Recovers to the line fast after the tackle"]},
+      {"id": "ruck", "area": "Defence", "name": "Ruck awareness", "about": "Attacking shape identification and inside defender support.", "lookFors": ["Identifies attacking shape from the edge", "Communicates with halves and edge defenders", "Adjusts spacing to shut down threats"]},
+      {"id": "line", "area": "Defence", "name": "Defensive line movement", "about": "Early push timing and coordinated inside or outside movement.", "lookFors": ["Pushes early to close time and space", "Coordinates inside and outside pushes", "Maintains discipline on the slide"]},
+      {"id": "support", "area": "Attack", "name": "Support play & ball carry", "about": "Support line timing with halves and hitting holes at pace.", "lookFors": ["Times support line with halves and centres", "Hits holes at pace with fend and footwork", "Lands forward and controls play-the-ball"]},
+      {"id": "ptb", "area": "Attack", "name": "Play-the-ball speed", "about": "Generate ruck speed from landing short.", "lookFors": ["Create space to find your front", "Lands short as quickly as possible", "Uses escape techniques to establish quick play-the-ball"]},
+      {"id": "catchcontact", "area": "Attack", "name": "Catching into contact", "about": "Early hands at the advantage line and balance through contact.", "lookFors": ["Catches on the advantage line", "Controls ball through contact", "Maintains balance post-contact"]},
+    ] },
+  ],
+
 
   // Which gym program each year level gets. "gym" = has weights, "home" = no gym.
   // Program names refer to GYM_PROGRAMS below. gym: null means home program only.
@@ -869,7 +929,7 @@ const GYM_PROGRAMS = {
     return list;
   }
   const DEFAULT_CALC = { min: "", sec: "", weight: "under100", mode: "individual", lane: null };
-  const DEFAULT_PROFILE = { year: null, access: "gym" };
+  const DEFAULT_PROFILE = { year: null, access: "gym", skillGroup: null, workOns: [] };
   function freshState() {
     const list = seedSessions();
     return {
@@ -893,6 +953,7 @@ const GYM_PROGRAMS = {
       // fill any gaps defensively — never re-seed an existing planner
       s.calc = Object.assign({}, DEFAULT_CALC, s.calc || {});
       s.profile = Object.assign({}, DEFAULT_PROFILE, s.profile || {});
+      if (!Array.isArray(s.profile.workOns)) s.profile.workOns = [];
       if (!WEEKS.includes(s.week)) s.week = WEEKS[0];
       if (s.view !== "calc") s.view = "week";
       if (typeof s.nextOrder !== "number") s.nextOrder = s.sessions.reduce((m, x) => Math.max(m, (x.order || 0) + 1), 0);
@@ -1022,6 +1083,34 @@ const GYM_PROGRAMS = {
   function cueFor(name) {
     const n = name.toLowerCase();
     return CONFIG.gym.cues.find(c => c.match.some(m => n.includes(m.toLowerCase()))) || null;
+  }
+
+  /* ---------- skills ---------- */
+  function skillGroup() { return CONFIG.skillGroups.find(g => g.id === state.profile.skillGroup) || null; }
+  function skillById(id) { const g = skillGroup(); return g ? g.skills.find(k => k.id === id) || null : null; }
+  function workOnSkills() { const g = skillGroup(); return g ? g.skills.filter(k => state.profile.workOns.includes(k.id)) : []; }
+  function lookForsText(k) { return k.lookFors.map(l => "• " + l).join("\n"); }
+
+  let skillsPanelOpen = null; // remembers open/closed during this visit
+  function skillsPanelHTML() {
+    const g = skillGroup(), picked = workOnSkills();
+    const open = skillsPanelOpen === null ? (!g || !picked.length) : skillsPanelOpen;
+    return `
+      <details class="panel-card skills-panel" ${open ? "open" : ""}>
+        <summary><span><span class="kicker">My skills to work on</span>
+          <span class="sum-line">${g ? (picked.length ? esc(picked.map(k => k.name).join(" · ")) : "Tick the skills from your feedback report") : "Choose your position group"}</span></span></summary>
+        <div class="field" style="margin:10px 0 0">
+          <label for="groupSel">My position group</label>
+          <select id="groupSel">
+            <option value="">Choose your group…</option>
+            ${CONFIG.skillGroups.map(x => `<option value="${x.id}" ${x.id === state.profile.skillGroup ? "selected" : ""}>${esc(x.name)}</option>`).join("")}
+          </select>
+        </div>
+        ${g ? `<p class="hint">Tap the skills your coach marked to work on in your feedback report.</p>
+          ${["Defence", "Attack"].map(area => `<div class="group-h">${area}</div><div class="skill-chips">${g.skills.filter(k => k.area === area).map(k =>
+            `<button class="skill-chip" data-act="workon" data-skill="${k.id}" aria-pressed="${state.profile.workOns.includes(k.id)}"><b>${esc(k.name)}</b><span>${esc(k.about)}</span></button>`).join("")}</div>`).join("")}
+          <p class="hint">Then add a Skills session on any day and pick the skill to practise.</p>` : ""}
+      </details>`;
   }
 
   /* ---------- session helpers ---------- */
@@ -1161,6 +1250,10 @@ const GYM_PROGRAMS = {
         lines.push(`<span class="warnline">Choose your year level to see your program</span>`);
       }
     }
+    if (s.skillId) {
+      const k = skillById(s.skillId);
+      if (k) lines.push(`Focus: <strong>${esc(k.name)}</strong>`);
+    }
     const tm = timeMeta(s);
     if (tm) lines.unshift(tm);
     if (s.notes) lines.push(`📝 ${esc(s.notes.length > 70 ? s.notes.slice(0, 70) + "…" : s.notes)}`);
@@ -1208,6 +1301,7 @@ const GYM_PROGRAMS = {
     }
 
     html += profilePanelHTML();
+    html += skillsPanelHTML();
     html += targetPanelHTML();
 
     html += `<div class="days">`;
@@ -1235,6 +1329,16 @@ const GYM_PROGRAMS = {
       const g = gymProgram();
       toast(g ? `Gym sessions now use ${g.label}` : "Year level cleared");
       const again = $("#yearSel"); if (again) again.focus();
+    });
+    const sp = document.querySelector(".skills-panel");
+    if (sp) sp.addEventListener("toggle", () => { skillsPanelOpen = sp.open; });
+    const gs = $("#groupSel");
+    if (gs) gs.addEventListener("change", () => {
+      state.profile.skillGroup = gs.value || null;
+      const g = skillGroup();
+      state.profile.workOns = g ? state.profile.workOns.filter(id => g.skills.some(k => k.id === id)) : [];
+      save(); render();
+      const again = $("#groupSel"); if (again) again.focus();
     });
   }
 
@@ -1498,6 +1602,11 @@ const GYM_PROGRAMS = {
       body += zone2DetailHTML(s);
     }
 
+    if (s.skillId) {
+      const k = skillById(s.skillId);
+      if (k) body += `<section><h3>Skill focus · ${esc(k.area)}</h3><p><strong>${esc(k.name)}</strong>: ${esc(k.about)}</p>
+        <h3>What good looks like</h3><ul>${k.lookFors.map(l => `<li>${esc(l)}</li>`).join("")}</ul></section>`;
+    }
     const tm = timeMeta(s);
     if (tm) body = `<section><h3>When</h3><p>${esc(tm)}</p></section>` + body;
     if (s.notes) body += `<section><h3>My notes</h3><div class="notes-box">${esc(s.notes)}</div></section>`;
@@ -1548,6 +1657,7 @@ const GYM_PROGRAMS = {
           <div class="type-grid" role="group" aria-labelledby="typeLbl">
             ${ADDABLE.map(k => `<button type="button" data-type="${k}" aria-pressed="${k === type}">${TYPES[k].label}</button>`).join("")}
           </div></div>`}
+        <div id="skillPick"></div>
         <div class="field"><label for="fTitle">Title</label>
           <input id="fTitle" type="text" maxlength="80" value="${esc(v.title)}" placeholder="e.g. Passing both sides" ${editing ? "" : "autofocus"} required>
           <div id="titleErr"></div></div>
@@ -1572,11 +1682,40 @@ const GYM_PROGRAMS = {
       </form>`;
     openSheet(html);
 
+    let skillId = editing ? (editing.skillId || "") : "";
+    let autoTitle = "", autoNotes = "";
+    function renderSkillPick() {
+      const box = $("#skillPick");
+      if (!box) return;
+      if (type !== "skills") { box.innerHTML = ""; return; }
+      const g = skillGroup();
+      if (!g) { box.innerHTML = `<div class="field"><div class="callout pink">Choose your position group under <strong>My skills to work on</strong> to pick a skill from your feedback report.</div></div>`; return; }
+      const mine = workOnSkills(), rest = g.skills.filter(k => !mine.includes(k));
+      const chip = k => `<button type="button" class="skill-chip" data-skillpick="${k.id}" aria-pressed="${k.id === skillId}"><b>${esc(k.name)}</b><span>${esc(k.area)}</span></button>`;
+      box.innerHTML = `<div class="field"><span class="lbl" id="skLbl">Skill to practise <span class="opt">(optional)</span></span>
+        <div role="group" aria-labelledby="skLbl">
+        ${mine.length ? `<p class="hint" style="margin:0 0 6px">My work-ons</p><div class="skill-chips">${mine.map(chip).join("")}</div>` : ""}
+        ${rest.length ? `<p class="hint" style="margin:8px 0 6px">${mine.length ? "Other skills" : "Skills from your report"}</p><div class="skill-chips">${rest.map(chip).join("")}</div>` : ""}
+        </div></div>`;
+      box.querySelectorAll("[data-skillpick]").forEach(b => b.addEventListener("click", () => {
+        const k = g.skills.find(x => x.id === b.dataset.skillpick);
+        skillId = skillId === k.id ? "" : k.id;
+        const ti = $("#fTitle"), no = $("#fNotes");
+        if (skillId) {
+          if (!ti.value.trim() || ti.value === autoTitle) { ti.value = autoTitle = k.name; }
+          if (!no.value.trim() || no.value === autoNotes) { no.value = autoNotes = lookForsText(k); }
+        }
+        renderSkillPick();
+      }));
+    }
+    renderSkillPick();
+
     sheet.querySelectorAll(".type-grid button").forEach(b => b.addEventListener("click", () => {
       type = b.dataset.type;
       sheet.querySelectorAll(".type-grid button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
       const ti = $("#fTitle");
       if (!ti.value.trim()) ti.placeholder = type === "custom" ? "Session name" : `e.g. ${TYPES[type].label}`;
+      renderSkillPick();
     }));
 
     $("#sessForm").addEventListener("submit", e => {
@@ -1591,15 +1730,17 @@ const GYM_PROGRAMS = {
       if (bad) { (title ? $("#fDur") : $("#fTitle")).focus(); return; }
       const data = {
         title, day: Number($("#fDay").value), start: $("#fStart").value || "",
-        duration: durRaw ? Number(durRaw) : "", notes: $("#fNotes").value.trim()
+        duration: durRaw ? Number(durRaw) : "", notes: $("#fNotes").value.trim(),
+        skillId: type === "skills" ? skillId : ""
       };
+      if (!isPreset) data.type = type;
       if (editing) {
         Object.assign(editing, data);
         save(); closeSheet(); render(); toast("Session updated");
       } else {
         const repeat = $("#fRepeat") && $("#fRepeat").checked;
         const weeks = repeat ? remaining : [wk];
-        weeks.forEach(w => state.sessions.push(Object.assign({ id: uid(), week: w, type, done: false, order: state.nextOrder++ }, data)));
+        weeks.forEach(w => state.sessions.push(Object.assign({ id: uid(), week: w, done: false, order: state.nextOrder++ }, data, { type })));
         save(); closeSheet(); render();
         toast(repeat ? `Added to ${DAYS[data.day]} in Weeks ${wk}–${LAST_WEEK}` : `Added to ${DAYS[data.day]}`);
       }
@@ -1641,6 +1782,13 @@ const GYM_PROGRAMS = {
       }
       case "close":
         closeSheet(); break;
+      case "workon": {
+        const id = el.dataset.skill, list = state.profile.workOns;
+        state.profile.workOns = list.includes(id) ? list.filter(x => x !== id) : list.concat(id);
+        save(); render();
+        const again = document.querySelector(`[data-act="workon"][data-skill="${id}"]`); if (again) again.focus();
+        break;
+      }
       case "access":
         state.profile.access = el.dataset.access; save(); render();
         { const g = gymProgram(); if (g) toast(`Gym sessions now use ${g.label}`); }
