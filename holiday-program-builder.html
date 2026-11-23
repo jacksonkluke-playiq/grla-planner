@@ -373,10 +373,10 @@ const CONFIG = {
   warmupMinutes: "8–10",
 
   // Skills from the GRLA player feedback reports (defence and attack only).
-  // Players pick their position group, tick the skills their coach flagged,
+  // Players pick their position (any year), tick the skills their coach flagged,
   // and choose one when they add a Skills session. Edit look-fors here.
   skillGroups: [
-    { id: "y910-backs", name: "Years 9–10 · Backs", skills: [
+    { id: "backs", name: "Backs", skills: [
       {"id": "tackle", "area": "Defence", "name": "Tackle technique", "about": "Technically sound tackles adapting to fast footwork and wider spaces.", "lookFors": ["Adjusts angle to track attacking hips", "Effective tackle selection", "Finishes in controlled position"]},
       {"id": "ruck", "area": "Defence", "name": "Ruck awareness", "about": "Marker role and ruck speed control.", "lookFors": ["Moves into marker position effectively", "Communicates marker role and process", "Transitions into defensive line efficiently"]},
       {"id": "line", "area": "Defence", "name": "Defensive line movement", "about": "Line position and adjustment to attacking threats.", "lookFors": ["Stays connected to inside defender", "Communicates edge alignment", "Maps defensive decisions to attacking threats"]},
@@ -384,7 +384,7 @@ const CONFIG = {
       {"id": "support", "area": "Attack", "name": "Support play", "about": "Anticipating play and positioning early for line breaks or offloads.", "lookFors": ["Reads ball carrier cues", "Times run to stay connected", "Communicates availability"]},
       {"id": "passing", "area": "Attack", "name": "Passing (short & long)", "about": "Accurate passing over both ranges on both sides.", "lookFors": ["Passes in stride from both sides", "Adjusts length based on space", "Maintains control under pressure"]},
     ] },
-    { id: "y910-forwards", name: "Years 9–10 · Forwards", skills: [
+    { id: "forwards", name: "Forwards", skills: [
       {"id": "tackle", "area": "Defence", "name": "Tackle technique", "about": "Technically sound tackles across varied contact situations.", "lookFors": ["Approaches contact with effective footwork", "Body height and shoulder contact", "Adjusts technique to player speed and size"]},
       {"id": "ruck", "area": "Defence", "name": "Ruck awareness", "about": "Marker role recognition and ruck speed control using multiple strategies.", "lookFors": ["Moves into marker position effectively", "Communicates marker role and process", "Transitions into defensive line efficiently"]},
       {"id": "line", "area": "Defence", "name": "Defensive line movement", "about": "Line position maintenance and depth or spacing adjustment to attacking threats.", "lookFors": ["Maintains spacing between inside and outside defenders", "Adjusts line speed to attacking threats", "Communicates with the defensive line"]},
@@ -392,7 +392,7 @@ const CONFIG = {
       {"id": "ptb", "area": "Attack", "name": "Play-the-ball speed", "about": "Fast play-the-balls adapting to defensive pressure.", "lookFors": ["Adjusts body position to win the tackle", "Lands short to generate ruck speed", "Plays ball cleanly"]},
       {"id": "catch", "area": "Attack", "name": "Catch & catch position", "about": "Catching cleanly under pressure with adjusted body position for best advantage.", "lookFors": ["Eyes track ball early", "Adjusts footwork and stance", "Controls catch and transfers to carry position"]},
     ] },
-    { id: "y910-service", name: "Years 9–10 · Service (halves & hooker)", skills: [
+    { id: "service", name: "Service (halves & hooker)", skills: [
       {"id": "tackle", "area": "Defence", "name": "Tackle technique", "about": "Tackle control around the ruck area and recovery into A/B defence.", "lookFors": ["Adjusts angle to track attacking hips", "Effective tackle selection in ruck area", "Recovers into A/B defence"]},
       {"id": "ruck", "area": "Defence", "name": "Ruck awareness", "about": "Reading dummy-half intentions and directing A-line coverage.", "lookFors": ["Reads dummy-half cues early", "Communicates A-defence shape", "Transitions into defensive line efficiently"]},
       {"id": "line", "area": "Defence", "name": "Defensive line movement", "about": "Short-side organisation and line integrity.", "lookFors": ["Commands short-side organisation", "Adjusts line speed to ruck speed", "Maintains line integrity"]},
@@ -400,7 +400,7 @@ const CONFIG = {
       {"id": "catch", "area": "Attack", "name": "Catch & catch position", "about": "Early hand presentation at the ruck base and pre-read of markers.", "lookFors": ["Eyes track ball early", "Adjusts footwork at the base of the ruck", "Reads markers before engaging"]},
       {"id": "decisions", "area": "Attack", "name": "Attacking decision-making", "about": "Defensive scan before each ruck and vocal direction of teammates.", "lookFors": ["Scans and selects the correct option", "Varies tempo to unbalance defence", "Directs teammates vocally"]},
     ] },
-    { id: "y1112-middles", name: "Years 11–12 · Middles", skills: [
+    { id: "middles", name: "Middles", skills: [
       {"id": "tackle", "area": "Defence", "name": "Tackle technique", "about": "Contact zone dominance through body height control and deliberate tackle tempo.", "lookFors": ["Adjusts angle to track attacking hips", "Effective tackle selection: dominant, neutral or surrender", "Controls transition to ground and play-the-ball speed"]},
       {"id": "ruck", "area": "Defence", "name": "Ruck awareness", "about": "A/B alignment command and ruck tempo adaptation under pressure.", "lookFors": ["Sets slab defence (A/B/C)", "Adapts ruck control strategy through pressure", "Communicates with edge defenders"]},
       {"id": "line", "area": "Defence", "name": "Defensive line movement", "about": "Defensive integrity and defensive spacing in attacking situations.", "lookFors": ["Leads inside shoulder integrity", "Sets spacing to attacking threats", "Directs cover defence rotations"]},
@@ -408,7 +408,7 @@ const CONFIG = {
       {"id": "ptb", "area": "Attack", "name": "Play-the-ball speed", "about": "Landing forward and rolling quickly to maintain a fast play-the-ball.", "lookFors": ["Controls body through ground phase", "Lands short to maintain a fast play-the-ball", "Plays ball cleanly under pressure"]},
       {"id": "catch", "area": "Attack", "name": "Catch & catch position", "about": "Early target presentation and instant transfer to carry or offload.", "lookFors": ["Presents target and uses body cues", "Transfers to carry or offload instantly", "Maintains control under heavy pressure"]},
     ] },
-    { id: "y1112-edge", name: "Years 11–12 · Edge back-row", skills: [
+    { id: "edge", name: "Edge back-row", skills: [
       {"id": "tackle", "area": "Defence", "name": "Tackle technique", "about": "Shoulder battle dominance in the edge channel and adaptation to wide attackers.", "lookFors": ["Wins the shoulder battle in the edge channel", "Adapts body height to wide attackers", "Recovers to the line fast after the tackle"]},
       {"id": "ruck", "area": "Defence", "name": "Ruck awareness", "about": "Attacking shape identification and inside defender support.", "lookFors": ["Identifies attacking shape from the edge", "Communicates with halves and edge defenders", "Adjusts spacing to shut down threats"]},
       {"id": "line", "area": "Defence", "name": "Defensive line movement", "about": "Early push timing and coordinated inside or outside movement.", "lookFors": ["Pushes early to close time and space", "Coordinates inside and outside pushes", "Maintains discipline on the slide"]},
@@ -1098,11 +1098,11 @@ const GYM_PROGRAMS = {
     return `
       <details class="panel-card skills-panel" ${open ? "open" : ""}>
         <summary><span><span class="kicker">My skills to work on</span>
-          <span class="sum-line">${g ? (picked.length ? esc(picked.map(k => k.name).join(" · ")) : "Tick the skills from your feedback report") : "Choose your position group"}</span></span></summary>
+          <span class="sum-line">${g ? (picked.length ? esc(picked.map(k => k.name).join(" · ")) : "Tick the skills from your feedback report") : "Choose your position"}</span></span></summary>
         <div class="field" style="margin:10px 0 0">
-          <label for="groupSel">My position group</label>
+          <label for="groupSel">My position</label>
           <select id="groupSel">
-            <option value="">Choose your group…</option>
+            <option value="">Choose your position…</option>
             ${CONFIG.skillGroups.map(x => `<option value="${x.id}" ${x.id === state.profile.skillGroup ? "selected" : ""}>${esc(x.name)}</option>`).join("")}
           </select>
         </div>
@@ -1689,7 +1689,7 @@ const GYM_PROGRAMS = {
       if (!box) return;
       if (type !== "skills") { box.innerHTML = ""; return; }
       const g = skillGroup();
-      if (!g) { box.innerHTML = `<div class="field"><div class="callout pink">Choose your position group under <strong>My skills to work on</strong> to pick a skill from your feedback report.</div></div>`; return; }
+      if (!g) { box.innerHTML = `<div class="field"><div class="callout pink">Choose your position under <strong>My skills to work on</strong> to pick a skill from your feedback report.</div></div>`; return; }
       const mine = workOnSkills(), rest = g.skills.filter(k => !mine.includes(k));
       const chip = k => `<button type="button" class="skill-chip" data-skillpick="${k.id}" aria-pressed="${k.id === skillId}"><b>${esc(k.name)}</b><span>${esc(k.area)}</span></button>`;
       box.innerHTML = `<div class="field"><span class="lbl" id="skLbl">Skill to practise <span class="opt">(optional)</span></span>
