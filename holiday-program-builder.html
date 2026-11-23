@@ -223,12 +223,12 @@
   .ex-list .sub2 { grid-column: 2 / -1; font-size: 14px; color: var(--ink-2); }
   .ex-list .cue { grid-column: 2 / -1; font-size: 14px; color: var(--good); font-weight: 600; }
   .ex-list .vid { grid-column: 2 / -1; justify-self: start; display: inline-flex; align-items: center; min-height: 40px; font-size: 15px; font-weight: 800; color: var(--cyan-dk); text-decoration: underline; text-underline-offset: 3px; }
-  .skills-panel > summary { list-style: none; min-height: var(--tap); cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-  .skills-panel > summary::-webkit-details-marker { display: none; }
-  .skills-panel > summary::after { content: "▾"; font-size: 20px; color: var(--pink-dk); transition: transform .15s; }
-  .skills-panel[open] > summary::after { transform: rotate(180deg); }
-  .skills-panel .kicker { display: block; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; font-weight: 800; color: var(--pink-dk); }
-  .skills-panel .sum-line { display: block; font-weight: 800; font-size: 16px; margin-top: 2px; }
+  .fold > summary { list-style: none; min-height: var(--tap); cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .fold > summary::-webkit-details-marker { display: none; }
+  .fold > summary::after { content: "▾"; font-size: 20px; color: var(--pink-dk); transition: transform .15s; }
+  .fold[open] > summary::after { transform: rotate(180deg); }
+  .fold .kicker { display: block; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; font-weight: 800; color: var(--pink-dk); }
+  .fold .sum-line { display: block; font-weight: 800; font-size: 16px; margin-top: 2px; }
   .skill-chips { display: grid; gap: 6px; }
   .skill-chip { text-align: left; min-height: var(--tap); border: 2px solid var(--line); border-radius: 12px; background: #fff; padding: 8px 12px 8px 40px; position: relative; }
   .skill-chip::before { content: ""; position: absolute; left: 12px; top: 12px; width: 18px; height: 18px; border: 3px solid var(--ink-2); border-radius: 5px; background: #fff; }
@@ -256,10 +256,39 @@
   .toast {
     position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%) translateY(150%);
     background: var(--kp-deep); color: #fff; padding: 12px 18px; border-radius: 12px; font-weight: 700;
-    max-width: calc(100% - 32px); transition: transform .2s ease; z-index: 50; text-align: center;
+    max-width: calc(100% - 32px); transition: transform .2s ease, opacity .2s ease, visibility .2s; z-index: 50; text-align: center;
+    opacity: 0; visibility: hidden; pointer-events: none;
   }
-  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; visibility: visible; }
   footer.foot { text-align: center; font-size: 13px; color: var(--ink-2); padding: 10px 16px 30px; }
+  /* ---------- Phone layout ---------- */
+  button, summary, select, a { touch-action: manipulation; -webkit-tap-highlight-color: rgba(17, 177, 222, .18); }
+  .linkish { display: inline-flex; align-items: center; min-height: 44px; }
+  main { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+  dialog.sheet { max-height: 92vh; max-height: 92dvh; }
+  .sheet-body { padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
+  .fold { padding-top: 6px; padding-bottom: 6px; }
+  .fold[open] { padding-bottom: 14px; }
+  @media (max-width: 699px) {
+    nav.tabs {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; margin: 0; gap: 6px;
+      background: #fff; border-top: 1px solid var(--line); box-shadow: 0 -4px 14px rgba(11, 79, 106, .10);
+      padding: 6px max(8px, env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+    }
+    nav.tabs button { border-radius: 12px; min-height: 52px; }
+    nav.tabs button[aria-selected="true"] { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--kp-pink); }
+    main { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+    footer.foot { padding-bottom: calc(90px + env(safe-area-inset-bottom)); }
+    .toast { bottom: calc(84px + env(safe-area-inset-bottom)); }
+    header.top { padding-bottom: 10px; }
+    .weeks { gap: 4px; }
+    .week-head h1 { font-size: 22px; }
+    .fold { margin-bottom: 8px; }
+    .fold + .fold { margin-top: 0; }
+    .days { margin-top: 14px; }
+  }
+  .tab-short { display: none; }
+  @media (max-width: 400px) { .tab-long { display: none; } .tab-short { display: inline; } }
   @media (max-width: 380px) {
     body { font-size: 16px; }
     .type-grid { grid-template-columns: repeat(2, 1fr); }
@@ -281,7 +310,7 @@
   </div>
   <nav class="tabs" role="tablist" aria-label="Sections">
     <button role="tab" id="tab-week" aria-controls="view" aria-selected="true" data-view="week">My week</button>
-    <button role="tab" id="tab-calc" aria-controls="view" aria-selected="false" data-view="calc">Bronco calculator</button>
+    <button role="tab" id="tab-calc" aria-controls="view" aria-selected="false" data-view="calc">Bronco <span class="tab-long">calculator</span><span class="tab-short">calc</span></button>
   </nav>
 </header>
 
@@ -1091,14 +1120,23 @@ const GYM_PROGRAMS = {
   function workOnSkills() { const g = skillGroup(); return g ? g.skills.filter(k => state.profile.workOns.includes(k.id)) : []; }
   function lookForsText(k) { return k.lookFors.map(l => "• " + l).join("\n"); }
 
-  let skillsPanelOpen = null; // remembers open/closed during this visit
+  // Folding panels: open until set up, then a one-line summary.
+  // Open/closed is remembered for this visit so re-renders don't snap them shut.
+  const foldState = {};
+  function foldHTML(id, kicker, summary, body, openByDefault, extraClass) {
+    const open = id in foldState ? foldState[id] : openByDefault;
+    return `
+      <details class="panel-card fold fold-${id}${extraClass ? " " + extraClass : ""}${openByDefault ? " need" : ""}" data-fold="${id}" ${open ? "open" : ""}>
+        <summary><span><span class="kicker" id="fold-${id}-h">${kicker}</span>
+          <span class="sum-line">${summary}</span></span></summary>
+        <div class="fold-body">${body}</div>
+      </details>`;
+  }
+
   function skillsPanelHTML() {
     const g = skillGroup(), picked = workOnSkills();
-    const open = skillsPanelOpen === null ? (!g || !picked.length) : skillsPanelOpen;
-    return `
-      <details class="panel-card skills-panel" ${open ? "open" : ""}>
-        <summary><span><span class="kicker">My skills to work on</span>
-          <span class="sum-line">${g ? (picked.length ? esc(picked.map(k => k.name).join(" · ")) : "Tick the skills from your feedback report") : "Choose your position"}</span></span></summary>
+    const summary = g ? (picked.length ? esc(picked.map(k => k.name).join(" · ")) : "Tick the skills from your feedback report") : "Choose your position";
+    return foldHTML("skills", "My skills to work on", summary, `
         <div class="field" style="margin:10px 0 0">
           <label for="groupSel">My position</label>
           <select id="groupSel">
@@ -1109,8 +1147,8 @@ const GYM_PROGRAMS = {
         ${g ? `<p class="hint">Tap the skills your coach marked to work on in your feedback report.</p>
           ${["Defence", "Attack"].map(area => `<div class="group-h">${area}</div><div class="skill-chips">${g.skills.filter(k => k.area === area).map(k =>
             `<button class="skill-chip" data-act="workon" data-skill="${k.id}" aria-pressed="${state.profile.workOns.includes(k.id)}"><b>${esc(k.name)}</b><span>${esc(k.about)}</span></button>`).join("")}</div>`).join("")}
-          <p class="hint">Then add a Skills session on any day and pick the skill to practise.</p>` : ""}
-      </details>`;
+          <p class="hint">Then add a Skills session on any day and pick the skill to practise.</p>` : ""}`,
+      !g || !picked.length, "skills-panel");
   }
 
   /* ---------- session helpers ---------- */
@@ -1168,10 +1206,9 @@ const GYM_PROGRAMS = {
   /* ---------- My week ---------- */
   function profilePanelHTML() {
     const p = state.profile, yc = yearCfg(), g = gymProgram();
-    return `
-      <section class="panel-card${p.year ? "" : " need"}" aria-labelledby="profH">
-        <h2 id="profH">My gym program</h2>
-        <div class="prog-grid">
+    const summary = g ? `${esc(g.label)} · Year ${p.year}` : "Choose your year level";
+    return foldHTML("gym", "My gym program", summary, `
+        <div class="prog-grid" style="margin-top:10px">
           <div class="field" style="margin:0">
             <label for="yearSel">My year level</label>
             <select id="yearSel">
@@ -1189,8 +1226,8 @@ const GYM_PROGRAMS = {
                 </div>`}
           </div>
         </div>
-        <p class="hint" style="margin-top:10px">${g ? `Your gym sessions use <strong>${esc(g.label)}</strong>. Change your year any time. Your schedule and notes stay the same.` : "Pick your year so your Gym Day 1 and Gym Day 2 show the right exercises."}</p>
-      </section>`;
+        <p class="hint" style="margin-top:10px">${g ? `Your gym sessions use <strong>${esc(g.label)}</strong>. Change your year any time. Your schedule and notes stay the same.` : "Pick your year so your Gym Day 1 and Gym Day 2 show the right exercises."}</p>`,
+      !p.year);
   }
 
   function targetPanelHTML() {
@@ -1207,18 +1244,17 @@ const GYM_PROGRAMS = {
         ? "Pick your squad lane below."
         : "Enter your Bronco time, or pick the lane your coach gave you.";
     }
-    return `
-      <section class="panel-card" aria-labelledby="tpH">
-        <h2 id="tpH">MAS running target</h2>
-        <div class="target-big">${big}</div>
+    const summary = t ? `Run ${t.m} m in ${CONFIG.mas.effortSec} s · ${esc(t.short)}` : "Not set yet";
+    return foldHTML("target", "MAS running target", summary, `
+        <div class="target-big" style="margin-top:10px">${big}</div>
         <div class="target-sub">${sub}</div>
         <div class="lane-row">
           <span class="lbl">Squad lane:</span>
           ${CONFIG.lanes.map(l => `<button class="chip" data-act="lane" data-lane="${l.id}" aria-pressed="${state.calc.mode === "lane" && state.calc.lane === l.id}" aria-label="Lane ${l.id}, ${l.m} metres">${l.id} <small>${l.m} m</small></button>`).join("")}
           ${r.status === "ok" ? `<button class="chip" data-act="mode-ind" aria-pressed="${state.calc.mode === "individual"}">Mine <small>${r.rounded} m</small></button>` : ""}
         </div>
-        <p class="hint" style="margin:8px 0 0"><button class="linkish" data-act="go-calc">${r.status === "ok" ? "Change my Bronco time" : "Enter my Bronco time"}</button></p>
-      </section>`;
+        <p class="hint" style="margin:8px 0 0"><button class="linkish" data-act="go-calc">${r.status === "ok" ? "Change my Bronco time" : "Enter my Bronco time"}</button></p>`,
+      !t);
   }
 
   function sessionRowHTML(s) {
@@ -1271,6 +1307,7 @@ const GYM_PROGRAMS = {
   }
 
   function renderWeek() {
+    document.querySelectorAll("details[data-fold]").forEach(d => { foldState[d.dataset.fold] = d.open; });
     const wk = state.week;
     const wc = weekCfg(wk);
     const nowWeek = programWeekNow();
@@ -1330,8 +1367,6 @@ const GYM_PROGRAMS = {
       toast(g ? `Gym sessions now use ${g.label}` : "Year level cleared");
       const again = $("#yearSel"); if (again) again.focus();
     });
-    const sp = document.querySelector(".skills-panel");
-    if (sp) sp.addEventListener("toggle", () => { skillsPanelOpen = sp.open; });
     const gs = $("#groupSel");
     if (gs) gs.addEventListener("change", () => {
       state.profile.skillGroup = gs.value || null;
