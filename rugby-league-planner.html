@@ -217,6 +217,7 @@
   .ex-list .dose { font-weight: 900; text-align: right; max-width: 9.5em; }
   .ex-list .sub2 { grid-column: 2 / -1; font-size: 14px; color: var(--ink-2); }
   .ex-list .cue { grid-column: 2 / -1; font-size: 14px; color: var(--good); font-weight: 600; }
+  .ex-list .vid { grid-column: 2 / -1; justify-self: start; display: inline-flex; align-items: center; min-height: 40px; font-size: 15px; font-weight: 800; color: var(--cyan-dk); text-decoration: underline; text-underline-offset: 3px; }
   .group-h { font-weight: 800; margin: 12px 0 6px; font-size: 16px; }
   .group-h small { font-weight: 600; color: var(--ink-2); font-size: 14px; }
   .callout { border-left: 5px solid var(--kp-cyan); background: var(--today-soft); padding: 10px 12px; border-radius: 0 12px 12px 0; font-size: 15px; }
@@ -354,9 +355,9 @@ const CONFIG = {
     { year: 7,  gym: null,             home: "L1-home" },
     { year: 8,  gym: "L2-weights",     home: "L2-home" },
     { year: 9,  gym: "L3-weights",     home: "L3-home" },
-    { year: 10, gym: "senior-weights", home: "L3-home" },
-    { year: 11, gym: "senior-weights", home: "L3-home" },
-    { year: 12, gym: "senior-weights", home: "L3-home" }
+    { year: 10, gym: "L4-weights",     home: "L4-home" },
+    { year: 11, gym: "opens-weights",  home: "opens-home" },
+    { year: 12, gym: "opens-weights",  home: "opens-home" }
   ],
 
   gym: {
@@ -387,242 +388,380 @@ const CONFIG = {
 };
 
 /* Gym programs: 6 weeks, two days a week. Each exercise is
-   [slot, name, tempo, [Week 1, Week 2, ... Week 6]]. An empty "" means
-   "not this week". Tempo "321" = 3 sec lowering, 2 sec pause, 1 sec up.
-   Levels 1–3 come from the Keebra Junior Gym Generator holiday blocks.
-   "senior-weights" (Years 10–12) is a research-based draft: please review. */
+   [slot, name, tempo, [Week 1 … Week 6], optional video link]. An empty ""
+   means "not this week". Tempo "321" = 3 sec lowering, 2 sec pause, 1 sec up.
+   Source: Keebra_Gym_Programs_Yr7-12_QRL-Aligned_v3.xlsx, holiday blocks.
+   Optional per program: minutes, effort (6 weekly lines, overrides weeks[].effort)
+   and rule (overrides gym.rule). */
 const GYM_PROGRAMS = {
   "L1-home": {
-    label: "Level 1 · At home", // from Keebra Junior Gym Generator
-    day1: {
+    label: "Level 1 · At home",
+    day1: { // Lvl 1 sheet: LEVEL 1 - At Home Day 1
       power: [
-        ["A1", "Continuous Broad Jump - stick & hold 2sec", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"]],
-        ["B1", "Plyometric Push Up", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"]],
-        ["S1", "Acceleration Wall Drill", "Fast", ["3 x 10m", "3 x 15m", "4 x 15m", "4 x 20m", "", ""]],
+        ["A1", "Continuous Broad Jump - stick & hold 2sec", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"], "https://www.youtube.com/watch?v=d71OFlh3m78"],
+        ["B1", "Plyometric Push Up", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"], "https://www.youtube.com/watch?v=Y-uF4F3mQIs"],
+        ["S1", "Acceleration Wall Drill", "Fast", ["3 x 10m", "3 x 15m", "4 x 15m", "4 x 20m", "", ""], "https://www.youtube.com/watch?v=52r_Ul5k03g"],
       ],
       strength: [
-        ["A1", "Heel Elevated Squat", "321", ["3 x 15", "3 x 15", "3 x 18", "3 x 18", "3 x 20", "3 x 20"]],
-        ["A2", "Bench Dips", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"]],
-        ["A3", "Side Plank Hip Drop", "Slow", ["2 x 10 es", "2 x 10 es", "2 x 12 es", "2 x 12 es", "2 x 15 es", "2 x 15 es"]],
-        ["B1", "Single Leg RDL", "221", ["3 x 5 es", "3 x 5 es", "3 x 6 es", "3 x 6 es", "3 x 7 es", "3 x 7 es"]],
-        ["B2", "Fat Man Chins", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"]],
-        ["B3", "Lateral Lunge", "221", ["3 x 10 es", "3 x 10 es", "3 x 12 es", "3 x 12 es", "3 x 15 es", "3 x 15 es"]],
-        ["C1", "Razor Curl", "511", ["1 x 5", "2 x 5", "2 x 6", "2 x 6", "", ""]],
-        ["C2", "Push Up to Toe Touch", "221", ["3 x 5 es", "3 x 5 es", "3 x 6 es", "3 x 6 es", "3 x 7 es", "3 x 7 es"]],
-        ["C3", "Suitcase Carry", "Slow", ["2 Laps", "2 Laps", "3 Laps", "3 Laps", "4 Laps", "4 Laps"]],
+        ["A1", "Heel Elevated Squat", "321", ["3 x 15", "3 x 15", "3 x 18", "3 x 18", "3 x 20", "3 x 20"], "https://www.youtube.com/watch?v=YcHQ3eQXLc8"],
+        ["A2", "Bench Dips", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"], "https://www.youtube.com/watch?v=gwWv7aPcD88"],
+        ["A3", "Side Plank Hip Drop", "Slow", ["2 x 10 es", "2 x 10 es", "2 x 12 es", "2 x 12 es", "2 x 15 es", "2 x 15 es"], "https://www.youtube.com/watch?v=JKUuOwsDXFs"],
+        ["B1", "Single Leg RDL", "221", ["3 x 5 es", "3 x 5 es", "3 x 6 es", "3 x 6 es", "3 x 7 es", "3 x 7 es"], "https://www.youtube.com/watch?v=XXvuYGCxpkk"],
+        ["B2", "Fat Man Chins", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"], "https://www.youtube.com/watch?v=glyjer6nOjE"],
+        ["B3", "Lateral Lunge", "221", ["3 x 10 es", "3 x 10 es", "3 x 12 es", "3 x 12 es", "3 x 15 es", "3 x 15 es"], "https://www.youtube.com/watch?v=c7JApoDYgLM"],
+        ["C1", "Razor Curl", "511", ["1 x 5", "2 x 5", "2 x 6", "2 x 6", "", ""], "https://www.youtube.com/watch?v=PxU20_BCgZE"],
+        ["C2", "Push Up to Toe Touch", "221", ["3 x 5 es", "3 x 5 es", "3 x 6 es", "3 x 6 es", "3 x 7 es", "3 x 7 es"], "https://www.youtube.com/watch?v=ctffzu0jWu0"],
+        ["C3", "Suitcase Carry", "Slow", ["2 Laps", "2 Laps", "3 Laps", "3 Laps", "4 Laps", "4 Laps"], "https://www.youtube.com/watch?v=bAnCoDrvXc4"],
       ],
     },
-    day2: {
+    day2: { // Lvl 1 sheet: LEVEL 1 - At Home Day 2
       power: [
-        ["A1", "Continuous Broad Jump - stick & hold 2sec", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"]],
-        ["B1", "Plyometric Push Up", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"]],
-        ["S1", "Wall Drive March", "Fast", ["2 x 8e.s", "2 x 10e.s", "3 x 8e.s", "3 x 10e.s", "", ""]],
+        ["A1", "Continuous Broad Jump - stick & hold 2sec", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"], "https://www.youtube.com/watch?v=d71OFlh3m78"],
+        ["B1", "Plyometric Push Up", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"], "https://www.youtube.com/watch?v=Y-uF4F3mQIs"],
+        ["S1", "Wall Drive March", "Fast", ["2 x 8e.s", "2 x 10e.s", "3 x 8e.s", "3 x 10e.s", "", ""], "https://www.youtube.com/watch?v=52r_Ul5k03g"],
       ],
       strength: [
-        ["A1", "BW Squat", "321", ["1 x 20", "2 x 10", "2 x 12", "2 x 15", "", ""]],
-        ["A2", "Scap Push Up", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"]],
-        ["A3", "Deadbug", "211", ["2 x 10", "2 x 10", "2 x 12", "2 x 12", "2 x 15", "2 x 15"]],
-        ["B1", "Kneeling Hip Hinge", "211", ["1 x 20", "2 x 10", "2 x 12", "2 x 15", "", ""]],
-        ["B2", "Fat Man Chins", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"]],
-        ["B3", "High Box Step Up", "321", ["3 x 5 es", "3 x 5 es", "3 x 6 es", "3 x 6 es", "3 x 7 es", "3 x 7 es"]],
-        ["C1", "Razor Curl", "511", ["1 x 5", "2 x 5", "2 x 6", "2 x 6", "2 x 40sec", "2 x 40sec"]],
-        ["C2", "Hands Off Push Up", "321", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"]],
-        ["C3", "Farmers Carry", "Slow", ["2 Laps", "2 Laps", "3 Laps", "3 Laps", "4 Laps", "4 Laps"]],
+        ["A1", "BW Squat", "321", ["1 x 20", "2 x 10", "2 x 12", "2 x 15", "", ""], "https://www.youtube.com/watch?v=KGyVfgh0fhk"],
+        ["A2", "Scap Push Up", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"], "https://www.youtube.com/watch?v=LnWEIjIls-M"],
+        ["A3", "Deadbug", "211", ["2 x 10", "2 x 10", "2 x 12", "2 x 12", "2 x 15", "2 x 15"], "https://www.youtube.com/watch?v=c7JApoDYgLM"],
+        ["B1", "Kneeling Hip Hinge", "211", ["1 x 20", "2 x 10", "2 x 12", "2 x 15", "", ""], "https://www.youtube.com/watch?v=glyjer6nOjE"],
+        ["B2", "Fat Man Chins", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"], "https://www.youtube.com/watch?v=5YHZnEsE9hA"],
+        ["B3", "High Box Step Up", "321", ["3 x 5 es", "3 x 5 es", "3 x 6 es", "3 x 6 es", "3 x 7 es", "3 x 7 es"], "https://www.youtube.com/watch?v=z6PJMT2y8GQ"],
+        ["C1", "Razor Curl", "511", ["1 x 5", "2 x 5", "2 x 6", "2 x 6", "2 x 40sec", "2 x 40sec"], "https://www.youtube.com/watch?v=tQNktxPkSeE"],
+        ["C2", "Hands Off Push Up", "321", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"], "https://www.youtube.com/watch?v=imL3mZaEiDg"],
+        ["C3", "Farmers Carry", "Slow", ["2 Laps", "2 Laps", "3 Laps", "3 Laps", "4 Laps", "4 Laps"], "https://www.youtube.com/watch?v=MH8id-EaoPA"],
       ],
     },
   },
   "L2-weights": {
-    label: "Level 2 · Weights", // from Keebra Junior Gym Generator
-    day1: {
+    label: "Level 2 · Weights",
+    day1: { // Lvl 2 sheet: LEVEL 2 - Holiday (Weights) Day 1
       power: [
-        ["A1", "Continuous Broad Jump - stick & hold 2sec", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"]],
-        ["B1", "Plyometric Push Up", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"]],
-        ["S1", "Sled March Accel 10m", "Fast", ["3 x 10m", "3 x 12m", "4 x 12m", "4 x 15m", "", ""]],
+        ["A1", "Continuous Broad Jump - stick & hold 2sec", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"], "https://www.youtube.com/watch?v=d71OFlh3m78"],
+        ["B1", "Plyometric Push Up", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"], "https://www.youtube.com/watch?v=Y-uF4F3mQIs"],
+        ["S1", "Sled March Accel 10m", "Fast", ["3 x 10m", "3 x 12m", "4 x 12m", "4 x 15m", "", ""], "https://www.youtube.com/watch?v=52r_Ul5k03g"],
       ],
       strength: [
-        ["A1", "Goblet Squat Heels Raised", "321", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 7 es", "3 x 7 es"]],
-        ["A2", "Hands Off Push Up", "321", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"]],
-        ["A3", "Plank Down", "111", ["2 x 10", "2 x 10", "2 x 12", "2 x 12", "", ""]],
-        ["B1", "DB RDL", "321", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 7 es", "3 x 7 es"]],
-        ["B2", "Chin Up", "211", ["3 x 5", "3 x 6", "3 x 7", "3 x 8", "3 x 15", "3 x 15"]],
-        ["B3", "DB Lateral Lunge", "221", ["3 x 5 es", "3 x 5 es", "3 x 6 es", "3 x 6 es", "2 x 15", "2 x 15"]],
-        ["C1", "Band Assisted GHR", "511", ["1 x 5", "2 x 5", "2 x 6", "2 x 6", "", ""]],
-        ["C2", "Kneeling Single Arm DB Press", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "2 x 15 es", "2 x 15 es"]],
-        ["C3", "Farmers Carry", "Slow", ["2 Laps", "2 Laps", "3 Laps", "3 Laps", "", ""]],
+        ["A1", "Goblet Squat Heels Raised", "321", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 7 es", "3 x 7 es"], "https://www.youtube.com/watch?v=RUXLuZ_GLrE"],
+        ["A2", "Hands Off Push Up", "321", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"], "https://www.youtube.com/watch?v=ktdMS7WBwck"],
+        ["A3", "Plank Down", "111", ["2 x 10", "2 x 10", "2 x 12", "2 x 12", "", ""], "https://www.youtube.com/watch?v=L4oFJRDAU4Q"],
+        ["B1", "DB RDL", "321", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 7 es", "3 x 7 es"], "https://www.youtube.com/watch?v=kfnMuP5JgIw"],
+        ["B2", "Chin Up", "211", ["3 x 5", "3 x 6", "3 x 7", "3 x 8", "3 x 15", "3 x 15"], "https://www.youtube.com/watch?v=4DUIY95jX6Y"],
+        ["B3", "DB Lateral Lunge", "221", ["3 x 5 es", "3 x 5 es", "3 x 6 es", "3 x 6 es", "2 x 15", "2 x 15"], "https://www.youtube.com/watch?v=JKUuOwsDXFs"],
+        ["C1", "Band Assisted GHR", "511", ["1 x 5", "2 x 5", "2 x 6", "2 x 6", "", ""], "https://www.youtube.com/watch?v=UsOjCcxSJaI"],
+        ["C2", "Kneeling Single Arm DB Press", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "2 x 15 es", "2 x 15 es"], "https://www.youtube.com/watch?v=ul-yPBFwhnw"],
+        ["C3", "Farmers Carry", "Slow", ["2 Laps", "2 Laps", "3 Laps", "3 Laps", "", ""], "https://www.youtube.com/watch?v=MH8id-EaoPA"],
       ],
     },
-    day2: {
+    day2: { // Lvl 2 sheet: LEVEL 2 - Holiday (Weights) Day 2
       power: [
-        ["A1", "Continuous Broad Jump - stick & hold 2sec", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"]],
-        ["B1", "Plyometric Push Up", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"]],
-        ["S1", "Box Drop to Lateral Jump", "Fast", ["2 x 4e.s", "2 x 5e.s", "2 x 6e.s", "2 x 6e.s", "", ""]],
+        ["A1", "Continuous Broad Jump - stick & hold 2sec", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"], "https://www.youtube.com/watch?v=d71OFlh3m78"],
+        ["B1", "Plyometric Push Up", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"], "https://www.youtube.com/watch?v=Y-uF4F3mQIs"],
+        ["S1", "Box Drop to Lateral Jump", "Fast", ["2 x 4e.s", "2 x 5e.s", "2 x 6e.s", "2 x 6e.s", "", ""], "https://www.youtube.com/watch?v=52r_Ul5k03g"],
       ],
       strength: [
-        ["A1", "Goblet Squat", "311", ["1 x 20", "2 x 10", "2 x 12", "2 x 15", "", ""]],
-        ["A2", "Dips", "321", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"]],
-        ["A3", "Chinese Plank", "Slow", ["2 x 30sec", "2 x 30sec", "2 x 35sec", "2 x 35sec", "", ""]],
-        ["B1", "KB Resistance Band RDL", "321", ["1 x 20", "2 x 10", "2 x 12", "2 x 15", "", ""]],
-        ["B2", "Feet Elevated TRX Row", "321", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "2 x 15", "2 x 15"]],
-        ["B3", "DB High Box Step Up", "111", ["3 x 5 es", "3 x 5 es", "3 x 6 es", "3 x 6 es", "3 x 15", "3 x 15"]],
-        ["C1", "Band Assisted GHR", "511", ["1 x 5", "2 x 5", "2 x 6", "2 x 6", "", ""]],
-        ["C2", "Resistance Band Push Up", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"]],
-        ["C3", "Suitcase Carry", "Slow", ["2 Laps", "2 Laps", "3 Laps", "3 Laps", "", ""]],
+        ["A1", "Goblet Squat", "311", ["1 x 20", "2 x 10", "2 x 12", "2 x 15", "", ""], "https://www.youtube.com/watch?v=O3oQz3YlsYo"],
+        ["A2", "Dips", "321", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"], "https://www.youtube.com/watch?v=imL3mZaEiDg"],
+        ["A3", "Chinese Plank", "Slow", ["2 x 30sec", "2 x 30sec", "2 x 35sec", "2 x 35sec", "", ""], "https://www.youtube.com/watch?v=wqWIOvZH1qc"],
+        ["B1", "KB Resistance Band RDL", "321", ["1 x 20", "2 x 10", "2 x 12", "2 x 15", "", ""], "https://www.youtube.com/watch?v=4la6BkUBLgo"],
+        ["B2", "Feet Elevated TRX Row", "321", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "2 x 15", "2 x 15"], "https://www.youtube.com/watch?v=w36ExY43efs"],
+        ["B3", "DB High Box Step Up", "111", ["3 x 5 es", "3 x 5 es", "3 x 6 es", "3 x 6 es", "3 x 15", "3 x 15"], "https://www.youtube.com/watch?v=fNx2sexcgbI"],
+        ["C1", "Band Assisted GHR", "511", ["1 x 5", "2 x 5", "2 x 6", "2 x 6", "", ""], "https://www.youtube.com/watch?v=SniKHGKDJyU"],
+        ["C2", "Resistance Band Push Up", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"], "https://www.youtube.com/watch?v=KcTEGifMTDY"],
+        ["C3", "Suitcase Carry", "Slow", ["2 Laps", "2 Laps", "3 Laps", "3 Laps", "", ""], "https://www.youtube.com/watch?v=obtdLUWZi-Y"],
       ],
     },
   },
   "L2-home": {
-    label: "Level 2 · Body weight", // from Keebra Junior Gym Generator
-    day1: {
+    label: "Level 2 · Body weight",
+    day1: { // Lvl 2 sheet: LEVEL 2 - Holiday (Body Weight) Day 1
       power: [
-        ["A1", "Continuous Broad Jump - stick & hold 2sec", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"]],
-        ["B1", "Plyometric Push Up", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"]],
-        ["S1", "Acceleration Wall Drill", "Fast", ["3 x 10m", "3 x 15m", "4 x 15m", "4 x 20m", "", ""]],
+        ["A1", "Continuous Broad Jump - stick & hold 2sec", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"], "https://www.youtube.com/watch?v=d71OFlh3m78"],
+        ["B1", "Plyometric Push Up", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"], "https://www.youtube.com/watch?v=Y-uF4F3mQIs"],
+        ["S1", "Acceleration Wall Drill", "Fast", ["3 x 10m", "3 x 15m", "4 x 15m", "4 x 20m", "", ""], "https://www.youtube.com/watch?v=52r_Ul5k03g"],
       ],
       strength: [
-        ["A1", "Heel Elevated Squat", "321", ["3 x 15", "3 x 15", "3 x 18", "3 x 18", "3 x 15 es", "3 x 15 es"]],
-        ["A2", "Bench Dips", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"]],
-        ["A3", "Side Plank Hip Drop", "Slow", ["2 x 10 es", "2 x 10 es", "2 x 12 es", "2 x 12 es", "", ""]],
-        ["B1", "Single Leg RDL", "221", ["3 x 5 es", "3 x 5 es", "3 x 6 es", "3 x 6 es", "3 x 7 es", "3 x 7 es"]],
-        ["B2", "Fat Man Chins", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "2 x 30sec", "2 x 30sec"]],
-        ["B3", "Lateral Lunge", "221", ["3 x 10 es", "3 x 10 es", "3 x 12 es", "3 x 12 es", "2 x 15 es", "2 x 15 es"]],
-        ["C1", "Band Assisted GHR", "511", ["1 x 5", "2 x 5", "2 x 6", "2 x 6", "", ""]],
-        ["C2", "Push Up to Toe Touch", "221", ["3 x 5 es", "3 x 5 es", "3 x 6 es", "3 x 6 es", "3 x 9", "3 x 10"]],
-        ["C3", "Suitcase Carry", "Slow", ["2 Laps", "2 Laps", "3 Laps", "3 Laps", "", ""]],
+        ["A1", "Heel Elevated Squat", "321", ["3 x 15", "3 x 15", "3 x 18", "3 x 18", "3 x 15 es", "3 x 15 es"], "https://www.youtube.com/watch?v=YcHQ3eQXLc8"],
+        ["A2", "Bench Dips", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"], "https://www.youtube.com/watch?v=gwWv7aPcD88"],
+        ["A3", "Side Plank Hip Drop", "Slow", ["2 x 10 es", "2 x 10 es", "2 x 12 es", "2 x 12 es", "", ""], "https://www.youtube.com/watch?v=JKUuOwsDXFs"],
+        ["B1", "Single Leg RDL", "221", ["3 x 5 es", "3 x 5 es", "3 x 6 es", "3 x 6 es", "3 x 7 es", "3 x 7 es"], "https://www.youtube.com/watch?v=XXvuYGCxpkk"],
+        ["B2", "Fat Man Chins", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "2 x 30sec", "2 x 30sec"], "https://www.youtube.com/watch?v=glyjer6nOjE"],
+        ["B3", "Lateral Lunge", "221", ["3 x 10 es", "3 x 10 es", "3 x 12 es", "3 x 12 es", "2 x 15 es", "2 x 15 es"], "https://www.youtube.com/watch?v=c7JApoDYgLM"],
+        ["C1", "Band Assisted GHR", "511", ["1 x 5", "2 x 5", "2 x 6", "2 x 6", "", ""], "https://www.youtube.com/watch?v=PxU20_BCgZE"],
+        ["C2", "Push Up to Toe Touch", "221", ["3 x 5 es", "3 x 5 es", "3 x 6 es", "3 x 6 es", "3 x 9", "3 x 10"], "https://www.youtube.com/watch?v=ctffzu0jWu0"],
+        ["C3", "Suitcase Carry", "Slow", ["2 Laps", "2 Laps", "3 Laps", "3 Laps", "", ""], "https://www.youtube.com/watch?v=bAnCoDrvXc4"],
       ],
     },
-    day2: {
+    day2: { // Lvl 2 sheet: LEVEL 2 - Holiday (Body Weight) Day 2
       power: [
-        ["A1", "Continuous Broad Jump - stick & hold 2sec", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"]],
-        ["B1", "Plyometric Push Up", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"]],
-        ["S1", "Sled March Accel 10m", "Fast", ["3 x 10m", "3 x 12m", "4 x 12m", "4 x 15m", "", ""]],
+        ["A1", "Continuous Broad Jump - stick & hold 2sec", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"], "https://www.youtube.com/watch?v=d71OFlh3m78"],
+        ["B1", "Plyometric Push Up", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"], "https://www.youtube.com/watch?v=Y-uF4F3mQIs"],
+        ["S1", "Sled March Accel 10m", "Fast", ["3 x 10m", "3 x 12m", "4 x 12m", "4 x 15m", "", ""], "https://www.youtube.com/watch?v=52r_Ul5k03g"],
       ],
       strength: [
-        ["A1", "Goblet Squat", "311", ["1 x 20", "2 x 10", "2 x 12", "2 x 15", "", ""]],
-        ["A2", "Scap Push Up", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "2 x 40sec", "2 x 40sec"]],
-        ["A3", "Deadbug", "111", ["2 x 10 es", "2 x 10 es", "2 x 12 es", "2 x 12 es", "", ""]],
-        ["B1", "KB Resistance Band RDL", "321", ["1 x 20", "2 x 10", "2 x 12", "2 x 15", "", ""]],
-        ["B2", "Chin Up", "211", ["3 x 5", "3 x 6", "3 x 7", "3 x 8", "3 x 15", "3 x 15"]],
-        ["B3", "High Box Step Up", "321", ["3 x 5 es", "3 x 5 es", "3 x 6 es", "3 x 6 es", "3 x 20", "3 x 20"]],
-        ["C1", "Band Assisted GHR", "511", ["1 x 5", "2 x 5", "2 x 6", "2 x 6", "", ""]],
-        ["C2", "Hands Off Push Up", "321", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 9", "3 x 10"]],
-        ["C3", "Farmers Carry", "Slow", ["2 Laps", "2 Laps", "3 Laps", "3 Laps", "", ""]],
+        ["A1", "Goblet Squat", "311", ["1 x 20", "2 x 10", "2 x 12", "2 x 15", "", ""], "https://www.youtube.com/watch?v=KGyVfgh0fhk"],
+        ["A2", "Scap Push Up", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "2 x 40sec", "2 x 40sec"], "https://www.youtube.com/watch?v=LnWEIjIls-M"],
+        ["A3", "Deadbug", "111", ["2 x 10 es", "2 x 10 es", "2 x 12 es", "2 x 12 es", "", ""], "https://www.youtube.com/watch?v=jbWmbhElf3Q"],
+        ["B1", "KB Resistance Band RDL", "321", ["1 x 20", "2 x 10", "2 x 12", "2 x 15", "", ""], "https://www.youtube.com/watch?v=mRy9m2Q9_1I"],
+        ["B2", "Chin Up", "211", ["3 x 5", "3 x 6", "3 x 7", "3 x 8", "3 x 15", "3 x 15"], "https://www.youtube.com/watch?v=5YHZnEsE9hA"],
+        ["B3", "High Box Step Up", "321", ["3 x 5 es", "3 x 5 es", "3 x 6 es", "3 x 6 es", "3 x 20", "3 x 20"], "https://www.youtube.com/watch?v=z6PJMT2y8GQ"],
+        ["C1", "Band Assisted GHR", "511", ["1 x 5", "2 x 5", "2 x 6", "2 x 6", "", ""], "https://www.youtube.com/watch?v=tQNktxPkSeE"],
+        ["C2", "Hands Off Push Up", "321", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 9", "3 x 10"], "https://www.youtube.com/watch?v=imL3mZaEiDg"],
+        ["C3", "Farmers Carry", "Slow", ["2 Laps", "2 Laps", "3 Laps", "3 Laps", "", ""], "https://www.youtube.com/watch?v=MH8id-EaoPA"],
       ],
     },
   },
   "L3-weights": {
-    label: "Level 3 · Weights", // from Keebra Junior Gym Generator
-    day1: {
+    label: "Level 3 · Weights",
+    day1: { // Lvl 3 sheet: LEVEL 3 - Holiday (Weights) Day 1
       power: [
-        ["A1", "Continuous Broad Jump - stick & hold 2sec", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"]],
-        ["B1", "Plyometric Push Up", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"]],
-        ["S1", "Build-up Sprint 20m", "Fast", ["3 x 20m", "4 x 20m", "4 x 25m", "5 x 25m", "", ""]],
+        ["A1", "Continuous Broad Jump - stick & hold 2sec", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"], "https://www.youtube.com/watch?v=d71OFlh3m78"],
+        ["B1", "Plyometric Push Up", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"], "https://www.youtube.com/watch?v=Y-uF4F3mQIs"],
+        ["S1", "Build-up Sprint 20m", "Fast", ["3 x 20m", "4 x 20m", "4 x 25m", "5 x 25m", "", ""], "https://www.youtube.com/watch?v=52r_Ul5k03g"],
       ],
       strength: [
-        ["A1", "DB Goblet Squat", "311", ["2 x 10", "3 x 10", "3 x 12", "3 x 15", "", ""]],
-        ["A2", "Military Press", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"]],
-        ["A3", "Shoulder Taps", "111", ["2 x 10 es", "2 x 10 es", "2 x 15 es", "2 x 15 es", "2 x 20 es", "2 x 20 es"]],
-        ["B1", "BB RDL", "321", ["3 x 6", "3 x 5", "4 x 5", "4 x 4", "3 x 12", "3 x 12"]],
-        ["B2", "KB Upright Row", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"]],
-        ["B3", "DB Walking Lunge", "221", ["3 x 6 es", "3 x 6 es", "3 x 8 es", "3 x 8 es", "3 x 10 es", "3 x 10 es"]],
-        ["C1", "Eccentric Nordic", "511", ["1 x 5", "2 x 5", "2 x 6", "2 x 6", "", ""]],
-        ["C2", "Single Arm DB Row", "321", ["3 x 10 es", "3 x 10 es", "3 x 12 es", "3 x 12 es", "3 x 15 es", "3 x 15 es"]],
-        ["C3", "Farmers Carry", "Slow", ["2 Laps", "2 Laps", "3 Laps", "3 Laps", "4 Laps", "4 Laps"]],
+        ["A1", "DB Goblet Squat", "311", ["2 x 10", "3 x 10", "3 x 12", "3 x 15", "", ""], "https://www.youtube.com/watch?v=SniKHGKDJyU"],
+        ["A2", "Military Press", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"], "https://www.youtube.com/watch?v=ADIDoYt_ko4"],
+        ["A3", "Shoulder Taps", "111", ["2 x 10 es", "2 x 10 es", "2 x 15 es", "2 x 15 es", "2 x 20 es", "2 x 20 es"], "https://www.youtube.com/watch?v=JKUuOwsDXFs"],
+        ["B1", "BB RDL", "321", ["3 x 6", "3 x 5", "4 x 5", "4 x 4", "3 x 12", "3 x 12"], "https://www.youtube.com/watch?v=sBt6610fUiE"],
+        ["B2", "KB Upright Row", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"], "https://www.youtube.com/watch?v=OXKJC6koW2A"],
+        ["B3", "DB Walking Lunge", "221", ["3 x 6 es", "3 x 6 es", "3 x 8 es", "3 x 8 es", "3 x 10 es", "3 x 10 es"], "https://www.youtube.com/watch?v=jbWmbhElf3Q"],
+        ["C1", "Eccentric Nordic", "511", ["1 x 5", "2 x 5", "2 x 6", "2 x 6", "", ""], "https://www.youtube.com/watch?v=hfpd2mpkM4w"],
+        ["C2", "Single Arm DB Row", "321", ["3 x 10 es", "3 x 10 es", "3 x 12 es", "3 x 12 es", "3 x 15 es", "3 x 15 es"], "https://www.youtube.com/watch?v=dMbbJg2ZVOo"],
+        ["C3", "Farmers Carry", "Slow", ["2 Laps", "2 Laps", "3 Laps", "3 Laps", "4 Laps", "4 Laps"], "https://www.youtube.com/watch?v=MH8id-EaoPA"],
       ],
     },
-    day2: {
+    day2: { // Lvl 3 sheet: LEVEL 3 - Holiday (Weights) Day 2
       power: [
-        ["A1", "Continuous Broad Jump - stick & hold 2sec", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"]],
-        ["B1", "Plyometric Push Up", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"]],
-        ["S1", "Sled Accel Sprint 15m", "Fast", ["3 x 15m", "4 x 15m", "4 x 20m", "5 x 20m", "", ""]],
+        ["A1", "Continuous Broad Jump - stick & hold 2sec", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"], "https://www.youtube.com/watch?v=d71OFlh3m78"],
+        ["B1", "Plyometric Push Up", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"], "https://www.youtube.com/watch?v=Y-uF4F3mQIs"],
+        ["S1", "Sled Accel Sprint 15m", "Fast", ["3 x 15m", "4 x 15m", "4 x 20m", "5 x 20m", "", ""], "https://www.youtube.com/watch?v=52r_Ul5k03g"],
       ],
       strength: [
-        ["A1", "BB Front Squat", "311", ["3 x 6", "3 x 5", "4 x 5", "4 x 4", "3 x 15", "3 x 15"]],
-        ["A2", "BB Bench Press", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"]],
-        ["A3", "Weighted Deadbug", "211", ["2 x 10", "2 x 10", "2 x 12", "2 x 12", "2 x 15", "2 x 15"]],
-        ["B1", "BB RDL", "321", ["3 x 6", "3 x 5", "4 x 5", "4 x 4", "", ""]],
-        ["B2", "Chin Up", "211", ["3 x 5", "3 x 6", "3 x 7", "3 x 8", "3 x 9", "3 x 10"]],
-        ["B3", "DB Lateral Lunge", "221", ["3 x 6 es", "3 x 6 es", "3 x 7 es", "3 x 7 es", "3 x 8 es", "3 x 8 es"]],
-        ["C1", "Eccentric Nordic", "511", ["1 x 5", "2 x 5", "2 x 6", "2 x 6", "", ""]],
-        ["C2", "Trap 3 Raise", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"]],
-        ["C3", "Suitcase Carry", "Slow", ["2 Laps", "2 Laps", "3 Laps", "3 Laps", "4 Laps", "4 Laps"]],
+        ["A1", "BB Front Squat", "311", ["3 x 6", "3 x 5", "4 x 5", "4 x 4", "3 x 15", "3 x 15"], "https://www.youtube.com/watch?v=mRy9m2Q9_1I"],
+        ["A2", "BB Bench Press", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"], "https://www.youtube.com/watch?v=bvFTLE99Nhw"],
+        ["A3", "Weighted Deadbug", "211", ["2 x 10", "2 x 10", "2 x 12", "2 x 12", "2 x 15", "2 x 15"], "https://www.youtube.com/watch?v=obtdLUWZi-Y"],
+        ["B1", "BB RDL", "321", ["3 x 6", "3 x 5", "4 x 5", "4 x 4", "", ""], "https://www.youtube.com/watch?v=uYumuL_G_V0"],
+        ["B2", "Chin Up", "211", ["3 x 5", "3 x 6", "3 x 7", "3 x 8", "3 x 9", "3 x 10"], "https://www.youtube.com/watch?v=ktdMS7WBwck"],
+        ["B3", "DB Lateral Lunge", "221", ["3 x 6 es", "3 x 6 es", "3 x 7 es", "3 x 7 es", "3 x 8 es", "3 x 8 es"], "https://www.youtube.com/watch?v=swOyWKk7Oko"],
+        ["C1", "Eccentric Nordic", "511", ["1 x 5", "2 x 5", "2 x 6", "2 x 6", "", ""], "https://www.youtube.com/watch?v=SCVCLChPQFY"],
+        ["C2", "Trap 3 Raise", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"], "https://www.youtube.com/watch?v=5MhQS8nU-HU"],
+        ["C3", "Suitcase Carry", "Slow", ["2 Laps", "2 Laps", "3 Laps", "3 Laps", "4 Laps", "4 Laps"], "https://www.youtube.com/watch?v=L4oFJRDAU4Q"],
       ],
     },
   },
   "L3-home": {
-    label: "Level 3 · Body weight", // from Keebra Junior Gym Generator
-    day1: {
+    label: "Level 3 · Body weight",
+    day1: { // Lvl 3 sheet: LEVEL 3 - Holiday (Body Weight) Day 1
       power: [
-        ["A1", "Continuous Broad Jump - stick & hold 2sec", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"]],
-        ["B1", "Plyometric Push Up", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"]],
-        ["S1", "Depth Drop to Lateral Cut", "Fast", ["2 x 4e.s", "2 x 5e.s", "2 x 5e.s", "2 x 6e.s", "", ""]],
+        ["A1", "Continuous Broad Jump - stick & hold 2sec", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"], "https://www.youtube.com/watch?v=d71OFlh3m78"],
+        ["B1", "Plyometric Push Up", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"], "https://www.youtube.com/watch?v=Y-uF4F3mQIs"],
+        ["S1", "Depth Drop to Lateral Cut", "Fast", ["2 x 4e.s", "2 x 5e.s", "2 x 5e.s", "2 x 6e.s", "", ""], "https://www.youtube.com/watch?v=52r_Ul5k03g"],
       ],
       strength: [
-        ["A1", "Heel Elevated Squat", "321", ["3 x 15", "3 x 15", "3 x 18", "3 x 18", "3 x 20", "3 x 20"]],
-        ["A2", "Bench Dips", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"]],
-        ["A3", "Side Plank Hip Drop", "Slow", ["2 x 10 es", "2 x 10 es", "2 x 12 es", "2 x 12 es", "2 x 15 es", "2 x 15 es"]],
-        ["B1", "Single Leg RDL", "221", ["3 x 5 es", "3 x 5 es", "3 x 6 es", "3 x 6 es", "3 x 7 es", "3 x 7 es"]],
-        ["B2", "Fat Man Chins", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"]],
-        ["B3", "Lateral Lunge", "221", ["3 x 10 es", "3 x 10 es", "3 x 12 es", "3 x 12 es", "3 x 15 es", "3 x 15 es"]],
-        ["C1", "Eccentric Nordic", "511", ["1 x 5", "2 x 5", "2 x 6", "2 x 6", "", ""]],
-        ["C2", "Push Up to Toe Touch", "221", ["3 x 5 es", "3 x 5 es", "3 x 6 es", "3 x 6 es", "3 x 7 es", "3 x 7 es"]],
-        ["C3", "Suitcase Carry", "Slow", ["2 Laps", "2 Laps", "3 Laps", "3 Laps", "4 Laps", "4 Laps"]],
+        ["A1", "Heel Elevated Squat", "321", ["3 x 15", "3 x 15", "3 x 18", "3 x 18", "3 x 20", "3 x 20"], "https://www.youtube.com/watch?v=YcHQ3eQXLc8"],
+        ["A2", "Bench Dips", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"], "https://www.youtube.com/watch?v=gwWv7aPcD88"],
+        ["A3", "Side Plank Hip Drop", "Slow", ["2 x 10 es", "2 x 10 es", "2 x 12 es", "2 x 12 es", "2 x 15 es", "2 x 15 es"], "https://www.youtube.com/watch?v=JKUuOwsDXFs"],
+        ["B1", "Single Leg RDL", "221", ["3 x 5 es", "3 x 5 es", "3 x 6 es", "3 x 6 es", "3 x 7 es", "3 x 7 es"], "https://www.youtube.com/watch?v=XXvuYGCxpkk"],
+        ["B2", "Fat Man Chins", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"], "https://www.youtube.com/watch?v=glyjer6nOjE"],
+        ["B3", "Lateral Lunge", "221", ["3 x 10 es", "3 x 10 es", "3 x 12 es", "3 x 12 es", "3 x 15 es", "3 x 15 es"], "https://www.youtube.com/watch?v=c7JApoDYgLM"],
+        ["C1", "Eccentric Nordic", "511", ["1 x 5", "2 x 5", "2 x 6", "2 x 6", "", ""], "https://www.youtube.com/watch?v=PxU20_BCgZE"],
+        ["C2", "Push Up to Toe Touch", "221", ["3 x 5 es", "3 x 5 es", "3 x 6 es", "3 x 6 es", "3 x 7 es", "3 x 7 es"], "https://www.youtube.com/watch?v=ctffzu0jWu0"],
+        ["C3", "Suitcase Carry", "Slow", ["2 Laps", "2 Laps", "3 Laps", "3 Laps", "4 Laps", "4 Laps"], "https://www.youtube.com/watch?v=bAnCoDrvXc4"],
       ],
     },
-    day2: {
+    day2: { // Lvl 3 sheet: LEVEL 3 - Holiday (Body Weight) Day 2
       power: [
-        ["A1", "Continuous Broad Jump - stick & hold 2sec", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"]],
-        ["B1", "Plyometric Push Up", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"]],
-        ["S1", "Acceleration Wall Drill", "Fast", ["3 x 10m", "3 x 15m", "4 x 15m", "4 x 20m", "", ""]],
+        ["A1", "Continuous Broad Jump - stick & hold 2sec", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"], "https://www.youtube.com/watch?v=d71OFlh3m78"],
+        ["B1", "Plyometric Push Up", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 6"], "https://www.youtube.com/watch?v=Y-uF4F3mQIs"],
+        ["S1", "Build-up Sprint 20m", "Fast", ["3 x 20m", "4 x 20m", "4 x 25m", "5 x 25m", "", ""], "https://www.youtube.com/watch?v=52r_Ul5k03g"],
       ],
       strength: [
-        ["A1", "DB Goblet Squat", "311", ["2 x 10", "3 x 10", "3 x 12", "3 x 15", "", ""]],
-        ["A2", "Scap Push Up", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"]],
-        ["A3", "Deadbug", "111", ["2 x 10 es", "2 x 10 es", "2 x 12 es", "2 x 12 es", "2 x 15 es", "2 x 15 es"]],
-        ["B1", "BB RDL", "321", ["3 x 6", "3 x 5", "4 x 5", "4 x 4", "", ""]],
-        ["B2", "Chin Up", "211", ["3 x 5", "3 x 6", "3 x 7", "3 x 8", "3 x 9", "3 x 10"]],
-        ["B3", "High Box Step Up", "321", ["3 x 5 es", "3 x 5 es", "3 x 6 es", "3 x 6 es", "3 x 7 es", "3 x 7 es"]],
-        ["C1", "Eccentric Nordic", "511", ["1 x 5", "2 x 5", "2 x 6", "2 x 6", "2 x 40sec", "2 x 40sec"]],
-        ["C2", "Hands Off Push Up", "321", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"]],
-        ["C3", "Farmers Carry", "Slow", ["2 Laps", "2 Laps", "3 Laps", "3 Laps", "4 Laps", "4 Laps"]],
+        ["A1", "DB Goblet Squat", "311", ["2 x 10", "3 x 10", "3 x 12", "3 x 15", "", ""], "https://www.youtube.com/watch?v=KGyVfgh0fhk"],
+        ["A2", "Scap Push Up", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"], "https://www.youtube.com/watch?v=LnWEIjIls-M"],
+        ["A3", "Deadbug", "111", ["2 x 10 es", "2 x 10 es", "2 x 12 es", "2 x 12 es", "2 x 15 es", "2 x 15 es"], "https://www.youtube.com/watch?v=jbWmbhElf3Q"],
+        ["B1", "BB RDL", "321", ["3 x 6", "3 x 5", "4 x 5", "4 x 4", "", ""], "https://www.youtube.com/watch?v=mRy9m2Q9_1I"],
+        ["B2", "Chin Up", "211", ["3 x 5", "3 x 6", "3 x 7", "3 x 8", "3 x 9", "3 x 10"], "https://www.youtube.com/watch?v=5YHZnEsE9hA"],
+        ["B3", "High Box Step Up", "321", ["3 x 5 es", "3 x 5 es", "3 x 6 es", "3 x 6 es", "3 x 7 es", "3 x 7 es"], "https://www.youtube.com/watch?v=z6PJMT2y8GQ"],
+        ["C1", "Eccentric Nordic", "511", ["1 x 5", "2 x 5", "2 x 6", "2 x 6", "2 x 40sec", "2 x 40sec"], "https://www.youtube.com/watch?v=tQNktxPkSeE"],
+        ["C2", "Hands Off Push Up", "321", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"], "https://www.youtube.com/watch?v=imL3mZaEiDg"],
+        ["C3", "Farmers Carry", "Slow", ["2 Laps", "2 Laps", "3 Laps", "3 Laps", "4 Laps", "4 Laps"], "https://www.youtube.com/watch?v=MH8id-EaoPA"],
       ],
     },
   },
-  "senior-weights": {
-    label: "Senior · Weights", // DRAFT from research: coach to review
-    day1: {
+  "L4-weights": {
+    label: "Level 4 · Weights",
+    minutes: 32,
+    // Senior load guide from the workbook (Weeks 5–6 wording added for the holiday block).
+    effort: ["Build: about 3 reps left in the tank (effort 7/10)", "“I could do 2 more”", "“I could do 1 more”", "Top set at or near the prescribed reps", "“I could do 2 more”", "“I could do 2 or 3 more”, ease off"],
+    rule: "Anchor your loads to your last 3RM test. Don’t underload: heavy, well-coached sets are how you adapt. Technique first. Barbell work only with a coach or adult there.",
+    // The workbook block stops at Week 5, so Week 6 repeats Week 5.
+    day1: { // Lvl 4 sheet: LEVEL 4 - Holiday (Weights) Day 1
       power: [
-        ["A1", "Box Jump - stick & hold 2sec", "Fast", ["2 x 3", "3 x 3", "3 x 3", "3 x 4", "3 x 4", "2 x 3"]],
-        ["B1", "Med Ball Chest Pass", "Fast", ["2 x 5", "3 x 5", "3 x 5", "3 x 6", "3 x 6", "2 x 5"]],
-        ["S1", "Build-up Sprint 20m", "Fast", ["3 x 20m", "4 x 20m", "4 x 25m", "5 x 25m", "5 x 25m", "3 x 20m"]],
+        ["A1", "Continuous Broad Jump - stick & hold 2sec", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 5"], "https://www.youtube.com/watch?v=d71OFlh3m78"],
+        ["B1", "Plyometric Push Up", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 5"], "https://www.youtube.com/watch?v=Y-uF4F3mQIs"],
+        ["S1", "Sled Accel Sprint 20m", "Fast", ["4 x 20m", "4 x 25m", "5 x 25m", "5 x 30m", "", ""], "https://www.youtube.com/watch?v=52r_Ul5k03g"],
       ],
       strength: [
-        ["A1", "BB Back Squat", "311", ["3 x 8", "3 x 6", "4 x 6", "4 x 5", "4 x 5", "2 x 6"]],
-        ["A2", "BB Bench Press", "221", ["3 x 8", "3 x 6", "4 x 6", "4 x 5", "4 x 5", "2 x 6"]],
-        ["A3", "Pallof Press", "Slow", ["2 x 8 es", "2 x 8 es", "2 x 10 es", "2 x 10 es", "2 x 12 es", "2 x 8 es"]],
-        ["B1", "Trap Bar Deadlift", "211", ["3 x 8", "3 x 6", "3 x 6", "3 x 5", "3 x 5", "2 x 5"]],
-        ["B2", "Chin Up", "211", ["3 x 5", "3 x 6", "3 x 6", "3 x 7", "3 x 8", "2 x 6"]],
-        ["B3", "Rear Foot Elevated Split Squat", "221", ["3 x 8 es", "3 x 8 es", "3 x 6 es", "3 x 6 es", "3 x 6 es", "2 x 6 es"]],
-        ["C1", "Eccentric Nordic", "511", ["2 x 3", "2 x 4", "3 x 4", "3 x 5", "3 x 5", "2 x 3"]],
-        ["C2", "Half Kneeling Landmine Press", "221", ["3 x 8 es", "3 x 8 es", "3 x 10 es", "3 x 10 es", "3 x 10 es", "2 x 8 es"]],
-        ["C3", "Farmers Carry", "Slow", ["2 Laps", "2 Laps", "3 Laps", "3 Laps", "4 Laps", "2 Laps"]],
+        ["A1", "BB Front Squat", "311", ["3 x 8", "3 x 8", "3 x 6", "3 x 6", "", ""], "https://www.youtube.com/watch?v=SniKHGKDJyU"],
+        ["A2", "Military Press", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"], "https://www.youtube.com/watch?v=ADIDoYt_ko4"],
+        ["A3", "Shoulder Taps", "111", ["2 x 10 es", "2 x 10 es", "2 x 15 es", "2 x 15 es", "2 x 20 es", "2 x 20 es"], "https://www.youtube.com/watch?v=JKUuOwsDXFs"],
+        ["B1", "BB RDL", "321", ["3 x 8", "3 x 8", "3 x 10", "3 x 10", "3 x 12", "3 x 12"], "https://www.youtube.com/watch?v=sBt6610fUiE"],
+        ["B2", "KB Upright Row", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"], "https://www.youtube.com/watch?v=OXKJC6koW2A"],
+        ["B3", "DB Walking Lunge", "221", ["3 x 6 es", "3 x 6 es", "3 x 8 es", "3 x 8 es", "3 x 10 es", "3 x 10 es"], "https://www.youtube.com/watch?v=jbWmbhElf3Q"],
+        ["C1", "Eccentric Nordic", "511", ["2 x 5", "2 x 6", "3 x 5", "3 x 6", "", ""], "https://www.youtube.com/watch?v=hfpd2mpkM4w"],
+        ["C2", "Single Arm DB Row", "321", ["3 x 10 es", "3 x 10 es", "3 x 12 es", "3 x 12 es", "3 x 15 es", "3 x 15 es"], "https://www.youtube.com/watch?v=dMbbJg2ZVOo"],
+        ["C3", "Farmers Carry", "Slow", ["2 Laps", "2 Laps", "3 Laps", "3 Laps", "4 Laps", "4 Laps"], "https://www.youtube.com/watch?v=MH8id-EaoPA"],
       ],
     },
-    day2: {
+    day2: { // Lvl 4 sheet: LEVEL 4 - Holiday (Weights) Day 2
       power: [
-        ["A1", "Continuous Broad Jump - stick & hold 2sec", "Fast", ["2 x 3", "2 x 4", "3 x 4", "3 x 5", "3 x 5", "2 x 3"]],
-        ["B1", "Rotational Med Ball Throw", "Fast", ["2 x 4 es", "2 x 5 es", "3 x 5 es", "3 x 5 es", "3 x 6 es", "2 x 4 es"]],
-        ["S1", "Sled Accel Sprint 15m", "Fast", ["3 x 15m", "4 x 15m", "4 x 20m", "5 x 20m", "5 x 20m", "3 x 15m"]],
+        ["A1", "Continuous Broad Jump - stick & hold 2sec", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 5"], "https://www.youtube.com/watch?v=d71OFlh3m78"],
+        ["B1", "Plyometric Push Up", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 5"], "https://www.youtube.com/watch?v=Y-uF4F3mQIs"],
+        ["S1", "Sled Accel Sprint 20m", "Fast", ["4 x 20m", "4 x 25m", "5 x 25m", "5 x 30m", "", ""], "https://www.youtube.com/watch?v=52r_Ul5k03g"],
       ],
       strength: [
-        ["A1", "BB Front Squat", "311", ["3 x 8", "3 x 6", "4 x 6", "4 x 5", "4 x 5", "2 x 6"]],
-        ["A2", "DB Shoulder Press", "221", ["3 x 10", "3 x 8", "3 x 8", "3 x 6", "3 x 6", "2 x 8"]],
-        ["A3", "Copenhagen Plank", "Hold", ["2 x 15sec es", "2 x 20sec es", "2 x 20sec es", "2 x 25sec es", "2 x 30sec es", "2 x 15sec es"]],
-        ["B1", "BB RDL", "321", ["3 x 8", "3 x 6", "4 x 6", "4 x 5", "4 x 5", "2 x 6"]],
-        ["B2", "Bent Over BB Row", "221", ["3 x 10", "3 x 8", "4 x 8", "4 x 6", "4 x 6", "2 x 8"]],
-        ["B3", "DB Walking Lunge", "221", ["3 x 6 es", "3 x 6 es", "3 x 8 es", "3 x 8 es", "3 x 8 es", "2 x 6 es"]],
-        ["C1", "Eccentric Nordic", "511", ["2 x 3", "2 x 4", "3 x 4", "3 x 5", "3 x 5", "2 x 3"]],
-        ["C2", "Weighted Push Up", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 12", "2 x 10"]],
-        ["C3", "Suitcase Carry", "Slow", ["2 Laps", "2 Laps", "3 Laps", "3 Laps", "4 Laps", "2 Laps"]],
+        ["A1", "BB Front Squat", "311", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"], "https://www.youtube.com/watch?v=mRy9m2Q9_1I"],
+        ["A2", "BB Bench Press", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"], "https://www.youtube.com/watch?v=bvFTLE99Nhw"],
+        ["A3", "Plank Down", "111", ["2 x 10", "2 x 10", "2 x 12", "2 x 12", "2 x 15", "2 x 15"], "https://www.youtube.com/watch?v=obtdLUWZi-Y"],
+        ["B1", "Trap Bar Deadlift", "321", ["3 x 8", "3 x 8", "3 x 6", "3 x 6", "", ""], "https://www.youtube.com/watch?v=uYumuL_G_V0"],
+        ["B2", "Chin Up", "211", ["3 x 5", "3 x 6", "3 x 7", "3 x 8", "3 x 9", "3 x 9"], "https://www.youtube.com/watch?v=ktdMS7WBwck"],
+        ["B3", "DB Lateral Lunge", "221", ["3 x 6 es", "3 x 6 es", "3 x 7 es", "3 x 7 es", "3 x 8 es", "3 x 8 es"], "https://www.youtube.com/watch?v=swOyWKk7Oko"],
+        ["C1", "Eccentric Nordic", "511", ["2 x 5", "2 x 6", "3 x 5", "3 x 6", "", ""], "https://www.youtube.com/watch?v=SCVCLChPQFY"],
+        ["C2", "Trap 3 Raise", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"], "https://www.youtube.com/watch?v=5MhQS8nU-HU"],
+        ["C3", "Suitcase Carry", "Slow", ["2 Laps", "2 Laps", "3 Laps", "3 Laps", "4 Laps", "4 Laps"], "https://www.youtube.com/watch?v=L4oFJRDAU4Q"],
+      ],
+    },
+  },
+  "L4-home": {
+    label: "Level 4 · Body weight",
+    minutes: 32,
+    // Senior load guide from the workbook (Weeks 5–6 wording added for the holiday block).
+    effort: ["Build: about 3 reps left in the tank (effort 7/10)", "“I could do 2 more”", "“I could do 1 more”", "Top set at or near the prescribed reps", "“I could do 2 more”", "“I could do 2 or 3 more”, ease off"],
+    rule: "Anchor your loads to your last 3RM test. Don’t underload: heavy, well-coached sets are how you adapt. Technique first. Barbell work only with a coach or adult there.",
+    // The workbook block stops at Week 5, so Week 6 repeats Week 5.
+    day1: { // Lvl 4 sheet: LEVEL 4 - Holiday (Body Weight) Day 1
+      power: [
+        ["A1", "Continuous Broad Jump - stick & hold 2sec", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 5"], "https://www.youtube.com/watch?v=d71OFlh3m78"],
+        ["B1", "Plyometric Push Up", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 5"], "https://www.youtube.com/watch?v=Y-uF4F3mQIs"],
+        ["S1", "Sled Accel Sprint 20m", "Fast", ["4 x 20m", "4 x 25m", "5 x 25m", "5 x 30m", "", ""], "https://www.youtube.com/watch?v=52r_Ul5k03g"],
+      ],
+      strength: [
+        ["A1", "Heel Elevated Squat", "321", ["3 x 15", "3 x 15", "3 x 18", "3 x 18", "3 x 20", "3 x 20"], "https://www.youtube.com/watch?v=YcHQ3eQXLc8"],
+        ["A2", "Bench Dips", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"], "https://www.youtube.com/watch?v=gwWv7aPcD88"],
+        ["A3", "Side Plank Hip Drop", "Slow", ["2 x 10 es", "2 x 10 es", "2 x 12 es", "2 x 12 es", "2 x 15 es", "2 x 15 es"], "https://www.youtube.com/watch?v=JKUuOwsDXFs"],
+        ["B1", "Single Leg RDL", "221", ["3 x 5 es", "3 x 5 es", "3 x 6 es", "3 x 6 es", "3 x 7 es", "3 x 7 es"], "https://www.youtube.com/watch?v=XXvuYGCxpkk"],
+        ["B2", "Fat Man Chins", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"], "https://www.youtube.com/watch?v=glyjer6nOjE"],
+        ["B3", "Lateral Lunge", "221", ["3 x 10 es", "3 x 10 es", "3 x 12 es", "3 x 12 es", "3 x 15 es", "3 x 15 es"], "https://www.youtube.com/watch?v=c7JApoDYgLM"],
+        ["C1", "Eccentric Nordic", "511", ["2 x 5", "2 x 6", "3 x 5", "3 x 6", "", ""], "https://www.youtube.com/watch?v=PxU20_BCgZE"],
+        ["C2", "Push Up to Toe Touch", "221", ["3 x 5 es", "3 x 5 es", "3 x 6 es", "3 x 6 es", "3 x 7 es", "3 x 7 es"], "https://www.youtube.com/watch?v=ctffzu0jWu0"],
+        ["C3", "Suitcase Carry", "Slow", ["2 Laps", "2 Laps", "3 Laps", "3 Laps", "4 Laps", "4 Laps"], "https://www.youtube.com/watch?v=bAnCoDrvXc4"],
+      ],
+    },
+    day2: { // Lvl 4 sheet: LEVEL 4 - Holiday (Body Weight) Day 2
+      power: [
+        ["A1", "Continuous Broad Jump - stick & hold 2sec", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 5"], "https://www.youtube.com/watch?v=d71OFlh3m78"],
+        ["B1", "Plyometric Push Up", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 5"], "https://www.youtube.com/watch?v=Y-uF4F3mQIs"],
+        ["S1", "Sled Accel Sprint 20m", "Fast", ["4 x 20m", "4 x 25m", "5 x 25m", "5 x 30m", "", ""], "https://www.youtube.com/watch?v=52r_Ul5k03g"],
+      ],
+      strength: [
+        ["A1", "BB Front Squat", "311", ["3 x 8", "3 x 8", "3 x 6", "3 x 6", "", ""], "https://www.youtube.com/watch?v=KGyVfgh0fhk"],
+        ["A2", "Scap Push Up", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"], "https://www.youtube.com/watch?v=LnWEIjIls-M"],
+        ["A3", "Deadbug", "111", ["2 x 10 es", "2 x 10 es", "2 x 12 es", "2 x 12 es", "2 x 15 es", "2 x 15 es"], "https://www.youtube.com/watch?v=jbWmbhElf3Q"],
+        ["B1", "Trap Bar Deadlift", "321", ["3 x 8", "3 x 8", "3 x 6", "3 x 6", "", ""], "https://www.youtube.com/watch?v=mRy9m2Q9_1I"],
+        ["B2", "Chin Up", "211", ["3 x 5", "3 x 6", "3 x 7", "3 x 8", "3 x 9", "3 x 9"], "https://www.youtube.com/watch?v=5YHZnEsE9hA"],
+        ["B3", "High Box Step Up", "321", ["3 x 5 es", "3 x 5 es", "3 x 6 es", "3 x 6 es", "3 x 7 es", "3 x 7 es"], "https://www.youtube.com/watch?v=z6PJMT2y8GQ"],
+        ["C1", "Eccentric Nordic", "511", ["2 x 5", "2 x 6", "3 x 5", "3 x 6", "", ""], "https://www.youtube.com/watch?v=tQNktxPkSeE"],
+        ["C2", "Hands Off Push Up", "321", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"], "https://www.youtube.com/watch?v=imL3mZaEiDg"],
+        ["C3", "Farmers Carry", "Slow", ["2 Laps", "2 Laps", "3 Laps", "3 Laps", "4 Laps", "4 Laps"], "https://www.youtube.com/watch?v=MH8id-EaoPA"],
+      ],
+    },
+  },
+  "opens-weights": {
+    label: "Opens · Weights",
+    minutes: 32,
+    // Senior load guide from the workbook (Weeks 5–6 wording added for the holiday block).
+    effort: ["Build: about 3 reps left in the tank (effort 7/10)", "“I could do 2 more”", "“I could do 1 more”", "Top set at or near the prescribed reps", "“I could do 2 more”", "“I could do 2 or 3 more”, ease off"],
+    rule: "Anchor your loads to your last 3RM test. Don’t underload: heavy, well-coached sets are how you adapt. Technique first. Barbell work only with a coach or adult there.",
+    // The workbook block stops at Week 5, so Week 6 repeats Week 5.
+    day1: { // Opens sheet: OPENS - Holiday (Weights) Day 1
+      power: [
+        ["A1", "Continuous Broad Jump - stick & hold 2sec", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 5"], "https://www.youtube.com/watch?v=d71OFlh3m78"],
+        ["B1", "Plyometric Push Up", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 5"], "https://www.youtube.com/watch?v=Y-uF4F3mQIs"],
+        ["S1", "Max Velocity Sprint 30m", "Fast", ["4 x 30m", "5 x 30m", "5 x 35m", "6 x 35m", "", ""], "https://www.youtube.com/watch?v=52r_Ul5k03g"],
+      ],
+      strength: [
+        ["A1", "BB Back Squat", "311", ["4 x 8", "4 x 6", "4 x 5", "4 x 5", "", ""], "https://www.youtube.com/watch?v=SniKHGKDJyU"],
+        ["A2", "Military Press", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"], "https://www.youtube.com/watch?v=ADIDoYt_ko4"],
+        ["A3", "Shoulder Taps", "111", ["2 x 10 es", "2 x 10 es", "2 x 15 es", "2 x 15 es", "2 x 20 es", "2 x 20 es"], "https://www.youtube.com/watch?v=JKUuOwsDXFs"],
+        ["B1", "BB RDL", "321", ["3 x 8", "3 x 8", "3 x 10", "3 x 10", "3 x 12", "3 x 12"], "https://www.youtube.com/watch?v=sBt6610fUiE"],
+        ["B2", "KB Upright Row", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"], "https://www.youtube.com/watch?v=OXKJC6koW2A"],
+        ["B3", "DB Walking Lunge", "221", ["3 x 6 es", "3 x 6 es", "3 x 8 es", "3 x 8 es", "3 x 10 es", "3 x 10 es"], "https://www.youtube.com/watch?v=jbWmbhElf3Q"],
+        ["C1", "Nordic", "511", ["3 x 5", "3 x 6", "3 x 6", "4 x 5", "", ""], "https://www.youtube.com/watch?v=hfpd2mpkM4w"],
+        ["C2", "Single Arm DB Row", "321", ["3 x 10 es", "3 x 10 es", "3 x 12 es", "3 x 12 es", "3 x 15 es", "3 x 15 es"], "https://www.youtube.com/watch?v=dMbbJg2ZVOo"],
+        ["C3", "Farmers Carry", "Slow", ["2 Laps", "2 Laps", "3 Laps", "3 Laps", "4 Laps", "4 Laps"], "https://www.youtube.com/watch?v=MH8id-EaoPA"],
+      ],
+    },
+    day2: { // Opens sheet: OPENS - Holiday (Weights) Day 2
+      power: [
+        ["A1", "Continuous Broad Jump - stick & hold 2sec", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 5"], "https://www.youtube.com/watch?v=d71OFlh3m78"],
+        ["B1", "Plyometric Push Up", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 5"], "https://www.youtube.com/watch?v=Y-uF4F3mQIs"],
+        ["S1", "Max Velocity Sprint 30m", "Fast", ["4 x 30m", "5 x 30m", "5 x 35m", "6 x 35m", "", ""], "https://www.youtube.com/watch?v=52r_Ul5k03g"],
+      ],
+      strength: [
+        ["A1", "BB Front Squat", "311", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"], "https://www.youtube.com/watch?v=mRy9m2Q9_1I"],
+        ["A2", "BB Bench Press", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"], "https://www.youtube.com/watch?v=bvFTLE99Nhw"],
+        ["A3", "Plank Down", "111", ["2 x 10", "2 x 10", "2 x 12", "2 x 12", "2 x 15", "2 x 15"], "https://www.youtube.com/watch?v=obtdLUWZi-Y"],
+        ["B1", "Trap Bar Deadlift", "321", ["4 x 8", "4 x 6", "4 x 5", "4 x 5", "", ""], "https://www.youtube.com/watch?v=uYumuL_G_V0"],
+        ["B2", "Chin Up", "211", ["3 x 5", "3 x 6", "3 x 7", "3 x 8", "3 x 9", "3 x 9"], "https://www.youtube.com/watch?v=ktdMS7WBwck"],
+        ["B3", "DB Lateral Lunge", "221", ["3 x 6 es", "3 x 6 es", "3 x 7 es", "3 x 7 es", "3 x 8 es", "3 x 8 es"], "https://www.youtube.com/watch?v=swOyWKk7Oko"],
+        ["C1", "Nordic", "511", ["3 x 5", "3 x 6", "3 x 6", "4 x 5", "", ""], "https://www.youtube.com/watch?v=SCVCLChPQFY"],
+        ["C2", "Trap 3 Raise", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"], "https://www.youtube.com/watch?v=5MhQS8nU-HU"],
+        ["C3", "Suitcase Carry", "Slow", ["2 Laps", "2 Laps", "3 Laps", "3 Laps", "4 Laps", "4 Laps"], "https://www.youtube.com/watch?v=L4oFJRDAU4Q"],
+      ],
+    },
+  },
+  "opens-home": {
+    label: "Opens · Body weight",
+    minutes: 32,
+    // Senior load guide from the workbook (Weeks 5–6 wording added for the holiday block).
+    effort: ["Build: about 3 reps left in the tank (effort 7/10)", "“I could do 2 more”", "“I could do 1 more”", "Top set at or near the prescribed reps", "“I could do 2 more”", "“I could do 2 or 3 more”, ease off"],
+    rule: "Anchor your loads to your last 3RM test. Don’t underload: heavy, well-coached sets are how you adapt. Technique first. Barbell work only with a coach or adult there.",
+    // The workbook block stops at Week 5, so Week 6 repeats Week 5.
+    day1: { // Opens sheet: OPENS - Holiday (Body Weight) Day 1
+      power: [
+        ["A1", "Continuous Broad Jump - stick & hold 2sec", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 5"], "https://www.youtube.com/watch?v=d71OFlh3m78"],
+        ["B1", "Plyometric Push Up", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 5"], "https://www.youtube.com/watch?v=Y-uF4F3mQIs"],
+        ["S1", "Max Velocity Sprint 30m", "Fast", ["4 x 30m", "5 x 30m", "5 x 35m", "6 x 35m", "", ""], "https://www.youtube.com/watch?v=52r_Ul5k03g"],
+      ],
+      strength: [
+        ["A1", "Heel Elevated Squat", "321", ["3 x 15", "3 x 15", "3 x 18", "3 x 18", "3 x 20", "3 x 20"], "https://www.youtube.com/watch?v=YcHQ3eQXLc8"],
+        ["A2", "Bench Dips", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"], "https://www.youtube.com/watch?v=gwWv7aPcD88"],
+        ["A3", "Side Plank Hip Drop", "Slow", ["2 x 10 es", "2 x 10 es", "2 x 12 es", "2 x 12 es", "2 x 15 es", "2 x 15 es"], "https://www.youtube.com/watch?v=JKUuOwsDXFs"],
+        ["B1", "Single Leg RDL", "221", ["3 x 5 es", "3 x 5 es", "3 x 6 es", "3 x 6 es", "3 x 7 es", "3 x 7 es"], "https://www.youtube.com/watch?v=XXvuYGCxpkk"],
+        ["B2", "Fat Man Chins", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"], "https://www.youtube.com/watch?v=glyjer6nOjE"],
+        ["B3", "Lateral Lunge", "221", ["3 x 10 es", "3 x 10 es", "3 x 12 es", "3 x 12 es", "3 x 15 es", "3 x 15 es"], "https://www.youtube.com/watch?v=c7JApoDYgLM"],
+        ["C1", "Nordic", "511", ["3 x 5", "3 x 6", "3 x 6", "4 x 5", "", ""], "https://www.youtube.com/watch?v=PxU20_BCgZE"],
+        ["C2", "Push Up to Toe Touch", "221", ["3 x 5 es", "3 x 5 es", "3 x 6 es", "3 x 6 es", "3 x 7 es", "3 x 7 es"], "https://www.youtube.com/watch?v=ctffzu0jWu0"],
+        ["C3", "Suitcase Carry", "Slow", ["2 Laps", "2 Laps", "3 Laps", "3 Laps", "4 Laps", "4 Laps"], "https://www.youtube.com/watch?v=bAnCoDrvXc4"],
+      ],
+    },
+    day2: { // Opens sheet: OPENS - Holiday (Body Weight) Day 2
+      power: [
+        ["A1", "Continuous Broad Jump - stick & hold 2sec", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 5"], "https://www.youtube.com/watch?v=d71OFlh3m78"],
+        ["B1", "Plyometric Push Up", "Fast", ["2 x 3", "2 x 4", "2 x 4", "2 x 5", "2 x 5", "2 x 5"], "https://www.youtube.com/watch?v=Y-uF4F3mQIs"],
+        ["S1", "Max Velocity Sprint 30m", "Fast", ["4 x 30m", "5 x 30m", "5 x 35m", "6 x 35m", "", ""], "https://www.youtube.com/watch?v=52r_Ul5k03g"],
+      ],
+      strength: [
+        ["A1", "BB Back Squat", "311", ["4 x 8", "4 x 6", "4 x 5", "4 x 5", "", ""], "https://www.youtube.com/watch?v=KGyVfgh0fhk"],
+        ["A2", "Scap Push Up", "221", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"], "https://www.youtube.com/watch?v=LnWEIjIls-M"],
+        ["A3", "Deadbug", "111", ["2 x 10 es", "2 x 10 es", "2 x 12 es", "2 x 12 es", "2 x 15 es", "2 x 15 es"], "https://www.youtube.com/watch?v=jbWmbhElf3Q"],
+        ["B1", "Trap Bar Deadlift", "321", ["4 x 8", "4 x 6", "4 x 5", "4 x 5", "", ""], "https://www.youtube.com/watch?v=mRy9m2Q9_1I"],
+        ["B2", "Chin Up", "211", ["3 x 5", "3 x 6", "3 x 7", "3 x 8", "3 x 9", "3 x 9"], "https://www.youtube.com/watch?v=5YHZnEsE9hA"],
+        ["B3", "High Box Step Up", "321", ["3 x 5 es", "3 x 5 es", "3 x 6 es", "3 x 6 es", "3 x 7 es", "3 x 7 es"], "https://www.youtube.com/watch?v=z6PJMT2y8GQ"],
+        ["C1", "Nordic", "511", ["3 x 5", "3 x 6", "3 x 6", "4 x 5", "", ""], "https://www.youtube.com/watch?v=tQNktxPkSeE"],
+        ["C2", "Hands Off Push Up", "321", ["3 x 10", "3 x 10", "3 x 12", "3 x 12", "3 x 15", "3 x 15"], "https://www.youtube.com/watch?v=imL3mZaEiDg"],
+        ["C3", "Farmers Carry", "Slow", ["2 Laps", "2 Laps", "3 Laps", "3 Laps", "4 Laps", "4 Laps"], "https://www.youtube.com/watch?v=MH8id-EaoPA"],
       ],
     },
   },
@@ -851,7 +990,7 @@ const GYM_PROGRAMS = {
   }
   function exercisesFor(list, week) {
     const i = weekPos(week);
-    return (list || []).map(([slot, name, tempo, wk]) => ({ slot, name, tempo, dose: (wk && wk[i]) || "" })).filter(e => e.dose);
+    return (list || []).map(([slot, name, tempo, wk, video]) => ({ slot, name, tempo, video: video || "", dose: (wk && wk[i]) || "" })).filter(e => e.dose);
   }
   function fmtDose(d) {
     return String(d)
@@ -1006,7 +1145,7 @@ const GYM_PROGRAMS = {
         const day = g.prog["day" + (s.gymDay || 1)];
         const main = exercisesFor(day.strength, s.week).filter(e => /^(A1|B1|B2)$/.test(e.slot)).map(e => e.name);
         title = `${esc(s.title)} · ${esc(g.where)}`;
-        lines.push(`${esc(g.label)} · about ${CONFIG.gym.minutes} min`);
+        lines.push(`${esc(g.label)} · about ${g.prog.minutes || CONFIG.gym.minutes} min`);
         if (main.length) lines.push(esc(main.join(" · ")));
       } else {
         lines.push(`<span class="warnline">Choose your year level to see your program</span>`);
@@ -1234,7 +1373,8 @@ const GYM_PROGRAMS = {
       const slotName = CONFIG.gym.slotNames[e.slot];
       return `<li><span class="slot">${esc(e.slot)}</span><span class="nm">${esc(e.name)}</span><span class="dose">${esc(fmtDose(e.dose))}</span>
         <span class="sub2">${slotName && e.slot.length === 2 && !/^S/.test(e.slot) && withCues === "strength" ? esc(slotName) + " · " : ""}${esc(fmtTempo(e.tempo))}</span>
-        ${cue ? `<span class="cue">✓ ${esc(cue.say)}</span>` : ""}</li>`;
+        ${cue ? `<span class="cue">✓ ${esc(cue.say)}</span>` : ""}
+        ${/^https:\/\/(www\.)?(youtube\.com|youtu\.be)\//.test(e.video) ? `<a class="vid" href="${esc(e.video)}" target="_blank" rel="noopener noreferrer">▶ Watch how<span class="sr"> to do ${esc(e.name)} (opens YouTube)</span></a>` : ""}</li>`;
     }).join("")}</ul>`;
   }
 
@@ -1254,8 +1394,8 @@ const GYM_PROGRAMS = {
     const anyTempo = strength.some(e => /^\d{3}$/.test(String(e.tempo)));
     let html = `<section><div class="facts">
         <div class="fact"><span>Program</span><b>${esc(g.label)}</b></div>
-        <div class="fact"><span>Time</span><b>About ${CONFIG.gym.minutes} min</b></div>
-        <div class="fact wide"><span>How hard this week</span><b style="font-size:17px">${esc(w.effort || "")}</b></div>
+        <div class="fact"><span>Time</span><b>About ${g.prog.minutes || CONFIG.gym.minutes} min</b></div>
+        <div class="fact wide"><span>How hard this week</span><b style="font-size:17px">${esc((g.prog.effort && g.prog.effort[weekPos(s.week)]) || w.effort || "")}</b></div>
       </div></section>`;
     html += `<section><h3>Warm-up · do every session</h3>
       <ul class="ex-list">${CONFIG.gym.warmup.map(([n, d, c]) => `<li><span class="slot">•</span><span class="nm">${esc(n)}</span><span class="dose">${esc(d)}</span><span class="sub2">${esc(c)}</span></li>`).join("")}</ul></section>`;
@@ -1264,7 +1404,7 @@ const GYM_PROGRAMS = {
       <p class="hint" style="margin-top:0">Do each group as a circuit: one set of each exercise back-to-back, rest 60–90 seconds, then repeat until all sets are done.${anyTempo ? " Tempo 3-2-1 means 3 seconds lowering, 2 seconds pause, 1 second up." : ""} “Each side” means both legs or arms.</p>
       ${groups.map(gr => `<div class="group-h">Group ${gr.L} <small>(${gr.items.map(e => e.slot).join(", ")})</small></div>${exListHTML(gr.items, "strength")}`).join("")}
     </section>`;
-    html += `<section><div class="callout">${esc(CONFIG.gym.rule)} Stop if something hurts sharply or in a joint. Normal muscle soreness is OK.</div></section>`;
+    html += `<section><div class="callout">${esc(g.prog.rule || CONFIG.gym.rule)} Stop if something hurts sharply or in a joint. Normal muscle soreness is OK.</div></section>`;
     return html;
   }
 
